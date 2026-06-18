@@ -1,6 +1,7 @@
 #[derive(Debug, Clone)]
 pub enum PengType {
     Nil,
+    
     Int,
     Uint,
     Float32,

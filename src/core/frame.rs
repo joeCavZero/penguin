@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::utils::*;
 use crate::cell::*;
 
@@ -16,9 +18,19 @@ pub struct PengBytecodeFrame {
     pub generics: Vec<PengCell>,
     pub env_params: Vec<PengCell>,
     pub params: Vec<PengCell>,
+    pub locals: Vec<PengCell>,
+
+    pub value_table: HashMap<PengNamePoolPtr, PengFrameValue>
 }
 
 #[derive(Debug, Clone)]
 pub struct PengNativeFrame {
     pub function: PengValuePtr,
+}
+
+#[derive(Debug, Clone)]
+pub enum PengFrameValue {
+    Generic(usize),
+    EnvParam(usize),
+    Param(usize),
 }

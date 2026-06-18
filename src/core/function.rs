@@ -16,4 +16,5 @@ pub enum PengFunction {
 pub struct PengBytecodeFunction {
     pub bytecode: Vec<PengInstruction>,
     pub env_param_names: Vec<PengNamePoolPtr>,
+    pub using_values: Vec<PengValuePtr>,
 }
