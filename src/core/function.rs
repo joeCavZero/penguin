@@ -8,13 +8,15 @@ use crate::error::*;
 pub enum PengFunction {
     Bytecode(PengBytecodeFunction),
     Native(
-        fn(&mut PengNativeFunctionContext) -> Result<Option<PengCell>, PengError>
+        fn(&mut PengNativeFunctionContext) -> Result<PengCell, PengError>
     ),
 }
 
 #[derive(Debug, Clone)]
 pub struct PengBytecodeFunction {
     pub bytecode: Vec<PengInstruction>,
-    pub env_param_names: Vec<PengNamePoolPtr>,
+    /// Points to complex heap values, like functions, threads, types, ...
+    pub consts: Vec<PengValuePtr>,
+    pub generics_count: usize,
     pub using_values: Vec<PengValuePtr>,
 }

@@ -14,23 +14,12 @@ pub struct PengBytecodeFrame {
     pub instruction_counter: usize,
     pub base: usize,
     pub function: PengValuePtr,
-    
-    pub generics: Vec<PengCell>,
-    pub env_params: Vec<PengCell>,
-    pub params: Vec<PengCell>,
-    pub locals: Vec<PengCell>,
-
-    pub value_table: HashMap<PengNamePoolPtr, PengFrameValue>
+    pub params_count: usize,
 }
 
 #[derive(Debug, Clone)]
 pub struct PengNativeFrame {
+    pub base: usize,
     pub function: PengValuePtr,
-}
-
-#[derive(Debug, Clone)]
-pub enum PengFrameValue {
-    Generic(usize),
-    EnvParam(usize),
-    Param(usize),
+    pub params_count: usize,
 }

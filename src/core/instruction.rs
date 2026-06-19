@@ -1,23 +1,25 @@
 use crate::cell::*;
 use crate::utils::*;
-use crate::typing::*;
 
 #[derive(Debug, Clone)]
 pub enum PengInstruction {
-    PushGeneric(usize),
-    PushEnvParam(usize),
-    PushParam(usize),
+    PushConst(usize),
 
-    PushCell(PengCell), 
-    PushString(PengNamePoolPtr),    
+    PushLocal(usize),   // ...| ---> ...|v| , v := *<usize>
+    StoreLocal(usize),  // ...|v| ---> ...| , *<usize> := v
 
-    CreateObjectType(PengValuePtr), // create obj of type with default fields
+    StoreValue,   // ...|ref|v ---> ...| , *ref := v
 
-    Convert(PengType), // only uses int, uint, f32, f64, byte, bool string
+    PushCell(PengCell), // peng cell has stack values and references to values (globals are reachable by these references)
+    PushString(PengNamePoolPtr),
+
+    CreateObjectType,   // ...|t| ---> ...|tobj| , create obj of type with default fields
+
+    Convert,    //
+    CheckType,
 
     Duplicate(usize), // duplicate <usize> cells from top
     Pop(usize), // pops <usize> cells
-
 
     Add,    // ...|v1|v2| ---> ...|v1+v2|
     Subtract,
@@ -40,20 +42,21 @@ pub enum PengInstruction {
     LessThan,
     LessEqualsThan,
 
-    Call {  // ...|func| ---> calls func x generics, y env_params, z params
+    Call {  // ...|func|g0..gn|p0..pn| ---> ...|ret?|
         generics: usize,
-        env_params: usize,
         params: usize,
     },
 
-    GetIndex,   // ...|vec|index| ---> ...|get|
-    SetIndex,   // ...|vec|index|v| ---> ...|
+    GetIndex,       // ...|vec|index| ---> ...|val|
+    GetIndexRef,    // ...|vec|index| ---> ...|val ref|
     
-    GetAttribute,   // ...|obj|attr| ---> ...|val
-    SetAttribute,   // ...|obj|attr|val| ---> ...|
-
-    GetMember(PengNamePoolPtr), // ...|mod| ---> ...|member|
-    SetMember(PengNamePoolPtr), // ...|mod|member| ---> ...|
+    GetConstAttribute(PengNamePoolPtr),      // ...|obj| ---> ...|val
+    GetConstAttributeRef(PengNamePoolPtr),   // ...|obj| ---> ...|val ref|
+    GetConstMember(PengNamePoolPtr),     // ...|mod| ---> ...|member|
+    GetConstMemberRef(PengNamePoolPtr),  // ...|mod| ---> ...|member ref|
+    
+    GetAttribute,     // ...|obj|attr| ---> ...|val
+    GetAttributeRef,  // ...|obj|attr| ---> ...|val ref|
 
     Jump(usize),
     JumpIfTrue(usize),

@@ -1,7 +1,11 @@
+use std::collections::HashMap;
+
+use crate::utils::*;
+
 #[derive(Debug, Clone)]
 pub enum PengType {
     Nil,
-    
+
     Int,
     Uint,
     Float32,
@@ -11,7 +15,8 @@ pub enum PengType {
     String,
 
     Object,
-    Vector,
+    Vector(Box<PengType>),
+
     Type,
     Module,
 
@@ -19,7 +24,14 @@ pub enum PengType {
     Operator,
     Thread,
 
+    Custom(PengCustomType),
+
     Any,
 
     Union(Vec<PengType>),
+}
+
+#[derive(Debug, Clone)]
+pub struct PengCustomType {
+    pub fields: HashMap<PengNamePoolPtr, Option<PengValuePtr>>,
 }
