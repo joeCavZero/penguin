@@ -1,6 +1,8 @@
 use crate::core::*;
 use crate::lexer::*;
 
+pub type PengPositionedToken = PengPositioned<PengToken>;
+
 impl PengPositioned<PengToken> {
     pub fn from_string(source: String, position: PengPosition) -> Result<Self, String> {
         match PengToken::from_string(source) {
@@ -22,7 +24,6 @@ impl PengPositioned<PengToken> {
     pub fn token_display(&self) -> String {
         match &self.value {
             PengToken::Identifier(s) => format!("Identifier({})", s),
-            PengToken::NumberLiteral(v) => format!("NumberLiteral({})", v),
             PengToken::StringLiteral(s) => format!("String(\"{}\")", s),
             other => format!("{:?}", other),
         }

@@ -16,9 +16,90 @@ pub type PengPositionedFunctionParam = PengPositioned<PengFunctionParam>;
 pub type PengPositionedLiteral = PengPositioned<PengLiteral>;
 
 #[derive(Debug, Clone)]
-pub enum PengAST {
-    Program(Vec<PengPositionedStatement>),
+pub struct PengAST {
+    pub program: Vec<PengPositionedStatement>,
 }
+
+
+impl PengAST {
+    pub fn pretty_print(&self) {
+        println!("AST program:");
+        for stmt in &self.program {
+            self.print_statement(&stmt.value, 1);
+        }
+    }
+
+    fn print_indent(level: usize) {
+        print!("{}", "  ".repeat(level));
+    }
+
+    fn print_statement(&self, stmt: &PengStatement, level: usize) {
+        match stmt {
+            PengStatement::Block(stmts) => {
+                Self::print_indent(level); println!("Block");
+                for s in stmts { self.print_statement(&s.value, level + 1); }
+            }
+            PengStatement::Declaration(decl) => self.print_declaration(decl, level),
+            PengStatement::Return(expr) => {
+                Self::print_indent(level); println!("Return");
+                if let Some(e) = expr { self.print_expression(&e.value, level + 1); }
+            }
+            PengStatement::If(if_stmt) => {
+                Self::print_indent(level); println!("If Statement");
+                self.print_expression(&if_stmt.condition.value, level + 1);
+                for s in &if_stmt.then_branch { self.print_statement(&s.value, level + 2); }
+            }
+            PengStatement::Expression(expr) => self.print_expression(&expr.value, level),
+            _ => {
+                Self::print_indent(level);
+                println!("Statement: {:?}", stmt);
+            }
+        }
+    }
+
+    fn print_declaration(&self, decl: &PengDeclaration, level: usize) {
+        Self::print_indent(level);
+        match decl {
+            PengDeclaration::Variable(v) => {
+                println!("VarDecl: {}", v.value.name.value);
+                if let Some(val) = &v.value.value {
+                    self.print_expression(&val.value, level + 1);
+                }
+            }
+            PengDeclaration::Function(f) => {
+                println!("FuncDecl: {}", f.value.name.value);
+                for s in &f.value.body { self.print_statement(&s.value, level + 1); }
+            }
+            PengDeclaration::Module(m) => {
+                println!("Module: {}", m.value.name.value);
+                for d in &m.value.body { self.print_declaration(d, level + 1); }
+            }
+            _ => println!("Declaration: {:?}", decl),
+        }
+    }
+
+    fn print_expression(&self, expr: &PengExpression, level: usize) {
+        Self::print_indent(level);
+        match expr {
+            PengExpression::Literal(lit) => println!("Literal: {:?}", lit.value),
+            PengExpression::Identifier(id) => println!("Identifier: {}", id.value),
+            PengExpression::Binary { left, operator, right } => {
+                println!("BinaryOp: {:?}", operator);
+                self.print_expression(&left.value, level + 1);
+                self.print_expression(&right.value, level + 1);
+            }
+            PengExpression::Unary { operator, value } => {
+                println!("UnaryOp: {:?}", operator);
+                self.print_expression(&value.value, level + 1);
+            }
+            PengExpression::FuncCall(f) => {
+                println!("FuncCall: {:?}", f.function.value);
+            }
+            _ => println!("Expression: {:?}", expr),
+        }
+    }
+}
+
 
 #[derive(Debug, Clone)]
 pub enum PengDeclaration {
@@ -118,7 +199,7 @@ pub struct PengFunctionParam {
 #[derive(Debug, Clone)]
 pub struct PengTypeDeclaration {
     pub name: PengPositioned<String>,
-    pub supers: Vec<PengPositionedTypeExpression>,
+    pub supers: Vec<PengPositionedExpression>,
     pub fields: Vec<PengPositionedVariableDeclaration>,
     pub functions: Vec<PengPositionedFunctionDeclaration>,
 }
@@ -243,7 +324,7 @@ pub enum PengTypeExpression {
 
 #[derive(Debug, Clone)]
 pub struct PengTypeLiteral {
-    pub supers: Vec<PengPositionedTypeExpression>,
+    pub supers: Vec<PengPositionedExpression>,
     pub fields: Vec<PengPositionedVariableDeclaration>,
     pub functions: Vec<PengPositionedFunctionDeclaration>,
 }

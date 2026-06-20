@@ -79,7 +79,6 @@ pub enum PengToken {
     Identifier(String),
 
     // ( all numbers discards '_' ; needs to start with numbers (no underline at start))
-    NumberLiteral(String), // used for generic numbers :: 1, 10, 2138, 1_00_0 (1000 (discards '_'))
     IntLiteral(isize), // 1i, 2i 4_0i (i suffix) (discards '_')
     UintLiteral(usize), // 10u suffix u
     ByteLiteral(u8), // 10b
@@ -95,7 +94,6 @@ pub enum PengToken {
 
 impl PengToken {
     pub fn from_string(source: String) -> Result<Self, String> {
-
         let fixed = match source.as_str() {
             "nil" => Some(Self::Nil),
             "int" => Some(Self::Int),
@@ -186,11 +184,11 @@ impl PengToken {
             return Ok(token);
         }
 
-        if let Some(number_token) = Self::parse_number_literal(&source)? {
-            return Ok(number_token);
+        match Self::parse_number_literal(&source) {
+            Ok(Some(number_token)) => Ok(number_token),
+            Ok(None) => Ok(Self::Identifier(source)),
+            Err(e) => Err(e),
         }
-
-        Ok(Self::Identifier(source))
     }
 
     fn parse_number_literal(source: &str) -> Result<Option<Self>, String> {
@@ -217,26 +215,36 @@ impl PengToken {
         }
 
         if let Some(body) = clean.strip_suffix('i') {
-            return Self::parse_int::<isize>(body, source).map(Self::IntLiteral).map(Some);
+            return match Self::parse_int::<isize>(body, source) {
+                Ok(val) => Ok(Some(Self::IntLiteral(val))),
+                Err(e) => Err(e),
+            };
         }
 
         if let Some(body) = clean.strip_suffix('u') {
-            return Self::parse_int::<usize>(body, source).map(Self::UintLiteral).map(Some);
+            return match Self::parse_int::<usize>(body, source) {
+                Ok(val) => Ok(Some(Self::UintLiteral(val))),
+                Err(e) => Err(e),
+            };
         }
 
         if let Some(body) = clean.strip_suffix('b') {
-            let value = Self::parse_int::<u8>(body, source)?;
-
-            return Ok(Some(Self::ByteLiteral(value)));
+            return match Self::parse_int::<u8>(body, source) {
+                Ok(val) => Ok(Some(Self::ByteLiteral(val))),
+                Err(e) => Err(e),
+            };
         }
 
         if Self::is_digits(&clean) {
-            return Ok(Some(Self::NumberLiteral(clean)));
+            return match clean.parse::<isize>() {
+                Ok(val) => Ok(Some(Self::IntLiteral(val))),
+                Err(_) => Err(format!("invalid number literal: {}", source)),
+            };
         }
 
         Err(format!("invalid number literal: {}", source))
     }
-
+    
     fn parse_int<T>(body: &str, original: &str) -> Result<T, String>
     where
         T: std::str::FromStr,
