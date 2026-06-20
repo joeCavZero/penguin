@@ -45,6 +45,8 @@ pub enum PengInstruction {
         params: usize,
     },
 
+    SuperType(usize), // creates a new type with usize supers
+
     GetIndex,       // ...|vec|index| ---> ...|val|
     GetIndexRef,    // ...|vec|index| ---> ...|val ref|
     
@@ -52,9 +54,6 @@ pub enum PengInstruction {
     GetConstAttributeRef(PengNamePoolPtr),   // ...|obj| ---> ...|val ref|
     GetConstMember(PengNamePoolPtr),     // ...|mod| ---> ...|member|
     GetConstMemberRef(PengNamePoolPtr),  // ...|mod| ---> ...|member ref|
-    
-    GetAttribute,     // ...|obj|attr| ---> ...|val
-    GetAttributeRef,  // ...|obj|attr| ---> ...|val ref|
 
     Jump(usize),
     JumpIfTrue(usize),

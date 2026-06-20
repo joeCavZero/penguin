@@ -1,5 +1,4 @@
 use crate::core::*;
-use crate::lexer::*;
 use crate::parser::*;
 
 pub fn parse_program(

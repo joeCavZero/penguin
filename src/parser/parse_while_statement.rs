@@ -1,10 +1,69 @@
 use crate::core::*;
+use crate::lexer::*;
 use crate::parser::*;
 
 pub fn parse_while_statement(
-    _ptokens: &mut PengPeekablePositionedToken,
+    ptokens: &mut PengPeekablePositionedToken,
 ) -> Result<PengPositionedStatement, PengError> {
-    Err(PengError::new_message(
-        "parse_while_statement not implemented".to_string()
-    ))
+    let while_token = match ptokens.next() {
+        Some(token) => token,
+        None => {
+            return Err(PengError::new_message(
+                "expected while statement".to_string(),
+            ));
+        }
+    };
+
+    match &while_token.value {
+        PengToken::While => {}
+        _ => {
+            return Err(PengError::new_positioned_message(
+                "expected 'while'".to_string(),
+                while_token.position.clone(),
+            ));
+        }
+    }
+
+    let condition = match parse_expression(ptokens) {
+        Ok(expression) => expression,
+        Err(e) => return Err(e),
+    };
+
+    match ptokens.peek() {
+        Some(token) => match &token.value {
+            PengToken::LeftCurlyBrace => {}
+            _ => {
+                return Err(PengError::new_positioned_message(
+                    "expected block after while condition".to_string(),
+                    token.position.clone(),
+                ));
+            }
+        },
+        None => {
+            return Err(PengError::new_positioned_message(
+                "expected block after while condition".to_string(),
+                condition.position.clone(),
+            ));
+        }
+    }
+
+    let body_statement = match parse_block_statement(ptokens) {
+        Ok(statement) => statement,
+        Err(e) => return Err(e),
+    };
+
+    let body = match body_statement.value {
+        PengStatement::Block(statements) => statements,
+        _ => {
+            return Err(PengError::new_positioned_message(
+                "expected block after while condition".to_string(),
+                body_statement.position.clone(),
+            ));
+        }
+    };
+
+    Ok(PengPositioned {
+        value: PengStatement::While(PengWhileStatement { condition, body }),
+        position: while_token.position.clone(),
+    })
 }

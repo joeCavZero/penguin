@@ -7,6 +7,8 @@ pub enum PengToken {
     Float64,
     String,
     Byte,
+    Bool,
+    Any,
 
     Type,
 
@@ -57,12 +59,15 @@ pub enum PengToken {
     DoublePipe,
 
     Exclamation,
+    Question,
     Arrow,
 
     Var,
     Func,
+    Oper,
     Mod,
     Match,
+    Try,
     Return,
     If,
     Else,
@@ -104,6 +109,8 @@ impl PengToken {
 
             "string" => Some(Self::String),
             "byte" => Some(Self::Byte),
+            "bool" => Some(Self::Bool),
+            "any" => Some(Self::Any),
 
             "type" => Some(Self::Type),
 
@@ -137,6 +144,7 @@ impl PengToken {
             "||" => Some(Self::DoublePipe),
 
             "!" => Some(Self::Exclamation),
+            "?" => Some(Self::Question),
             "->" => Some(Self::Arrow),
 
             "<" => Some(Self::LessThan),
@@ -156,8 +164,10 @@ impl PengToken {
 
             "var" => Some(Self::Var),
             "func" => Some(Self::Func),
+            "oper" => Some(Self::Oper),
             "mod" => Some(Self::Mod),
             "match" => Some(Self::Match),
+            "try" => Some(Self::Try),
             "return" => Some(Self::Return),
             "if" => Some(Self::If),
             "else" => Some(Self::Else),

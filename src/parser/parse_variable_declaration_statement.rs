@@ -1,6 +1,7 @@
 use crate::core::*;
 use crate::lexer::*;
 use crate::parser::*;
+use crate::parser::parse_utils::consume_optional_semicolon;
 
 pub fn parse_variable_declaration_statement(
     ptokens: &mut PengPeekablePositionedToken,
@@ -95,18 +96,9 @@ pub fn parse_variable_declaration_statement(
         }
     }
 
-    let has_semicolon = match ptokens.peek() {
-        Some(t) => {
-            match &t.value {
-                PengToken::Semicolon => true,
-                _ => false,
-            }
-        }
-        None => false,
-    };
-
-    if has_semicolon {
-        ptokens.next();
+    match consume_optional_semicolon(ptokens) {
+        Ok(()) => {}
+        Err(e) => return Err(e),
     }
 
     let declaration = PengVariableDeclaration {

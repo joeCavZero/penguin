@@ -101,12 +101,12 @@ where
     F: FnMut(LexerCallbackResponse, usize, Option<usize>),
 {
     let mut special_tokens = vec![
-        "=", ".", ":", ";", ",",  
+        "=", ".", "..", "...", ":", ";", ",",
         "(", ")", "{", "}", "[", "]", 
         "<", ">", "<=", ">=", "==", "!=", 
         "+", "-", "*", "**", "/", "%", 
         "+=", "-=", "*=", "**=", "/=", "%=", 
-        "&", "|", "&&", "||", "!", "->"
+        "&", "|", "&&", "||", "!", "?", "->"
     ];
     let mut string_separators = vec![("\"", "\""), ("#\"", "\"#")];
 
@@ -545,7 +545,17 @@ fn read_number_at(s: &str, start: usize) -> Option<(String, usize)> {
     }
 
     // parte decimal: 1.0, 1_._0, 1.0__
-    if let Some('.') = peek_char_at(s, i) {
+    let has_decimal_dot = match peek_char_at(s, i) {
+        Some('.') => {
+            match peek_char_at(s, i + 1) {
+                Some('.') => false,
+                _ => true,
+            }
+        }
+        _ => false,
+    };
+
+    if has_decimal_dot {
         out.push('.');
         i += '.'.len_utf8();
 

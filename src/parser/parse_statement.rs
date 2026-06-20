@@ -1,6 +1,7 @@
 use crate::core::*;
 use crate::lexer::*;
 use crate::parser::*;
+use crate::parser::parse_utils::consume_optional_semicolon;
 
 pub fn parse_statement(
     ptokens: &mut PengPeekablePositionedToken,
@@ -17,7 +18,7 @@ pub fn parse_statement(
         }
     };
 
-    match &token.value {
+    let statement = match &token.value {
         PengToken::LeftCurlyBrace => {
             parse_block_statement(ptokens)
         }
@@ -38,6 +39,10 @@ pub fn parse_statement(
             parse_module_declaration_statement(ptokens)
         }
 
+        PengToken::Oper => {
+            parse_operation_declaration_statement(ptokens)
+        }
+
         PengToken::Return => {
             parse_return_statement(ptokens)
         }
@@ -48,6 +53,14 @@ pub fn parse_statement(
 
         PengToken::While => {
             parse_while_statement(ptokens)
+        }
+
+        PengToken::For => {
+            parse_for_statement(ptokens)
+        }
+
+        PengToken::Loop => {
+            parse_loop_statement(ptokens)
         }
 
         PengToken::Break => {
@@ -61,5 +74,17 @@ pub fn parse_statement(
         _ => {
             parse_expression_statement(ptokens)
         }
+    };
+
+    let statement = match statement {
+        Ok(statement) => statement,
+        Err(e) => return Err(e),
+    };
+
+    match consume_optional_semicolon(ptokens) {
+        Ok(()) => {}
+        Err(e) => return Err(e),
     }
+
+    Ok(statement)
 }
