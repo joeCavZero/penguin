@@ -13,6 +13,7 @@ pub mod error;
 pub mod position;
 pub mod context;
 pub mod instruction;
+pub mod positioned;
 
 pub use env::*;
 pub use thread::*;
@@ -29,3 +30,4 @@ pub use error::*;
 pub use position::*;
 pub use context::*;
 pub use instruction::*;
+pub use positioned::*;

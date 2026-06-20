@@ -1,8 +1,8 @@
-use crate::cell::PengCell;
+use crate::utils::*;
 
 #[derive(Debug, Clone)]
 pub struct PengVector {
-    values: Vec<PengCell>
+    values: Vec<PengValuePtr>
 }
 
 impl PengVector {
@@ -12,7 +12,7 @@ impl PengVector {
         }
     }
 
-    pub fn push(&mut self, value: PengCell) {
+    pub fn push(&mut self, value: PengValuePtr) {
         self.values.push(value);
     }
 }

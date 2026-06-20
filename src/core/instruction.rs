@@ -1,4 +1,3 @@
-use crate::cell::*;
 use crate::utils::*;
 
 #[derive(Debug, Clone)]
@@ -10,7 +9,6 @@ pub enum PengInstruction {
 
     StoreValue,   // ...|ref|v ---> ...| , *ref := v
 
-    PushCell(PengCell), // peng cell has stack values and references to values (globals are reachable by these references)
     PushString(PengNamePoolPtr),
 
     CreateObjectType,   // ...|t| ---> ...|tobj| , create obj of type with default fields
