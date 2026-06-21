@@ -13,7 +13,7 @@ pub enum PengFunction {
     ),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct PengBytecodeFunction {
     pub bytecode: Vec<PengInstruction>,
     pub consts: Vec<PengValue>,
@@ -21,18 +21,38 @@ pub struct PengBytecodeFunction {
     pub using_values: Vec<PengValuePtr>,
 }
 
-impl PartialEq for PengFunction {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (
-                PengFunction::Bytecode(left),
-                PengFunction::Bytecode(right),
-            ) => left == right,
-            (
-                PengFunction::Native(left),
-                PengFunction::Native(right),
-            ) => std::ptr::fn_addr_eq(*left, *right),
+impl PengFunction {
+    pub fn equals(&self, rhs: &Self) -> bool {
+        match (self, rhs) {
+            (Self::Bytecode(left), Self::Bytecode(right)) => left.equals(right),
+            (Self::Native(left), Self::Native(right)) => {
+                std::ptr::fn_addr_eq(*left, *right)
+            }
             _ => false,
         }
+    }
+}
+
+impl PengBytecodeFunction {
+    pub fn equals(&self, rhs: &Self) -> bool {
+        self.bytecode.len() == rhs.bytecode.len()
+            && self
+                .bytecode
+                .iter()
+                .zip(&rhs.bytecode)
+                .all(|(left, right)| left.equals(right))
+            && self.consts.len() == rhs.consts.len()
+            && self
+                .consts
+                .iter()
+                .zip(&rhs.consts)
+                .all(|(left, right)| left.equals(right))
+            && self.generics_count == rhs.generics_count
+            && self.using_values.len() == rhs.using_values.len()
+            && self
+                .using_values
+                .iter()
+                .zip(&rhs.using_values)
+                .all(|(left, right)| left == right)
     }
 }

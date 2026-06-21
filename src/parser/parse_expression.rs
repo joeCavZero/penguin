@@ -488,8 +488,10 @@ fn binary_operator_from_token(token: &PengToken) -> Option<PengBinaryOperator> {
 
         PengToken::DoubleDot => Some(PengBinaryOperator::Concat),
 
-        PengToken::Ampersand | PengToken::DoubleAmpersand => Some(PengBinaryOperator::And),
-        PengToken::Pipe | PengToken::DoublePipe => Some(PengBinaryOperator::Or),
+        PengToken::Ampersand => Some(PengBinaryOperator::NonShortCircuitAnd),
+        PengToken::DoubleAmpersand => Some(PengBinaryOperator::ShortCircuitAnd),
+        PengToken::Pipe => Some(PengBinaryOperator::NonShortCircuitOr),
+        PengToken::DoublePipe => Some(PengBinaryOperator::ShortCircuitOr),
 
         PengToken::DoubleEquals => Some(PengBinaryOperator::Equals),
         PengToken::ExclamationEquals => Some(PengBinaryOperator::NotEquals),
@@ -506,8 +508,10 @@ fn binary_operator_from_token(token: &PengToken) -> Option<PengBinaryOperator> {
 
 fn binary_binding_power(op: &PengBinaryOperator) -> (u8, u8) {
     match op {
-        PengBinaryOperator::Or => (2, 3),
-        PengBinaryOperator::And => (4, 5),
+        PengBinaryOperator::ShortCircuitOr
+        | PengBinaryOperator::NonShortCircuitOr => (2, 3),
+        PengBinaryOperator::ShortCircuitAnd
+        | PengBinaryOperator::NonShortCircuitAnd => (4, 5),
 
         PengBinaryOperator::Equals
         | PengBinaryOperator::NotEquals

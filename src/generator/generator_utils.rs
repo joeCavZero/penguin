@@ -41,7 +41,7 @@ impl PengGeneratorContext {
                 None => break,
             };
 
-            if existing == &value {
+            if existing.equals(&value) {
                 const_index = Some(index);
                 break;
             }
@@ -290,12 +290,41 @@ pub fn generate_expression(
                 Err(e) => return Err(e),
             }
 
-            match generate_expression(env, context, right) {
-                Ok(()) => {}
-                Err(e) => return Err(e),
+            match operator {
+                PengBinaryOperator::ShortCircuitAnd
+                | PengBinaryOperator::ShortCircuitOr => {
+                    context.bytecode.push(PengInstruction::Duplicate(1));
+                    let jump_index = context.bytecode.len();
+                    context.bytecode.push(match operator {
+                        PengBinaryOperator::ShortCircuitAnd => {
+                            PengInstruction::JumpIfFalse(usize::MAX)
+                        }
+                        PengBinaryOperator::ShortCircuitOr => {
+                            PengInstruction::JumpIfTrue(usize::MAX)
+                        }
+                        _ => unreachable!(),
+                    });
+                    context.bytecode.push(PengInstruction::Pop(1));
+
+                    generate_expression(env, context, right)?;
+
+                    let target = context.bytecode.len();
+                    context.bytecode[jump_index] = match operator {
+                        PengBinaryOperator::ShortCircuitAnd => {
+                            PengInstruction::JumpIfFalse(target)
+                        }
+                        PengBinaryOperator::ShortCircuitOr => {
+                            PengInstruction::JumpIfTrue(target)
+                        }
+                        _ => unreachable!(),
+                    };
+                }
+                _ => {
+                    generate_expression(env, context, right)?;
+                    generate_binary_operator(context, operator);
+                }
             }
 
-            generate_binary_operator(context, operator);
             Ok(())
         }
         PengExpression::Type(type_expression) => {
@@ -1481,8 +1510,12 @@ fn generate_binary_operator(
         PengBinaryOperator::Power => PengInstruction::Power,
         PengBinaryOperator::Remainder => PengInstruction::Remainder,
         PengBinaryOperator::Concat => PengInstruction::Concat,
-        PengBinaryOperator::And => PengInstruction::And,
-        PengBinaryOperator::Or => PengInstruction::Or,
+        PengBinaryOperator::NonShortCircuitAnd => PengInstruction::And,
+        PengBinaryOperator::NonShortCircuitOr => PengInstruction::Or,
+        PengBinaryOperator::ShortCircuitAnd
+        | PengBinaryOperator::ShortCircuitOr => {
+            unreachable!("short-circuit operators are generated separately")
+        }
         PengBinaryOperator::Equals => PengInstruction::Equals,
         PengBinaryOperator::NotEquals => PengInstruction::NotEquals,
         PengBinaryOperator::GreaterThan => PengInstruction::GreaterThan,

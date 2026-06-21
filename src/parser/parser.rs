@@ -1212,8 +1212,10 @@ pub enum PengBinaryOperator {
 
     Concat,
 
-    And,
-    Or,
+    ShortCircuitAnd,
+    ShortCircuitOr,
+    NonShortCircuitAnd,
+    NonShortCircuitOr,
 
     Equals,
     NotEquals,

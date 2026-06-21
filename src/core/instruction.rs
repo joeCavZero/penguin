@@ -1,6 +1,6 @@
 use crate::utils::*;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum PengInstruction {
     PushConst(usize),
 
@@ -49,6 +49,11 @@ pub enum PengInstruction {
         params: usize,
     },
 
+    TryFunctionCall { // ...|func|g0..gn|p0..pn| ---> ...|value|bool ok|
+        generics: usize,
+        params: usize,
+    },
+
     CreateSuperType(usize), // creates a new type with usize supers (on stack)
     CreateUnion(usize), // creates a new union based on usize types (on stack)
 
@@ -66,4 +71,49 @@ pub enum PengInstruction {
 
     Return, // ...|v| ---> returns v to frame
     // raise is rust side function
+}
+
+impl PengInstruction {
+    pub fn equals(&self, rhs: &Self) -> bool {
+        match (self, rhs) {
+            (Self::PushConst(left), Self::PushConst(right))
+            | (Self::PushLocal(left), Self::PushLocal(right))
+            | (Self::StoreLocal(left), Self::StoreLocal(right))
+            | (Self::PushValue(left), Self::PushValue(right))
+            | (Self::PushValueRef(left), Self::PushValueRef(right))
+            | (Self::PushString(left), Self::PushString(right))
+            | (Self::Duplicate(left), Self::Duplicate(right))
+            | (Self::Pop(left), Self::Pop(right))
+            | (Self::CreateSuperType(left), Self::CreateSuperType(right))
+            | (Self::CreateUnion(left), Self::CreateUnion(right))
+            | (Self::GetConstAttribute(left), Self::GetConstAttribute(right))
+            | (Self::GetConstAttributeRef(left), Self::GetConstAttributeRef(right))
+            | (Self::GetConstMember(left), Self::GetConstMember(right))
+            | (Self::GetConstMemberRef(left), Self::GetConstMemberRef(right))
+            | (Self::Jump(left), Self::Jump(right))
+            | (Self::JumpIfTrue(left), Self::JumpIfTrue(right))
+            | (Self::JumpIfFalse(left), Self::JumpIfFalse(right)) => left == right,
+            (
+                Self::FunctionCall {
+                    generics: left_generics,
+                    params: left_params,
+                },
+                Self::FunctionCall {
+                    generics: right_generics,
+                    params: right_params,
+                },
+            )
+            | (
+                Self::TryFunctionCall {
+                    generics: left_generics,
+                    params: left_params,
+                },
+                Self::TryFunctionCall {
+                    generics: right_generics,
+                    params: right_params,
+                },
+            ) => left_generics == right_generics && left_params == right_params,
+            _ => std::mem::discriminant(self) == std::mem::discriminant(rhs),
+        }
+    }
 }
