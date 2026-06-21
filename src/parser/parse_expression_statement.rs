@@ -13,12 +13,84 @@ pub fn parse_expression_or_assignment_statement(
     ptokens: &mut PengPeekablePositionedToken,
     consume_semicolon: bool,
 ) -> Result<PengPositionedStatement, PengError> {
+    let expression_start = ptokens.clone();
+    let declaration_value = match parse_expression_before_as(ptokens) {
+        Ok(expression) => expression,
+        Err(e) => return Err(e),
+    };
+
+    let mut declaration_lookahead = ptokens.clone();
+    let as_declaration = match declaration_lookahead.next() {
+        Some(as_token) => match &as_token.value {
+            PengToken::As => match declaration_lookahead.next() {
+                Some(name_token) => match &name_token.value {
+                    PengToken::Identifier(_) => {
+                        Some(as_token.clone())
+                    }
+                    _ => None,
+                },
+                None => None,
+            },
+            _ => None,
+        },
+        None => None,
+    };
+
+    match as_declaration {
+        Some(as_token) => {
+            match ptokens.next() {
+                Some(_) => {}
+                None => {
+                    return Err(PengError::new_positioned_message(
+                        "expected 'as' declaration".to_string(),
+                        as_token.position.clone(),
+                    ));
+                }
+            }
+
+            let name = match crate::parser::parser_utils::expect_identifier(
+                ptokens,
+                "expected declaration name after 'as'".to_string(),
+                as_token.position.clone(),
+            ) {
+                Ok(name) => name,
+                Err(e) => return Err(e),
+            };
+
+            if consume_semicolon {
+                match consume_optional_semicolon(ptokens) {
+                    Ok(()) => {}
+                    Err(e) => return Err(e),
+                }
+            }
+
+            let position = declaration_value.position.clone();
+            let declaration = PengPositioned {
+                value: PengAsDeclaration {
+                    name,
+                    value: declaration_value,
+                },
+                position: as_token.position.clone(),
+            };
+
+            return Ok(PengPositioned {
+                value: PengStatement::Declaration(
+                    PengDeclaration::As(declaration),
+                ),
+                position,
+            });
+        }
+        None => {}
+    }
+
+    *ptokens = expression_start;
     let expression = match parse_expression(ptokens) {
         Ok(expression) => expression,
         Err(e) => return Err(e),
     };
 
     let position = expression.position.clone();
+
     let assignment_token = match ptokens.peek() {
         Some(token) => match &token.value {
             PengToken::Equals

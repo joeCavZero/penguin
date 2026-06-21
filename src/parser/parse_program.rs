@@ -1,19 +1,33 @@
 use crate::core::*;
+use crate::lexer::*;
 use crate::parser::*;
 
 pub fn parse_program(
-    ptokens: &mut PengPeekablePositionedToken,
+    ptokens: Vec<PengPositionedToken>,
 ) -> Result<PengAST, PengError> {
-    let mut program = Vec::new();
+    let mut ptokens_iter: PengPeekablePositionedToken = ptokens.iter().peekable();
+    let mut declarations = Vec::new();
 
-    while ptokens.peek().is_some() {
-        match parse_statement(ptokens) {
+    while ptokens_iter.peek().is_some() {
+        let statement = match parse_statement(&mut ptokens_iter) {
             Ok(stmt) => {
-                program.push(stmt);
+                stmt
             }
             Err(e) => return Err(e),
+        };
+
+        match statement.value {
+            PengStatement::Declaration(declaration) => {
+                declarations.push(declaration);
+            }
+            _ => {
+                return Err(PengError::new_positioned_message(
+                    "program mode only accepts declarations".to_string(),
+                    statement.position.clone(),
+                ));
+            }
         }
     }
 
-    Ok(PengAST { program })
+    Ok(PengAST::Program(declarations))
 }

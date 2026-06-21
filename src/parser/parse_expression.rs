@@ -5,12 +5,19 @@ use crate::parser::*;
 pub fn parse_expression(
     ptokens: &mut PengPeekablePositionedToken,
 ) -> Result<PengPositionedExpression, PengError> {
-    parse_expression_bp(ptokens, 0)
+    parse_expression_bp(ptokens, 0, true)
+}
+
+pub fn parse_expression_before_as(
+    ptokens: &mut PengPeekablePositionedToken,
+) -> Result<PengPositionedExpression, PengError> {
+    parse_expression_bp(ptokens, 0, false)
 }
 
 fn parse_expression_bp(
     ptokens: &mut PengPeekablePositionedToken,
     min_bp: u8,
+    allow_as: bool,
 ) -> Result<PengPositionedExpression, PengError> {
     let mut left = match parse_prefix_expression(ptokens) {
         Ok(expr) => expr,
@@ -40,7 +47,11 @@ fn parse_expression_bp(
                 Err(e) => return Err(e),
             };
 
-            let right = match parse_expression_bp(ptokens, operation_bp + 1) {
+            let right = match parse_expression_bp(
+                ptokens,
+                operation_bp + 1,
+                allow_as,
+            ) {
                 Ok(expression) => expression,
                 Err(e) => return Err(e),
             };
@@ -69,6 +80,15 @@ fn parse_expression_bp(
             None => break,
         };
 
+        let is_as = match &op {
+            PengBinaryOperator::As => true,
+            _ => false,
+        };
+
+        if is_as && !allow_as {
+            break;
+        }
+
         let (left_bp, right_bp) = binary_binding_power(&op);
 
         if left_bp < min_bp {
@@ -77,7 +97,11 @@ fn parse_expression_bp(
 
         ptokens.next();
 
-        let right =  match parse_expression_bp(ptokens, right_bp) {
+        let right = match parse_expression_bp(
+            ptokens,
+            right_bp,
+            allow_as,
+        ) {
             Ok(expr) => expr,
             Err(e) => return Err(e),
         };
@@ -126,7 +150,7 @@ fn parse_prefix_expression(
         PengToken::Minus => {
             ptokens.next();
 
-            let value = match parse_expression_bp(ptokens, 13) {
+            let value = match parse_expression_bp(ptokens, 13, true) {
                 Ok(expr) => expr,
                 Err(e) => return Err(e),
             };
@@ -143,7 +167,7 @@ fn parse_prefix_expression(
         PengToken::Exclamation => {
             ptokens.next();
 
-            let value = match parse_expression_bp(ptokens, 13) {
+            let value = match parse_expression_bp(ptokens, 13, true) {
                 Ok(expr) => expr,
                 Err(e) => return Err(e),
             };
@@ -160,7 +184,7 @@ fn parse_prefix_expression(
         PengToken::Try => {
             ptokens.next();
 
-            let value = match parse_expression_bp(ptokens, 0) {
+            let value = match parse_expression_bp(ptokens, 0, true) {
                 Ok(expression) => expression,
                 Err(e) => return Err(e),
             };
@@ -176,7 +200,7 @@ fn parse_prefix_expression(
             let elsing = if has_else {
                 ptokens.next();
 
-                match parse_expression_bp(ptokens, 0) {
+                match parse_expression_bp(ptokens, 0, true) {
                     Ok(expression) => Some(Box::new(expression)),
                     Err(e) => return Err(e),
                 }

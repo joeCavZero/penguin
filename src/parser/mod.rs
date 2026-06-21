@@ -1,5 +1,6 @@
 pub mod parser;
 pub mod parse_program;
+pub mod parse_script;
 pub mod parse_statement;
 pub mod parse_block_statement;
 pub mod parse_break_statement;
@@ -29,6 +30,7 @@ pub mod parse_union_declaration_statement;
 
 pub use parser::*;
 pub use parse_program::*;
+pub use parse_script::*;
 pub use parse_statement::*;
 pub use parse_block_statement::*;
 pub use parse_break_statement::*;

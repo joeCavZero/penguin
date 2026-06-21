@@ -5,7 +5,7 @@ fn main() {
                 println!("{}", tk.token_display())
             }
             println!("============================");
-            match penguin::parse(tkns) {
+            match penguin::parse_program(tkns) {
                 Ok(ast) => {
                     println!("{:#?}", ast);
                     println!("============================");

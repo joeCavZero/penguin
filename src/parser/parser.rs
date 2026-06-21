@@ -12,6 +12,7 @@ pub type PengPositionedExpression = PengPositioned<PengExpression>;
 pub type PengPositionedTypeExpression = PengPositioned<PengTypeExpression>;
 
 pub type PengPositionedVariableDeclaration = PengPositioned<PengVariableDeclaration>;
+pub type PengPositionedAsDeclaration = PengPositioned<PengAsDeclaration>;
 pub type PengPositionedFunctionDeclaration = PengPositioned<PengFunctionDeclaration>;
 pub type PengPositionedTypeDeclaration = PengPositioned<PengTypeDeclaration>;
 pub type PengPositionedModuleDeclaration = PengPositioned<PengModuleDeclaration>;
@@ -23,16 +24,30 @@ pub type PengPositionedLiteral = PengPositioned<PengLiteral>;
 
 
 #[derive(Debug, Clone)]
-pub struct PengAST {
-    pub program: Vec<PengPositionedStatement>,
+pub enum PengAST {
+    Program(Vec<PengDeclaration>),
+    Script(Vec<PengPositionedStatement>),
 }
 
 impl PengAST {
     pub fn pretty_print(&self) {
         println!("PengAST");
-        println!("  Program");
-        for stmt in &self.program {
-            Self::print_positioned_statement(stmt, 2);
+
+        match self {
+            PengAST::Program(declarations) => {
+                println!("  Program");
+
+                for declaration in declarations {
+                    Self::print_declaration(declaration, 2);
+                }
+            }
+            PengAST::Script(statements) => {
+                println!("  Script");
+
+                for statement in statements {
+                    Self::print_positioned_statement(statement, 2);
+                }
+            }
         }
     }
 
@@ -245,6 +260,17 @@ impl PengAST {
                 Self::print_variable_declaration(&var.value, level + 1);
             }
 
+            PengDeclaration::As(declaration) => {
+                Self::print_indent(level);
+                print!("AsDeclaration");
+                Self::print_position(&declaration.position);
+                println!();
+                Self::print_as_declaration(
+                    &declaration.value,
+                    level + 1,
+                );
+            }
+
             PengDeclaration::Function(func) => {
                 Self::print_indent(level);
                 print!("FunctionDeclaration");
@@ -304,6 +330,23 @@ impl PengAST {
                 println!("None");
             }
         }
+    }
+
+    fn print_as_declaration(
+        declaration: &PengAsDeclaration,
+        level: usize,
+    ) {
+        Self::print_indent(level);
+        print!("Name: {}", declaration.name.value);
+        Self::print_position(&declaration.name.position);
+        println!();
+
+        Self::print_indent(level);
+        println!("Value");
+        Self::print_positioned_expression(
+            &declaration.value,
+            level + 1,
+        );
     }
 
     fn print_function_declaration(func: &PengFunctionDeclaration, level: usize) {
@@ -939,6 +982,7 @@ impl PengAST {
 #[derive(Debug, Clone)]
 pub enum PengDeclaration {
     Variable(PengPositionedVariableDeclaration),
+    As(PengPositionedAsDeclaration),
     Function(PengPositionedFunctionDeclaration),
     Type(PengPositionedTypeDeclaration),
     Module(PengPositionedModuleDeclaration),
@@ -1064,6 +1108,12 @@ pub struct PengVariableDeclaration {
     pub name: PengPositioned<String>,
     pub type_hint: Option<PengPositionedTypeExpression>,
     pub value: Option<PengPositionedExpression>,
+}
+
+#[derive(Debug, Clone)]
+pub struct PengAsDeclaration {
+    pub name: PengPositioned<String>,
+    pub value: PengPositionedExpression,
 }
 
 #[derive(Debug, Clone)]
@@ -1264,19 +1314,8 @@ pub struct PengObjectFieldLiteral {
 
 
 pub fn parse(ptokens: Vec<PengPositionedToken>) -> Result<PengAST, PengError> {
-    if ptokens.is_empty() {
-        return Ok(
-            PengAST {
-                program: Vec::new(),
-            }
-        );
-    }
-
-    let mut ptokens_iter: PengPeekablePositionedToken = ptokens.iter().peekable();
-    match parse_program(
-        &mut ptokens_iter,
-    ) {
-        Ok(root) => return Ok( root ),
+    match parse_script(ptokens) {
+        Ok(ast) => Ok(ast),
         Err(e) => Err(e),
     }
 }
