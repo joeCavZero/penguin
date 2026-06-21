@@ -42,7 +42,9 @@ pub enum PengInstruction {
     LessThan,
     LessEqualsThan,
 
-    Call {  // ...|func|g0..gn|p0..pn| ---> ...|ret?|
+    OperationCall,
+
+    FunctionCall {  // ...|func|g0..gn|p0..pn| ---> ...|ret?|
         generics: usize,
         params: usize,
     },

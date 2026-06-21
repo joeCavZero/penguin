@@ -342,37 +342,6 @@ fn reject_invalid_custom_type_tail(
     }
 }
 
-fn positions_share_line(
-    left: &PengPosition,
-    right: &PengPosition,
-) -> bool {
-    match (left, right) {
-        (
-            PengPosition::File {
-                file_id: left_file,
-                line: left_line,
-                ..
-            },
-            PengPosition::File {
-                file_id: right_file,
-                line: right_line,
-                ..
-            },
-        ) => left_file == right_file && left_line == right_line,
-        (
-            PengPosition::Source {
-                line: left_line,
-                ..
-            },
-            PengPosition::Source {
-                line: right_line,
-                ..
-            },
-        ) => left_line == right_line,
-        _ => false,
-    }
-}
-
 pub fn type_expression_from_token(
     token: &PengToken,
 ) -> Option<PengTypeExpression> {
@@ -392,22 +361,6 @@ pub fn type_expression_from_token(
         PengToken::Oper => Some(PengTypeExpression::Operation),
         PengToken::Union => Some(PengTypeExpression::Union(Vec::new())),
         _ => None,
-    }
-}
-
-fn token_after_type_token<'a>(
-    ptokens: &PengPeekablePositionedToken<'a>,
-) -> Option<&'a PengPositionedToken> {
-    let mut lookahead = ptokens.clone();
-
-    match lookahead.next() {
-        Some(_) => {}
-        None => return None,
-    }
-
-    match lookahead.next() {
-        Some(token) => Some(token),
-        None => None,
     }
 }
 

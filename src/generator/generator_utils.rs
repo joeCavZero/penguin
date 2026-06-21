@@ -298,8 +298,12 @@ pub fn generate_expression(
             generate_binary_operator(context, operator);
             Ok(())
         }
-        PengExpression::Type(_) => {
-            todo!("generate type value expression")
+        PengExpression::Type(type_expression) => {
+            generate_type_expression(
+                env,
+                context,
+                type_expression,
+            )
         }
         PengExpression::FuncCall(call) => {
             generate_function_call(env, context, call)
@@ -313,14 +317,24 @@ pub fn generate_expression(
         PengExpression::MemberAccess(_) => {
             todo!("generate member access expression")
         }
-        PengExpression::Index(_) => {
-            todo!("generate index expression")
+        PengExpression::Index(index) => {
+            generate_index_expression(env, context, index)
         }
         PengExpression::ObjectConstruction(_) => {
             todo!("generate object construction expression")
         }
-        PengExpression::OperationCall { .. } => {
-            todo!("generate operation call expression")
+        PengExpression::OperationCall {
+            left,
+            operation,
+            right,
+        } => {
+            generate_operation_call(
+                env,
+                context,
+                left,
+                operation,
+                right,
+            )
         }
         PengExpression::Try { .. } => {
             todo!("generate try expression")
@@ -362,8 +376,15 @@ fn generate_literal(
         PengLiteral::Vector(_) => {
             todo!("generate vector literal")
         }
-        PengLiteral::Operation(_) => {
-            todo!("generate operation literal")
+        PengLiteral::Operation(operation) => {
+            match generate_operation_value(
+                env,
+                &operation.params,
+                &operation.body,
+            ) {
+                Ok(value) => value,
+                Err(e) => return Err(e),
+            }
         }
         PengLiteral::Object(_) => {
             todo!("generate object literal")
@@ -381,6 +402,17 @@ pub fn generate_function_declaration_value(
     generate_function_value(
         env,
         &declaration.value.generics,
+        &declaration.value.params,
+        &declaration.value.body,
+    )
+}
+
+pub fn generate_operation_declaration_value(
+    env: &PengEnv,
+    declaration: &PengPositionedOperationDeclaration,
+) -> Result<PengValue, PengError> {
+    generate_operation_value(
+        env,
         &declaration.value.params,
         &declaration.value.body,
     )
@@ -411,6 +443,39 @@ fn generate_function_value(
     ))
 }
 
+fn generate_operation_value(
+    env: &PengEnv,
+    params: &Vec<PengPositionedFunctionParam>,
+    body: &Vec<PengPositionedStatement>,
+) -> Result<PengValue, PengError> {
+    let mut context = PengGeneratorContext::new();
+
+    for param in params {
+        context.create_local(
+            param.value.name.value.clone(),
+        );
+    }
+
+    match generate_statements(env, &mut context, body) {
+        Ok(()) => {}
+        Err(e) => return Err(e),
+    }
+
+    context.push_const_and_const_instruction(PengValue::Nil);
+    context.bytecode.push(PengInstruction::Return);
+
+    Ok(PengValue::Operation(
+        PengOperation::Bytecode(
+            PengBytecodeOperation {
+                bytecode: context.bytecode,
+                consts: context.consts,
+                generics_count: 0,
+                using_values: Vec::new(),
+            },
+        ),
+    ))
+}
+
 fn generate_function_call(
     env: &PengEnv,
     context: &mut PengGeneratorContext,
@@ -435,12 +500,152 @@ fn generate_function_call(
         }
     }
 
-    context.bytecode.push(PengInstruction::Call {
+    context.bytecode.push(PengInstruction::FunctionCall {
         generics: call.generics.len(),
         params: call.args.len(),
     });
 
     Ok(())
+}
+
+fn generate_operation_call(
+    env: &PengEnv,
+    context: &mut PengGeneratorContext,
+    left: &PengPositionedExpression,
+    operation: &PengPositionedExpression,
+    right: &PengPositionedExpression,
+) -> Result<(), PengError> {
+    match generate_expression(env, context, operation) {
+        Ok(()) => {}
+        Err(e) => return Err(e),
+    }
+
+    match generate_expression(env, context, left) {
+        Ok(()) => {}
+        Err(e) => return Err(e),
+    }
+
+    match generate_expression(env, context, right) {
+        Ok(()) => {}
+        Err(e) => return Err(e),
+    }
+
+    context.bytecode.push(PengInstruction::OperationCall);
+
+    Ok(())
+}
+
+fn generate_index_expression(
+    env: &PengEnv,
+    context: &mut PengGeneratorContext,
+    index: &PengIndexExpression,
+) -> Result<(), PengError> {
+    match generate_expression(env, context, &index.object) {
+        Ok(()) => {}
+        Err(e) => return Err(e),
+    }
+
+    match generate_expression(env, context, &index.index) {
+        Ok(()) => {}
+        Err(e) => return Err(e),
+    }
+
+    context.bytecode.push(PengInstruction::GetIndex);
+    Ok(())
+}
+
+pub fn generate_type_expression(
+    env: &PengEnv,
+    context: &mut PengGeneratorContext,
+    type_expression: &PengPositionedTypeExpression,
+) -> Result<(), PengError> {
+    match &type_expression.value {
+        PengTypeExpression::Union(types) => {
+            for typ in types {
+                match generate_type_expression(
+                    env,
+                    context,
+                    typ,
+                ) {
+                    Ok(()) => {}
+                    Err(e) => return Err(e),
+                }
+            }
+
+            context.bytecode.push(
+                PengInstruction::CreateUnion(types.len()),
+            );
+            Ok(())
+        }
+        PengTypeExpression::Custom(expression) => {
+            generate_expression(env, context, expression)
+        }
+        PengTypeExpression::Vector(inner) => {
+            let inner_type = match static_type_from_expression(inner) {
+                Some(inner_type) => inner_type,
+                None => {
+                    return Err(PengError::new_positioned_message(
+                        "vector type requires a static inner type".to_string(),
+                        inner.position.clone(),
+                    ));
+                }
+            };
+
+            context.push_const_and_const_instruction(
+                PengValue::Type(
+                    PengType::Vector(Box::new(inner_type)),
+                ),
+            );
+            Ok(())
+        }
+        _ => {
+            let typ = match static_type_from_expression(type_expression) {
+                Some(typ) => typ,
+                None => {
+                    return Err(PengError::new_positioned_message(
+                        "expected type value".to_string(),
+                        type_expression.position.clone(),
+                    ));
+                }
+            };
+
+            context.push_const_and_const_instruction(
+                PengValue::Type(typ),
+            );
+            Ok(())
+        }
+    }
+}
+
+fn static_type_from_expression(
+    type_expression: &PengPositionedTypeExpression,
+) -> Option<PengType> {
+    match &type_expression.value {
+        PengTypeExpression::Nil => Some(PengType::Nil),
+        PengTypeExpression::Int => Some(PengType::Int),
+        PengTypeExpression::Uint => Some(PengType::Uint),
+        PengTypeExpression::Float32 => Some(PengType::Float32),
+        PengTypeExpression::Float64 => Some(PengType::Float64),
+        PengTypeExpression::Byte => Some(PengType::Byte),
+        PengTypeExpression::Bool => Some(PengType::Bool),
+        PengTypeExpression::String => Some(PengType::String),
+        PengTypeExpression::Object => Some(PengType::Object),
+        PengTypeExpression::Type => Some(PengType::Type),
+        PengTypeExpression::Module => Some(PengType::Module),
+        PengTypeExpression::Function => Some(PengType::Function),
+        PengTypeExpression::Operation => Some(PengType::Operator),
+        PengTypeExpression::Any => Some(PengType::Any),
+        PengTypeExpression::Vector(inner) => {
+            match static_type_from_expression(inner) {
+                Some(inner_type) => {
+                    Some(PengType::Vector(Box::new(inner_type)))
+                }
+                None => None,
+            }
+        }
+        PengTypeExpression::Custom(_) => None,
+        PengTypeExpression::Union(_) => None,
+    }
 }
 
 fn generate_identifier(
@@ -511,6 +716,24 @@ fn generate_statement(
             PengDeclaration::Function(declaration),
         ) => {
             generate_local_function_declaration(
+                env,
+                context,
+                declaration,
+            )
+        }
+        PengStatement::Declaration(
+            PengDeclaration::Operation(declaration),
+        ) => {
+            generate_local_operation_declaration(
+                env,
+                context,
+                declaration,
+            )
+        }
+        PengStatement::Declaration(
+            PengDeclaration::Type(declaration),
+        ) => {
+            generate_local_type_declaration(
                 env,
                 context,
                 declaration,
@@ -587,9 +810,6 @@ fn generate_statement(
                 context,
                 for_statement,
             )
-        }
-        PengStatement::ForEach(_) => {
-            todo!("generate foreach statement")
         }
         PengStatement::Loop(body) => {
             generate_loop_statement(env, context, body)
@@ -979,6 +1199,58 @@ fn generate_local_function_declaration(
     Ok(())
 }
 
+fn generate_local_operation_declaration(
+    env: &PengEnv,
+    context: &mut PengGeneratorContext,
+    declaration: &PengPositionedOperationDeclaration,
+) -> Result<(), PengError> {
+    let value = match generate_operation_declaration_value(
+        env,
+        declaration,
+    ) {
+        Ok(value) => value,
+        Err(e) => return Err(e),
+    };
+
+    context.push_const_and_const_instruction(value);
+
+    let local = context.create_local(
+        declaration.value.name.value.clone(),
+    );
+    context.bytecode.push(
+        PengInstruction::StoreLocal(local),
+    );
+
+    Ok(())
+}
+
+fn generate_local_type_declaration(
+    env: &PengEnv,
+    context: &mut PengGeneratorContext,
+    declaration: &PengPositionedTypeDeclaration,
+) -> Result<(), PengError> {
+    let value = match &declaration.value.value {
+        Some(value) => value,
+        None => {
+            todo!("generate structured local type declaration")
+        }
+    };
+
+    match generate_type_expression(env, context, value) {
+        Ok(()) => {}
+        Err(e) => return Err(e),
+    }
+
+    let local = context.create_local(
+        declaration.value.name.value.clone(),
+    );
+    context.bytecode.push(
+        PengInstruction::StoreLocal(local),
+    );
+
+    Ok(())
+}
+
 fn generate_assignment(
     env: &PengEnv,
     context: &mut PengGeneratorContext,
@@ -1063,8 +1335,14 @@ fn generate_assignment_value(
         PengExpression::AttributeAccess(_) => {
             todo!("generate attribute assignment")
         }
-        PengExpression::Index(_) => {
-            todo!("generate index assignment")
+        PengExpression::Index(index) => {
+            return generate_index_assignment(
+                env,
+                context,
+                index,
+                value,
+                operation,
+            );
         }
         _ => {
             return Err(PengError::new_positioned_message(
@@ -1156,6 +1434,41 @@ fn generate_assignment_value(
     }
 }
 
+fn generate_index_assignment(
+    env: &PengEnv,
+    context: &mut PengGeneratorContext,
+    index: &PengIndexExpression,
+    value: &PengPositionedExpression,
+    operation: Option<PengInstruction>,
+) -> Result<(), PengError> {
+    match operation {
+        Some(_) => {
+            todo!("generate compound index assignment")
+        }
+        None => {}
+    }
+
+    match generate_expression(env, context, &index.object) {
+        Ok(()) => {}
+        Err(e) => return Err(e),
+    }
+
+    match generate_expression(env, context, &index.index) {
+        Ok(()) => {}
+        Err(e) => return Err(e),
+    }
+
+    context.bytecode.push(PengInstruction::GetIndexRef);
+
+    match generate_expression(env, context, value) {
+        Ok(()) => {}
+        Err(e) => return Err(e),
+    }
+
+    context.bytecode.push(PengInstruction::StoreValue);
+    Ok(())
+}
+
 fn generate_binary_operator(
     context: &mut PengGeneratorContext,
     operator: &PengBinaryOperator,
@@ -1181,7 +1494,7 @@ fn generate_binary_operator(
             PengInstruction::LessEqualsThan
         }
         PengBinaryOperator::As => {
-            todo!("generate type conversion")
+            PengInstruction::Convert
         }
     };
 

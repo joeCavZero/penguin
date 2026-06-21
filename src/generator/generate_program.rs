@@ -4,6 +4,8 @@ use crate::generator::generator_utils::{
     create_anonymous_bytecode_function,
     generate_expression,
     generate_function_declaration_value,
+    generate_operation_declaration_value,
+    generate_type_expression,
     PengGeneratorContext,
 };
 
@@ -98,6 +100,28 @@ fn generate_program_initialization(
                     Err(e) => return Err(e),
                 }
             }
+            PengDeclaration::Operation(operation) => {
+                match generate_global_operation(
+                    env,
+                    context,
+                    operation,
+                ) {
+                    Ok(()) => {}
+                    Err(e) => return Err(e),
+                }
+            }
+            PengDeclaration::Type(declaration) => {
+                if declaration.value.value.is_some() {
+                    match generate_global_type_value(
+                        env,
+                        context,
+                        declaration,
+                    ) {
+                        Ok(()) => {}
+                        Err(e) => return Err(e),
+                    }
+                }
+            }
             _ => {}
         }
     }
@@ -125,17 +149,91 @@ fn generate_program_initialization(
                 }
             }
             PengDeclaration::Function(_) => {}
-            PengDeclaration::Type(_) => {
-                todo!("generate global type declaration")
+            PengDeclaration::Type(type_declaration) => {
+                if type_declaration.value.value.is_none() {
+                    todo!("generate structured global type declaration")
+                }
             }
             PengDeclaration::Module(_) => {
                 todo!("generate global module declaration")
             }
-            PengDeclaration::Operation(_) => {
-                todo!("generate global operation declaration")
-            }
+            PengDeclaration::Operation(_) => {}
         }
     }
+
+    Ok(())
+}
+
+fn generate_global_type_value(
+    env: &PengEnv,
+    context: &mut PengGeneratorContext,
+    declaration: &PengPositionedTypeDeclaration,
+) -> Result<(), PengError> {
+    let value_ptr = match env.get_global(
+        &declaration.value.name.value,
+    ) {
+        Some(value_ptr) => value_ptr,
+        None => {
+            return Err(PengError::new_positioned_message(
+                "global type value was not allocated".to_string(),
+                declaration.value.name.position.clone(),
+            ));
+        }
+    };
+
+    let value = match &declaration.value.value {
+        Some(value) => value,
+        None => {
+            return Err(PengError::new_positioned_message(
+                "expected type declaration value".to_string(),
+                declaration.position.clone(),
+            ));
+        }
+    };
+
+    context.bytecode.push(
+        PengInstruction::PushValueRef(value_ptr),
+    );
+
+    match generate_type_expression(env, context, value) {
+        Ok(()) => {}
+        Err(e) => return Err(e),
+    }
+
+    context.bytecode.push(PengInstruction::StoreValue);
+    Ok(())
+}
+
+fn generate_global_operation(
+    env: &PengEnv,
+    context: &mut PengGeneratorContext,
+    declaration: &PengPositionedOperationDeclaration,
+) -> Result<(), PengError> {
+    let value_ptr = match env.get_global(
+        &declaration.value.name.value,
+    ) {
+        Some(value_ptr) => value_ptr,
+        None => {
+            return Err(PengError::new_positioned_message(
+                "global operation was not allocated".to_string(),
+                declaration.value.name.position.clone(),
+            ));
+        }
+    };
+
+    let value = match generate_operation_declaration_value(
+        env,
+        declaration,
+    ) {
+        Ok(value) => value,
+        Err(e) => return Err(e),
+    };
+
+    context.bytecode.push(
+        PengInstruction::PushValueRef(value_ptr),
+    );
+    context.push_const_and_const_instruction(value);
+    context.bytecode.push(PengInstruction::StoreValue);
 
     Ok(())
 }

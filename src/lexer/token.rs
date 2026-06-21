@@ -72,10 +72,8 @@ pub enum PengToken {
     Else,
 
     For,
-    Each,
     While,
     Loop,
-    In,
 
     Break,
     Continue,
@@ -174,10 +172,8 @@ impl PengToken {
             "as" => Some(Self::As),
 
             "for" => Some(Self::For),
-            "each" => Some(Self::Each),
             "while" => Some(Self::While),
             "loop" => Some(Self::Loop),
-            "in" => Some(Self::In),
 
             "break" => Some(Self::Break),
             "continue" => Some(Self::Continue),

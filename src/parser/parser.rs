@@ -200,26 +200,6 @@ impl PengAST {
                 }
             }
 
-            PengStatement::ForEach(for_each) => {
-                Self::print_indent(level);
-                println!("ForEach");
-
-                Self::print_indent(level + 1);
-                print!("Name: {}", for_each.name.value);
-                Self::print_position(&for_each.name.position);
-                println!();
-
-                Self::print_indent(level + 1);
-                println!("Iterable");
-                Self::print_positioned_expression(&for_each.iterable, level + 2);
-
-                Self::print_indent(level + 1);
-                println!("Body");
-                for stmt in &for_each.body {
-                    Self::print_positioned_statement(stmt, level + 2);
-                }
-            }
-
             PengStatement::Loop(body) => {
                 Self::print_indent(level);
                 println!("Loop");
@@ -1000,7 +980,6 @@ pub enum PengStatement {
     If(PengIfStatement),
     While(PengWhileStatement),
     For(PengForStatement),
-    ForEach(PengForEachStatement),
     Loop(Vec<PengPositionedStatement>),
 
     Break,
@@ -1173,13 +1152,6 @@ pub struct PengForStatement {
     pub initializer: Option<Box<PengPositionedStatement>>,
     pub condition: Option<PengPositionedExpression>,
     pub increment: Option<Box<PengPositionedStatement>>,
-    pub body: Vec<PengPositionedStatement>,
-}
-
-#[derive(Debug, Clone)]
-pub struct PengForEachStatement {
-    pub name: PengPositioned<String>,
-    pub iterable: PengPositionedExpression,
     pub body: Vec<PengPositionedStatement>,
 }
 
