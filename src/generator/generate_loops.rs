@@ -1,19 +1,18 @@
+use std::collections::HashMap;
+
 use crate::core::*;
-use crate::parser::*;
 use crate::generator::*;
+use crate::parser::*;
 
 pub fn generate_while_statement(
-    env: &PengEnv,
+    env: &mut PengEnv,
+    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
     context: &mut PengGeneratorContext,
     statement: &PengWhileStatement,
 ) -> Result<(), PengError> {
     let condition_start = context.bytecode.len();
 
-    match generate_expression(
-        env,
-        context,
-        &statement.condition,
-    ) {
+    match generate_expression(env, globals, context, &statement.condition) {
         Ok(()) => {}
         Err(e) => return Err(e),
     }
@@ -21,11 +20,7 @@ pub fn generate_while_statement(
     let end_jump = context.emit_jump_if_false();
     context.push_loop(Some(condition_start));
 
-    let body_result = generate_scoped_statements(
-        env,
-        context,
-        &statement.body,
-    );
+    let body_result = generate_scoped_statements(env, globals, context, &statement.body);
 
     match body_result {
         Ok(()) => {}
@@ -35,9 +30,9 @@ pub fn generate_while_statement(
         }
     }
 
-    context.bytecode.push(
-        PengInstruction::Jump(condition_start),
-    );
+    context
+        .bytecode
+        .push(PengInstruction::Jump(condition_start));
 
     let end = context.bytecode.len();
     context.patch_jump(end_jump, end);
@@ -52,28 +47,21 @@ pub fn generate_while_statement(
         }
     };
 
-    context.patch_loop(
-        loop_context,
-        end,
-        condition_start,
-    );
+    context.patch_loop(loop_context, end, condition_start);
 
     Ok(())
 }
 
 pub fn generate_loop_statement(
-    env: &PengEnv,
+    env: &mut PengEnv,
+    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
     context: &mut PengGeneratorContext,
     body: &Vec<PengPositionedStatement>,
 ) -> Result<(), PengError> {
     let loop_start = context.bytecode.len();
     context.push_loop(Some(loop_start));
 
-    let body_result = generate_scoped_statements(
-        env,
-        context,
-        body,
-    );
+    let body_result = generate_scoped_statements(env, globals, context, body);
 
     match body_result {
         Ok(()) => {}
@@ -83,9 +71,7 @@ pub fn generate_loop_statement(
         }
     }
 
-    context.bytecode.push(
-        PengInstruction::Jump(loop_start),
-    );
+    context.bytecode.push(PengInstruction::Jump(loop_start));
 
     let end = context.bytecode.len();
     let loop_context = match context.pop_loop() {
@@ -102,37 +88,28 @@ pub fn generate_loop_statement(
 }
 
 pub fn generate_for_statement(
-    env: &PengEnv,
+    env: &mut PengEnv,
+    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
     context: &mut PengGeneratorContext,
     statement: &PengForStatement,
 ) -> Result<(), PengError> {
     context.push_scope();
 
     match &statement.initializer {
-        Some(initializer) => {
-            match generate_statement(
-                env,
-                context,
-                initializer,
-            ) {
-                Ok(()) => {}
-                Err(e) => {
-                    context.pop_scope();
-                    return Err(e);
-                }
+        Some(initializer) => match generate_statement(env, globals, context, initializer) {
+            Ok(()) => {}
+            Err(e) => {
+                context.pop_scope();
+                return Err(e);
             }
-        }
+        },
         None => {}
     }
 
     let condition_start = context.bytecode.len();
     let end_jump = match &statement.condition {
         Some(condition) => {
-            match generate_expression(
-                env,
-                context,
-                condition,
-            ) {
+            match generate_expression(env, globals, context, condition) {
                 Ok(()) => {}
                 Err(e) => {
                     context.pop_scope();
@@ -147,11 +124,7 @@ pub fn generate_for_statement(
 
     context.push_loop(None);
 
-    let body_result = generate_scoped_statements(
-        env,
-        context,
-        &statement.body,
-    );
+    let body_result = generate_scoped_statements(env, globals, context, &statement.body);
 
     match body_result {
         Ok(()) => {}
@@ -165,26 +138,20 @@ pub fn generate_for_statement(
     let increment_start = context.bytecode.len();
 
     match &statement.increment {
-        Some(increment) => {
-            match generate_statement(
-                env,
-                context,
-                increment,
-            ) {
-                Ok(()) => {}
-                Err(e) => {
-                    context.pop_loop();
-                    context.pop_scope();
-                    return Err(e);
-                }
+        Some(increment) => match generate_statement(env, globals, context, increment) {
+            Ok(()) => {}
+            Err(e) => {
+                context.pop_loop();
+                context.pop_scope();
+                return Err(e);
             }
-        }
+        },
         None => {}
     }
 
-    context.bytecode.push(
-        PengInstruction::Jump(condition_start),
-    );
+    context
+        .bytecode
+        .push(PengInstruction::Jump(condition_start));
 
     let end = context.bytecode.len();
 
@@ -205,11 +172,7 @@ pub fn generate_for_statement(
         }
     };
 
-    context.patch_loop(
-        loop_context,
-        end,
-        increment_start,
-    );
+    context.patch_loop(loop_context, end, increment_start);
     context.pop_scope();
 
     Ok(())

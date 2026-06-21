@@ -13,7 +13,7 @@ fn main() {
                     println!("============================");
                     let mut env = penguin::PengEnv::new();
                     match penguin::generate_program(&mut env, &ast) {
-                        Ok(init_ptr) => {
+                        Ok((_, init_ptr)) => {
                             if let Some(init) = env.get_value(init_ptr).cloned() {
                                 if let penguin::PengValue::Function(init_f) = init {
                                     if let penguin::PengFunction::Bytecode(init_btc) = init_f {

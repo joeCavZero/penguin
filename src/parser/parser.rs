@@ -813,6 +813,11 @@ impl PengAST {
                     Self::print_positioned_type_expression(typ, level + 1);
                 }
             }
+            PengTypeExpression::TypeLiteral(lit) => {
+                Self::print_indent(level);
+                println!("TypeLiteral");
+                Self::print_type_literal(lit, level + 1);
+            }
         }
     }
 
@@ -1252,6 +1257,7 @@ pub enum PengTypeExpression {
     Any,
 
     Custom(Box<PengPositionedExpression>),
+    TypeLiteral(PengTypeLiteral),
 
     UnionType,
     Union(Vec<PengPositionedTypeExpression>),

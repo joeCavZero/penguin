@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::parser::*;
 use crate::core::*;
 use crate::generator::*;
@@ -15,10 +17,12 @@ pub fn generate_script(
         }
     };
 
+    let mut globals = HashMap::new();
     let mut context = PengGeneratorContext::new();
 
     match generate_statements(
         env,
+        &mut globals,
         &mut context,
         statements,
     ) {

@@ -523,7 +523,10 @@ fn peek_char_at(s: &str, idx: usize) -> Option<char> {
 
 
 fn read_number_at(s: &str, start: usize) -> Option<(String, usize)> {
-    let first = peek_char_at(s, start)?;
+    let first = match peek_char_at(s, start) {
+        Some(v) => v,
+        None => return None,
+    };
 
     // Number literal precisa começar com número.
     // Portanto: .5 NÃO é número aqui.

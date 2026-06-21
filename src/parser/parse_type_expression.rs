@@ -76,7 +76,7 @@ fn parse_primary_type_expression(
         PengToken::String => parse_builtin_type(ptokens, PengTypeExpression::String),
         PengToken::Any => parse_builtin_type(ptokens, PengTypeExpression::Any),
 
-        PengToken::Type => parse_builtin_type(ptokens, PengTypeExpression::Type),
+        PengToken::Type => parse_type_type_expression(ptokens),
         PengToken::Mod => parse_builtin_type(ptokens, PengTypeExpression::Module),
         PengToken::Func => parse_builtin_type(ptokens, PengTypeExpression::Function),
         PengToken::Oper => parse_builtin_type(ptokens, PengTypeExpression::Operation),
@@ -159,9 +159,15 @@ fn parse_custom_type_expression(
         position: first_token.position.clone(),
     };
 
-    expression = parse_custom_type_colon_chain(ptokens, expression)?;
+    expression = match parse_custom_type_colon_chain(ptokens, expression)  {
+        Ok(v) => v,
+        Err(e) => return Err(e),
+    };
 
-    expression = parse_custom_type_generics(ptokens, expression)?;
+    expression = match parse_custom_type_generics(ptokens, expression)  {
+        Ok(v) => v,
+        Err(e) => return Err(e),
+    };
 
     Ok(expression)
 }
@@ -405,4 +411,70 @@ fn parse_vector_type_expression(
             close_token.position.clone(),
         )),
     }
+}
+
+fn parse_type_type_expression(
+    ptokens: &mut PengPeekablePositionedToken,
+) -> Result<PengPositionedTypeExpression, PengError> {
+    let type_token = match ptokens.next() {
+        Some(token) => token,
+        None => {
+            return Err(PengError::new_message(
+                "expected 'type'".to_string(),
+            ));
+        }
+    };
+
+    match &type_token.value {
+        PengToken::Type => {}
+        _ => {
+            return Err(PengError::new_positioned_message(
+                "expected 'type'".to_string(),
+                type_token.position.clone(),
+            ));
+        }
+    }
+
+    let is_literal_shape = match ptokens.peek() {
+        Some(token) => match &token.value {
+            PengToken::LessThan | PengToken::LeftCurlyBrace => true,
+            _ => false,
+        },
+        None => false,
+    };
+
+    if !is_literal_shape {
+        return Ok(PengPositioned {
+            value: PengTypeExpression::Type,
+            position: type_token.position.clone(),
+        });
+    }
+
+    let generics = match parse_function_generics(ptokens) {
+        Ok(generics) => generics,
+        Err(e) => return Err(e),
+    };
+
+    let supers = Vec::new();
+
+    let (fields, functions) = match parse_type_members(ptokens) {
+        Ok(members) => members,
+        Err(e) => return Err(e),
+    };
+
+    Ok(PengPositioned {
+        value: PengTypeExpression::Custom(Box::new(PengPositioned {
+            value: PengExpression::Literal(PengPositioned {
+                value: PengLiteral::Type(PengTypeLiteral {
+                    generics,
+                    supers,
+                    fields,
+                    functions,
+                }),
+                position: type_token.position.clone(),
+            }),
+            position: type_token.position.clone(),
+        })),
+        position: type_token.position.clone(),
+    })
 }

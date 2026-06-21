@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use crate::core::*;
-use crate::parser::*;
 use crate::generator::*;
+use crate::parser::*;
 
 pub struct PengGeneratorContext {
     pub bytecode: Vec<PengInstruction>,
@@ -29,10 +29,7 @@ impl PengGeneratorContext {
         }
     }
 
-    pub fn push_const_and_const_instruction(
-        &mut self,
-        value: PengValue,
-    ) {
+    pub fn push_const_and_const_instruction(&mut self, value: PengValue) {
         let mut const_index = None;
         let mut index = 0usize;
 
@@ -59,15 +56,10 @@ impl PengGeneratorContext {
             }
         };
 
-        self.bytecode.push(
-            PengInstruction::PushConst(const_index),
-        );
+        self.bytecode.push(PengInstruction::PushConst(const_index));
     }
 
-    pub fn create_local(
-        &mut self,
-        name: String,
-    ) -> usize {
+    pub fn create_local(&mut self, name: String) -> usize {
         let local = self.next_local;
         self.next_local += 1;
 
@@ -85,6 +77,12 @@ impl PengGeneratorContext {
         local
     }
 
+    pub fn create_temporary_local(&mut self) -> usize {
+        let local = self.next_local;
+        self.next_local += 1;
+        local
+    }
+
     pub fn push_scope(&mut self) {
         self.scopes.push(HashMap::new());
     }
@@ -95,10 +93,7 @@ impl PengGeneratorContext {
         }
     }
 
-    pub fn get_local(
-        &self,
-        name: &str,
-    ) -> Option<usize> {
+    pub fn get_local(&self, name: &str) -> Option<usize> {
         let mut index = self.scopes.len();
 
         while index > 0 {
@@ -130,11 +125,7 @@ impl PengGeneratorContext {
         instruction_index
     }
 
-    pub fn patch_jump(
-        &mut self,
-        instruction_index: usize,
-        target: usize,
-    ) {
+    pub fn patch_jump(&mut self, instruction_index: usize, target: usize) {
         let instruction = match self.bytecode.get_mut(instruction_index) {
             Some(instruction) => instruction,
             None => return,
@@ -150,10 +141,7 @@ impl PengGeneratorContext {
         }
     }
 
-    pub fn push_loop(
-        &mut self,
-        continue_target: Option<usize>,
-    ) {
+    pub fn push_loop(&mut self, continue_target: Option<usize>) {
         self.loops.push(PengLoopContext {
             break_jumps: Vec::new(),
             continue_jumps: Vec::new(),
@@ -219,25 +207,22 @@ impl PengGeneratorContext {
 }
 
 pub fn generate_identifier(
-    env: &PengEnv,
+    env: &mut PengEnv,
+    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
     context: &mut PengGeneratorContext,
     identifier: &PengPositioned<String>,
 ) -> Result<(), PengError> {
     match context.get_local(&identifier.value) {
         Some(local) => {
-            context.bytecode.push(
-                PengInstruction::PushLocal(local),
-            );
+            context.bytecode.push(PengInstruction::PushLocal(local));
             return Ok(());
         }
         None => {}
     }
 
-    match env.get_global(&identifier.value) {
+    match get_allocated_global(env, globals, &identifier.value) {
         Some(value_ptr) => {
-            context.bytecode.push(
-                PengInstruction::PushValue(value_ptr),
-            );
+            context.bytecode.push(PengInstruction::PushValue(value_ptr));
             Ok(())
         }
         None => Err(PengError::new_positioned_message(
@@ -248,157 +233,129 @@ pub fn generate_identifier(
 }
 
 pub fn generate_local_variable(
-    env: &PengEnv,
+    env: &mut PengEnv,
+    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
     context: &mut PengGeneratorContext,
     variable: &PengPositionedVariableDeclaration,
 ) -> Result<(), PengError> {
     match &variable.value.value {
-        Some(value) => {
-            match generate_expression(env, context, value) {
-                Ok(()) => {}
-                Err(e) => return Err(e),
-            }
-        }
+        Some(value) => match generate_expression(env, globals, context, value) {
+            Ok(()) => {}
+            Err(e) => return Err(e),
+        },
         None => {
             context.push_const_and_const_instruction(PengValue::Nil);
         }
     }
 
-    let local = context.create_local(
-        variable.value.name.value.clone(),
-    );
-    context.bytecode.push(
-        PengInstruction::StoreLocal(local),
-    );
+    let local = context.create_local(variable.value.name.value.clone());
+    context.bytecode.push(PengInstruction::StoreLocal(local));
 
     Ok(())
 }
 
 pub fn generate_local_as_declaration(
-    env: &PengEnv,
+    env: &mut PengEnv,
+    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
     context: &mut PengGeneratorContext,
     declaration: &PengPositionedAsDeclaration,
 ) -> Result<(), PengError> {
-    match generate_expression(
-        env,
-        context,
-        &declaration.value.value,
-    ) {
+    match generate_expression(env, globals, context, &declaration.value.value) {
         Ok(()) => {}
         Err(e) => return Err(e),
     }
 
-    let local = context.create_local(
-        declaration.value.name.value.clone(),
-    );
-    context.bytecode.push(
-        PengInstruction::StoreLocal(local),
-    );
+    let local = context.create_local(declaration.value.name.value.clone());
+    context.bytecode.push(PengInstruction::StoreLocal(local));
 
     Ok(())
 }
 
 pub fn generate_local_type_declaration(
-    env: &PengEnv,
+    env: &mut PengEnv,
+    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
     context: &mut PengGeneratorContext,
     declaration: &PengPositionedTypeDeclaration,
 ) -> Result<(), PengError> {
     let value = match &declaration.value.value {
         Some(value) => value,
         None => {
-            todo!("generate structured local type declaration")
+            return generate_structured_local_type_declaration(env, globals, context, declaration);
         }
     };
 
-    match generate_type_expression(env, context, value) {
+    match generate_type_expression(env, globals, context, value) {
         Ok(()) => {}
         Err(e) => return Err(e),
     }
 
-    let local = context.create_local(
-        declaration.value.name.value.clone(),
-    );
-    context.bytecode.push(
-        PengInstruction::StoreLocal(local),
-    );
+    let local = context.create_local(declaration.value.name.value.clone());
+    context.bytecode.push(PengInstruction::StoreLocal(local));
 
     Ok(())
 }
 
+pub fn generate_structured_local_type_declaration(
+    env: &mut PengEnv,
+    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
+    context: &mut PengGeneratorContext,
+    declaration: &PengPositionedTypeDeclaration,
+) -> Result<(), PengError> {
+    let literal = PengTypeLiteral {
+        generics: declaration.value.generics.clone(),
+        supers: declaration.value.supers.clone(),
+        fields: declaration.value.fields.clone(),
+        functions: declaration.value.functions.clone(),
+    };
+
+    match generate_type_literal(env, globals, context, &literal) {
+        Ok(()) => {},
+        Err(e) => return Err(e),
+    };
+    let local = context.create_local(declaration.value.name.value.clone());
+    context.bytecode.push(PengInstruction::StoreLocal(local));
+    Ok(())
+}
+
 pub fn generate_assignment(
-    env: &PengEnv,
+    env: &mut PengEnv,
+    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
     context: &mut PengGeneratorContext,
     assignment: &PengAssignStatement,
 ) -> Result<(), PengError> {
     match assignment {
         PengAssignStatement::Assign { target, value } => {
-            generate_assignment_value(
-                env,
-                context,
-                target,
-                value,
-                None,
-            )
+            generate_assignment_value(env, globals, context, target, value, None)
         }
         PengAssignStatement::AddAssign { target, value } => {
-            generate_assignment_value(
-                env,
-                context,
-                target,
-                value,
-                Some(PengInstruction::Add),
-            )
+            generate_assignment_value(env, globals, context, target, value, Some(PengInstruction::Add))
         }
         PengAssignStatement::SubtractAssign { target, value } => {
-            generate_assignment_value(
-                env,
-                context,
-                target,
-                value,
-                Some(PengInstruction::Subtract),
-            )
+            generate_assignment_value(env, globals, context, target, value, Some(PengInstruction::Subtract))
         }
         PengAssignStatement::MultiplyAssign { target, value } => {
-            generate_assignment_value(
-                env,
-                context,
-                target,
-                value,
-                Some(PengInstruction::Multiply),
-            )
+            generate_assignment_value(env, globals, context, target, value, Some(PengInstruction::Multiply))
         }
         PengAssignStatement::DivideAssign { target, value } => {
-            generate_assignment_value(
-                env,
-                context,
-                target,
-                value,
-                Some(PengInstruction::Divide),
-            )
+            generate_assignment_value(env, globals, context, target, value, Some(PengInstruction::Divide))
         }
         PengAssignStatement::PowerAssign { target, value } => {
-            generate_assignment_value(
-                env,
-                context,
-                target,
-                value,
-                Some(PengInstruction::Power),
-            )
+            generate_assignment_value(env, globals, context, target, value, Some(PengInstruction::Power))
         }
-        PengAssignStatement::RemainderAssign { target, value } => {
-            generate_assignment_value(
-                env,
-                context,
-                target,
-                value,
-                Some(PengInstruction::Remainder),
-            )
-        }
+        PengAssignStatement::RemainderAssign { target, value } => generate_assignment_value(
+            env,
+            globals,
+            context,
+            target,
+            value,
+            Some(PengInstruction::Remainder),
+        ),
     }
 }
 
 pub fn generate_assignment_value(
-    env: &PengEnv,
+    env: &mut PengEnv,
+    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
     context: &mut PengGeneratorContext,
     target: &PengPositionedExpression,
     value: &PengPositionedExpression,
@@ -406,17 +363,11 @@ pub fn generate_assignment_value(
 ) -> Result<(), PengError> {
     let identifier = match &target.value {
         PengExpression::Identifier(identifier) => identifier,
-        PengExpression::AttributeAccess(_) => {
-            todo!("generate attribute assignment")
+        PengExpression::AttributeAccess(attribute) => {
+            return generate_attribute_assignment(env, globals, context, attribute, value, operation);
         }
         PengExpression::Index(index) => {
-            return generate_index_assignment(
-                env,
-                context,
-                index,
-                value,
-                operation,
-            );
+            return generate_index_assignment(env, globals, context, index, value, operation);
         }
         _ => {
             return Err(PengError::new_positioned_message(
@@ -428,16 +379,16 @@ pub fn generate_assignment_value(
 
     let local = context.get_local(&identifier.value);
     let global = if local.is_none() {
-        env.get_global(&identifier.value)
+        get_allocated_global(env, globals, &identifier.value)
     } else {
         None
     };
 
     match global {
         Some(value_ptr) => {
-            context.bytecode.push(
-                PengInstruction::PushValueRef(value_ptr),
-            );
+            context
+                .bytecode
+                .push(PengInstruction::PushValueRef(value_ptr));
         }
         None => {}
     }
@@ -446,62 +397,46 @@ pub fn generate_assignment_value(
         Some(operation) => {
             match local {
                 Some(local) => {
-                    context.bytecode.push(
-                        PengInstruction::PushLocal(local),
-                    );
+                    context.bytecode.push(PengInstruction::PushLocal(local));
                 }
                 None => match global {
                     Some(value_ptr) => {
-                        context.bytecode.push(
-                            PengInstruction::PushValue(value_ptr),
-                        );
+                        context.bytecode.push(PengInstruction::PushValue(value_ptr));
                     }
                     None => {
                         return Err(PengError::new_positioned_message(
-                            format!(
-                                "unknown assignment target '{}'",
-                                identifier.value,
-                            ),
+                            format!("unknown assignment target '{}'", identifier.value,),
                             identifier.position.clone(),
                         ));
                     }
                 },
             }
 
-            match generate_expression(env, context, value) {
+            match generate_expression(env, globals, context, value) {
                 Ok(()) => {}
                 Err(e) => return Err(e),
             }
 
             context.bytecode.push(operation);
         }
-        None => {
-            match generate_expression(env, context, value) {
-                Ok(()) => {}
-                Err(e) => return Err(e),
-            }
-        }
+        None => match generate_expression(env, globals, context, value) {
+            Ok(()) => {}
+            Err(e) => return Err(e),
+        },
     }
 
     match local {
         Some(local) => {
-            context.bytecode.push(
-                PengInstruction::StoreLocal(local),
-            );
+            context.bytecode.push(PengInstruction::StoreLocal(local));
             Ok(())
         }
         None => match global {
             Some(_) => {
-                context.bytecode.push(
-                    PengInstruction::StoreValue,
-                );
+                context.bytecode.push(PengInstruction::StoreValue);
                 Ok(())
             }
             None => Err(PengError::new_positioned_message(
-                format!(
-                    "unknown assignment target '{}'",
-                    identifier.value,
-                ),
+                format!("unknown assignment target '{}'", identifier.value,),
                 identifier.position.clone(),
             )),
         },
@@ -509,44 +444,113 @@ pub fn generate_assignment_value(
 }
 
 pub fn generate_index_assignment(
-    env: &PengEnv,
+    env: &mut PengEnv,
+    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
     context: &mut PengGeneratorContext,
     index: &PengIndexExpression,
     value: &PengPositionedExpression,
     operation: Option<PengInstruction>,
 ) -> Result<(), PengError> {
-    match operation {
-        Some(_) => {
-            todo!("generate compound index assignment")
-        }
-        None => {}
-    }
-
-    match generate_expression(env, context, &index.object) {
-        Ok(()) => {}
+    match generate_expression(env, globals, context, &index.object) {
+        Ok(()) => {},
         Err(e) => return Err(e),
-    }
+    };
+    let object_local = context.create_temporary_local();
+    context
+        .bytecode
+        .push(PengInstruction::StoreLocal(object_local));
 
-    match generate_expression(env, context, &index.index) {
-        Ok(()) => {}
+    match generate_expression(env, globals, context, &index.index) {
+        Ok(()) => {},
         Err(e) => return Err(e),
-    }
+    };
+    let index_local = context.create_temporary_local();
+    context
+        .bytecode
+        .push(PengInstruction::StoreLocal(index_local));
 
+    context
+        .bytecode
+        .push(PengInstruction::PushLocal(object_local));
+    context
+        .bytecode
+        .push(PengInstruction::PushLocal(index_local));
     context.bytecode.push(PengInstruction::GetIndexRef);
 
-    match generate_expression(env, context, value) {
-        Ok(()) => {}
-        Err(e) => return Err(e),
+    if let Some(operation) = operation {
+        context
+            .bytecode
+            .push(PengInstruction::PushLocal(object_local));
+        context
+            .bytecode
+            .push(PengInstruction::PushLocal(index_local));
+        context.bytecode.push(PengInstruction::GetIndex);
+        match generate_expression(env, globals, context, value) {
+            Ok(()) => {},
+            Err(e) => return Err(e),
+        };
+        context.bytecode.push(operation);
+    } else {
+        match generate_expression(env, globals, context, value) {
+            Ok(()) => {},
+            Err(e) => return Err(e),
+        };
     }
 
     context.bytecode.push(PengInstruction::StoreValue);
     Ok(())
 }
 
-pub fn generate_binary_operator(
+pub fn generate_attribute_assignment(
+    env: &mut PengEnv,
+    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
     context: &mut PengGeneratorContext,
-    operator: &PengBinaryOperator,
-) {
+    attribute: &PengAttributeAccessExpression,
+    value: &PengPositionedExpression,
+    operation: Option<PengInstruction>,
+) -> Result<(), PengError> {
+    match generate_expression(env, globals, context, &attribute.object) {
+        Ok(()) => {},
+        Err(e) => return Err(e),
+    };
+    let object_local = context.create_temporary_local();
+    context
+        .bytecode
+        .push(PengInstruction::StoreLocal(object_local));
+
+    let name = env.get_pooled_name(attribute.name.value.clone());
+
+    context
+        .bytecode
+        .push(PengInstruction::PushLocal(object_local));
+    context
+        .bytecode
+        .push(PengInstruction::GetConstAttributeRef(name));
+
+    if let Some(operation) = operation {
+        context
+            .bytecode
+            .push(PengInstruction::PushLocal(object_local));
+        context
+            .bytecode
+            .push(PengInstruction::GetConstAttribute(name));
+        match generate_expression(env, globals, context, value) {
+            Ok(()) => {},
+            Err(e) => return Err(e),
+        };
+        context.bytecode.push(operation);
+    } else {
+        match generate_expression(env, globals, context, value) {
+            Ok(()) => {},
+            Err(e) => return Err(e),
+        };
+    }
+
+    context.bytecode.push(PengInstruction::StoreValue);
+    Ok(())
+}
+
+pub fn generate_binary_operator(context: &mut PengGeneratorContext, operator: &PengBinaryOperator) {
     let instruction = match operator {
         PengBinaryOperator::Add => PengInstruction::Add,
         PengBinaryOperator::Subtract => PengInstruction::Subtract,
@@ -557,23 +561,16 @@ pub fn generate_binary_operator(
         PengBinaryOperator::Concat => PengInstruction::Concat,
         PengBinaryOperator::NonShortCircuitAnd => PengInstruction::And,
         PengBinaryOperator::NonShortCircuitOr => PengInstruction::Or,
-        PengBinaryOperator::ShortCircuitAnd
-        | PengBinaryOperator::ShortCircuitOr => {
+        PengBinaryOperator::ShortCircuitAnd | PengBinaryOperator::ShortCircuitOr => {
             unreachable!("short-circuit operators are generated separately")
         }
         PengBinaryOperator::Equals => PengInstruction::Equals,
         PengBinaryOperator::NotEquals => PengInstruction::NotEquals,
         PengBinaryOperator::GreaterThan => PengInstruction::GreaterThan,
-        PengBinaryOperator::GreaterEqualsThan => {
-            PengInstruction::GreaterEqualsThan
-        }
+        PengBinaryOperator::GreaterEqualsThan => PengInstruction::GreaterEqualsThan,
         PengBinaryOperator::LessThan => PengInstruction::LessThan,
-        PengBinaryOperator::LessEqualsThan => {
-            PengInstruction::LessEqualsThan
-        }
-        PengBinaryOperator::As => {
-            PengInstruction::Convert
-        }
+        PengBinaryOperator::LessEqualsThan => PengInstruction::LessEqualsThan,
+        PengBinaryOperator::As => PengInstruction::Convert,
     };
 
     context.bytecode.push(instruction);
