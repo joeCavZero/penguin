@@ -802,6 +802,10 @@ impl PengAST {
                 println!("Custom");
                 Self::print_positioned_expression(expr, level + 1);
             }
+            PengTypeExpression::UnionType => {
+                Self::print_indent(level);
+                println!("UnionType");
+            }
             PengTypeExpression::Union(types) => {
                 Self::print_indent(level);
                 println!("Union");
@@ -1249,6 +1253,7 @@ pub enum PengTypeExpression {
 
     Custom(Box<PengPositionedExpression>),
 
+    UnionType,
     Union(Vec<PengPositionedTypeExpression>),
 }
 

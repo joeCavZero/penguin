@@ -7,7 +7,6 @@ pub mod generate_function;
 pub mod generate_operation;
 pub mod generate_statement;
 pub mod generate_loops;
-pub mod generate_composite;
 
 pub use generate_program::*;
 pub use generate_script::*;
@@ -18,4 +17,3 @@ pub use generate_function::*;
 pub use generate_operation::*;
 pub use generate_statement::*;
 pub use generate_loops::*;
-pub use generate_composite::*;

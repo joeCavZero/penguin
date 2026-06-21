@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use crate::core::*;
 use crate::parser::*;
+use crate::generator::*;
 
 pub struct PengGeneratorContext {
     pub bytecode: Vec<PengInstruction>,
@@ -11,7 +12,7 @@ pub struct PengGeneratorContext {
     loops: Vec<PengLoopContext>,
 }
 
-struct PengLoopContext {
+pub struct PengLoopContext {
     break_jumps: Vec<usize>,
     continue_jumps: Vec<usize>,
     continue_target: Option<usize>,
@@ -117,19 +118,19 @@ impl PengGeneratorContext {
         None
     }
 
-    fn emit_jump(&mut self) -> usize {
+    pub fn emit_jump(&mut self) -> usize {
         let instruction_index = self.bytecode.len();
         self.bytecode.push(PengInstruction::Jump(0));
         instruction_index
     }
 
-    fn emit_jump_if_false(&mut self) -> usize {
+    pub fn emit_jump_if_false(&mut self) -> usize {
         let instruction_index = self.bytecode.len();
         self.bytecode.push(PengInstruction::JumpIfFalse(0));
         instruction_index
     }
 
-    fn patch_jump(
+    pub fn patch_jump(
         &mut self,
         instruction_index: usize,
         target: usize,
@@ -149,7 +150,7 @@ impl PengGeneratorContext {
         }
     }
 
-    fn push_loop(
+    pub fn push_loop(
         &mut self,
         continue_target: Option<usize>,
     ) {
@@ -160,11 +161,11 @@ impl PengGeneratorContext {
         });
     }
 
-    fn pop_loop(&mut self) -> Option<PengLoopContext> {
+    pub fn pop_loop(&mut self) -> Option<PengLoopContext> {
         self.loops.pop()
     }
 
-    fn emit_break(&mut self) -> bool {
+    pub fn emit_break(&mut self) -> bool {
         if self.loops.is_empty() {
             return false;
         }
@@ -180,7 +181,7 @@ impl PengGeneratorContext {
         }
     }
 
-    fn emit_continue(&mut self) -> bool {
+    pub fn emit_continue(&mut self) -> bool {
         if self.loops.is_empty() {
             return false;
         }
@@ -196,7 +197,7 @@ impl PengGeneratorContext {
         }
     }
 
-    fn patch_loop(
+    pub fn patch_loop(
         &mut self,
         loop_context: PengLoopContext,
         break_target: usize,
@@ -217,467 +218,7 @@ impl PengGeneratorContext {
     }
 }
 
-pub fn create_anonymous_bytecode_function(
-    env: &mut PengEnv,
-    context: PengGeneratorContext,
-) -> PengValuePtr {
-    let function = create_bytecode_function_value(
-        context,
-        0,
-    );
-
-    env.create_value(function)
-}
-
-fn create_bytecode_function_value(
-    mut context: PengGeneratorContext,
-    generics_count: usize,
-) -> PengValue {
-    context.push_const_and_const_instruction(PengValue::Nil);
-    context.bytecode.push(PengInstruction::Return);
-
-    PengValue::Function(
-        PengFunction::Bytecode(
-            PengBytecodeFunction {
-                bytecode: context.bytecode,
-                consts: context.consts,
-                generics_count,
-                using_values: Vec::new(),
-            },
-        ),
-    )
-}
-
-pub fn generate_expression(
-    env: &PengEnv,
-    context: &mut PengGeneratorContext,
-    expression: &PengPositionedExpression,
-) -> Result<(), PengError> {
-    match &expression.value {
-        PengExpression::Literal(literal) => {
-            generate_literal(env, context, literal)
-        }
-        PengExpression::Identifier(identifier) => {
-            generate_identifier(env, context, identifier)
-        }
-        PengExpression::Unary {
-            operator,
-            value,
-        } => {
-            match generate_expression(env, context, value) {
-                Ok(()) => {}
-                Err(e) => return Err(e),
-            }
-
-            match operator {
-                PengUnaryOperator::Negate => {
-                    context.bytecode.push(PengInstruction::Negate);
-                }
-                PengUnaryOperator::Not => {
-                    context.bytecode.push(PengInstruction::Not);
-                }
-            }
-
-            Ok(())
-        }
-        PengExpression::Binary {
-            left,
-            operator,
-            right,
-        } => {
-            match generate_expression(env, context, left) {
-                Ok(()) => {}
-                Err(e) => return Err(e),
-            }
-
-            match operator {
-                PengBinaryOperator::ShortCircuitAnd
-                | PengBinaryOperator::ShortCircuitOr => {
-                    context.bytecode.push(PengInstruction::Duplicate(1));
-                    let jump_index = context.bytecode.len();
-                    context.bytecode.push(match operator {
-                        PengBinaryOperator::ShortCircuitAnd => {
-                            PengInstruction::JumpIfFalse(usize::MAX)
-                        }
-                        PengBinaryOperator::ShortCircuitOr => {
-                            PengInstruction::JumpIfTrue(usize::MAX)
-                        }
-                        _ => unreachable!(),
-                    });
-                    context.bytecode.push(PengInstruction::Pop(1));
-
-                    generate_expression(env, context, right)?;
-
-                    let target = context.bytecode.len();
-                    context.bytecode[jump_index] = match operator {
-                        PengBinaryOperator::ShortCircuitAnd => {
-                            PengInstruction::JumpIfFalse(target)
-                        }
-                        PengBinaryOperator::ShortCircuitOr => {
-                            PengInstruction::JumpIfTrue(target)
-                        }
-                        _ => unreachable!(),
-                    };
-                }
-                _ => {
-                    generate_expression(env, context, right)?;
-                    generate_binary_operator(context, operator);
-                }
-            }
-
-            Ok(())
-        }
-        PengExpression::Type(type_expression) => {
-            generate_type_expression(
-                env,
-                context,
-                type_expression,
-            )
-        }
-        PengExpression::FuncCall(call) => {
-            generate_function_call(env, context, call)
-        }
-        PengExpression::MethodCall(_) => {
-            todo!("generate method call expression")
-        }
-        PengExpression::AttributeAccess(_) => {
-            todo!("generate attribute access expression")
-        }
-        PengExpression::MemberAccess(_) => {
-            todo!("generate member access expression")
-        }
-        PengExpression::Index(index) => {
-            generate_index_expression(env, context, index)
-        }
-        PengExpression::ObjectConstruction(_) => {
-            todo!("generate object construction expression")
-        }
-        PengExpression::OperationCall {
-            left,
-            operation,
-            right,
-        } => {
-            generate_operation_call(
-                env,
-                context,
-                left,
-                operation,
-                right,
-            )
-        }
-        PengExpression::Try { .. } => {
-            todo!("generate try expression")
-        }
-    }
-}
-
-fn generate_literal(
-    env: &PengEnv,
-    context: &mut PengGeneratorContext,
-    literal: &PengPositionedLiteral,
-) -> Result<(), PengError> {
-    let value = match &literal.value {
-        PengLiteral::Nil => PengValue::Nil,
-        PengLiteral::Int(value) => PengValue::Int(*value),
-        PengLiteral::Uint(value) => PengValue::Uint(*value),
-        PengLiteral::Byte(value) => PengValue::Byte(*value),
-        PengLiteral::Float32(value) => PengValue::Float32(*value),
-        PengLiteral::Float64(value) => PengValue::Float64(*value),
-        PengLiteral::Bool(value) => PengValue::Bool(*value),
-        PengLiteral::String(value) => PengValue::String(value.clone()),
-        PengLiteral::Type(_) => {
-            todo!("generate type literal")
-        }
-        PengLiteral::Function(function) => {
-            match generate_function_value(
-                env,
-                &function.generics,
-                &function.params,
-                &function.body,
-            ) {
-                Ok(value) => value,
-                Err(e) => return Err(e),
-            }
-        }
-        PengLiteral::Module(_) => {
-            todo!("generate module literal")
-        }
-        PengLiteral::Vector(_) => {
-            todo!("generate vector literal")
-        }
-        PengLiteral::Operation(operation) => {
-            match generate_operation_value(
-                env,
-                &operation.params,
-                &operation.body,
-            ) {
-                Ok(value) => value,
-                Err(e) => return Err(e),
-            }
-        }
-        PengLiteral::Object(_) => {
-            todo!("generate object literal")
-        }
-    };
-
-    context.push_const_and_const_instruction(value);
-    Ok(())
-}
-
-pub fn generate_function_declaration_value(
-    env: &PengEnv,
-    declaration: &PengPositionedFunctionDeclaration,
-) -> Result<PengValue, PengError> {
-    generate_function_value(
-        env,
-        &declaration.value.generics,
-        &declaration.value.params,
-        &declaration.value.body,
-    )
-}
-
-pub fn generate_operation_declaration_value(
-    env: &PengEnv,
-    declaration: &PengPositionedOperationDeclaration,
-) -> Result<PengValue, PengError> {
-    generate_operation_value(
-        env,
-        &declaration.value.params,
-        &declaration.value.body,
-    )
-}
-
-fn generate_function_value(
-    env: &PengEnv,
-    generics: &Vec<PengPositioned<String>>,
-    params: &Vec<PengPositionedFunctionParam>,
-    body: &Vec<PengPositionedStatement>,
-) -> Result<PengValue, PengError> {
-    let mut context = PengGeneratorContext::new();
-
-    for param in params {
-        context.create_local(
-            param.value.name.value.clone(),
-        );
-    }
-
-    match generate_statements(env, &mut context, body) {
-        Ok(()) => {}
-        Err(e) => return Err(e),
-    }
-
-    Ok(create_bytecode_function_value(
-        context,
-        generics.len(),
-    ))
-}
-
-fn generate_operation_value(
-    env: &PengEnv,
-    params: &Vec<PengPositionedFunctionParam>,
-    body: &Vec<PengPositionedStatement>,
-) -> Result<PengValue, PengError> {
-    let mut context = PengGeneratorContext::new();
-
-    for param in params {
-        context.create_local(
-            param.value.name.value.clone(),
-        );
-    }
-
-    match generate_statements(env, &mut context, body) {
-        Ok(()) => {}
-        Err(e) => return Err(e),
-    }
-
-    context.push_const_and_const_instruction(PengValue::Nil);
-    context.bytecode.push(PengInstruction::Return);
-
-    Ok(PengValue::Operation(
-        PengOperation::Bytecode(
-            PengBytecodeOperation {
-                bytecode: context.bytecode,
-                consts: context.consts,
-                generics_count: 0,
-                using_values: Vec::new(),
-            },
-        ),
-    ))
-}
-
-fn generate_function_call(
-    env: &PengEnv,
-    context: &mut PengGeneratorContext,
-    call: &PengFuncCallExpression,
-) -> Result<(), PengError> {
-    match generate_expression(env, context, &call.function) {
-        Ok(()) => {}
-        Err(e) => return Err(e),
-    }
-
-    for generic in &call.generics {
-        match generate_expression(env, context, generic) {
-            Ok(()) => {}
-            Err(e) => return Err(e),
-        }
-    }
-
-    for arg in &call.args {
-        match generate_expression(env, context, arg) {
-            Ok(()) => {}
-            Err(e) => return Err(e),
-        }
-    }
-
-    context.bytecode.push(PengInstruction::FunctionCall {
-        generics: call.generics.len(),
-        params: call.args.len(),
-    });
-
-    Ok(())
-}
-
-fn generate_operation_call(
-    env: &PengEnv,
-    context: &mut PengGeneratorContext,
-    left: &PengPositionedExpression,
-    operation: &PengPositionedExpression,
-    right: &PengPositionedExpression,
-) -> Result<(), PengError> {
-    match generate_expression(env, context, operation) {
-        Ok(()) => {}
-        Err(e) => return Err(e),
-    }
-
-    match generate_expression(env, context, left) {
-        Ok(()) => {}
-        Err(e) => return Err(e),
-    }
-
-    match generate_expression(env, context, right) {
-        Ok(()) => {}
-        Err(e) => return Err(e),
-    }
-
-    context.bytecode.push(PengInstruction::OperationCall);
-
-    Ok(())
-}
-
-fn generate_index_expression(
-    env: &PengEnv,
-    context: &mut PengGeneratorContext,
-    index: &PengIndexExpression,
-) -> Result<(), PengError> {
-    match generate_expression(env, context, &index.object) {
-        Ok(()) => {}
-        Err(e) => return Err(e),
-    }
-
-    match generate_expression(env, context, &index.index) {
-        Ok(()) => {}
-        Err(e) => return Err(e),
-    }
-
-    context.bytecode.push(PengInstruction::GetIndex);
-    Ok(())
-}
-
-pub fn generate_type_expression(
-    env: &PengEnv,
-    context: &mut PengGeneratorContext,
-    type_expression: &PengPositionedTypeExpression,
-) -> Result<(), PengError> {
-    match &type_expression.value {
-        PengTypeExpression::Union(types) => {
-            for typ in types {
-                match generate_type_expression(
-                    env,
-                    context,
-                    typ,
-                ) {
-                    Ok(()) => {}
-                    Err(e) => return Err(e),
-                }
-            }
-
-            context.bytecode.push(
-                PengInstruction::CreateUnion(types.len()),
-            );
-            Ok(())
-        }
-        PengTypeExpression::Custom(expression) => {
-            generate_expression(env, context, expression)
-        }
-        PengTypeExpression::Vector(inner) => {
-            let inner_type = match static_type_from_expression(inner) {
-                Some(inner_type) => inner_type,
-                None => {
-                    return Err(PengError::new_positioned_message(
-                        "vector type requires a static inner type".to_string(),
-                        inner.position.clone(),
-                    ));
-                }
-            };
-
-            context.push_const_and_const_instruction(
-                PengValue::Type(
-                    PengType::Vector(Box::new(inner_type)),
-                ),
-            );
-            Ok(())
-        }
-        _ => {
-            let typ = match static_type_from_expression(type_expression) {
-                Some(typ) => typ,
-                None => {
-                    return Err(PengError::new_positioned_message(
-                        "expected type value".to_string(),
-                        type_expression.position.clone(),
-                    ));
-                }
-            };
-
-            context.push_const_and_const_instruction(
-                PengValue::Type(typ),
-            );
-            Ok(())
-        }
-    }
-}
-
-fn static_type_from_expression(
-    type_expression: &PengPositionedTypeExpression,
-) -> Option<PengType> {
-    match &type_expression.value {
-        PengTypeExpression::Nil => Some(PengType::Nil),
-        PengTypeExpression::Int => Some(PengType::Int),
-        PengTypeExpression::Uint => Some(PengType::Uint),
-        PengTypeExpression::Float32 => Some(PengType::Float32),
-        PengTypeExpression::Float64 => Some(PengType::Float64),
-        PengTypeExpression::Byte => Some(PengType::Byte),
-        PengTypeExpression::Bool => Some(PengType::Bool),
-        PengTypeExpression::String => Some(PengType::String),
-        PengTypeExpression::Object => Some(PengType::Object),
-        PengTypeExpression::Type => Some(PengType::Type),
-        PengTypeExpression::Module => Some(PengType::Module),
-        PengTypeExpression::Function => Some(PengType::Function),
-        PengTypeExpression::Operation => Some(PengType::Operator),
-        PengTypeExpression::Any => Some(PengType::Any),
-        PengTypeExpression::Vector(inner) => {
-            match static_type_from_expression(inner) {
-                Some(inner_type) => {
-                    Some(PengType::Vector(Box::new(inner_type)))
-                }
-                None => None,
-            }
-        }
-        PengTypeExpression::Custom(_) => None,
-        PengTypeExpression::Union(_) => None,
-    }
-}
-
-fn generate_identifier(
+pub fn generate_identifier(
     env: &PengEnv,
     context: &mut PengGeneratorContext,
     identifier: &PengPositioned<String>,
@@ -706,453 +247,7 @@ fn generate_identifier(
     }
 }
 
-pub fn generate_statements(
-    env: &PengEnv,
-    context: &mut PengGeneratorContext,
-    statements: &Vec<PengPositionedStatement>,
-) -> Result<(), PengError> {
-    for statement in statements {
-        match generate_statement(env, context, statement) {
-            Ok(()) => {}
-            Err(e) => return Err(e),
-        }
-    }
-
-    Ok(())
-}
-
-fn generate_statement(
-    env: &PengEnv,
-    context: &mut PengGeneratorContext,
-    statement: &PengPositionedStatement,
-) -> Result<(), PengError> {
-    match &statement.value {
-        PengStatement::Declaration(
-            PengDeclaration::Variable(variable),
-        ) => {
-            generate_local_variable(env, context, variable)
-        }
-        PengStatement::Declaration(
-            PengDeclaration::As(declaration),
-        ) => {
-            generate_local_as_declaration(
-                env,
-                context,
-                declaration,
-            )
-        }
-        PengStatement::Declaration(
-            PengDeclaration::Function(declaration),
-        ) => {
-            generate_local_function_declaration(
-                env,
-                context,
-                declaration,
-            )
-        }
-        PengStatement::Declaration(
-            PengDeclaration::Operation(declaration),
-        ) => {
-            generate_local_operation_declaration(
-                env,
-                context,
-                declaration,
-            )
-        }
-        PengStatement::Declaration(
-            PengDeclaration::Type(declaration),
-        ) => {
-            generate_local_type_declaration(
-                env,
-                context,
-                declaration,
-            )
-        }
-        PengStatement::Declaration(_) => {
-            todo!("generate non-function local declaration")
-        }
-        PengStatement::Block(statements) => {
-            context.push_scope();
-
-            let result = generate_statements(
-                env,
-                context,
-                statements,
-            );
-
-            context.pop_scope();
-
-            match result {
-                Ok(()) => Ok(()),
-                Err(e) => Err(e),
-            }
-        }
-        PengStatement::Return(value) => {
-            match value {
-                Some(value) => {
-                    match generate_expression(
-                        env,
-                        context,
-                        value,
-                    ) {
-                        Ok(()) => {}
-                        Err(e) => return Err(e),
-                    }
-                }
-                None => {
-                    context.push_const_and_const_instruction(PengValue::Nil);
-                }
-            }
-
-            context.bytecode.push(PengInstruction::Return);
-            Ok(())
-        }
-        PengStatement::Assign(assignment) => {
-            generate_assignment(env, context, assignment)
-        }
-        PengStatement::Expression(expression) => {
-            match generate_expression(env, context, expression) {
-                Ok(()) => {}
-                Err(e) => return Err(e),
-            }
-
-            context.bytecode.push(PengInstruction::Pop(1));
-            Ok(())
-        }
-        PengStatement::If(if_statement) => {
-            generate_if_statement(
-                env,
-                context,
-                if_statement,
-            )
-        }
-        PengStatement::While(while_statement) => {
-            generate_while_statement(
-                env,
-                context,
-                while_statement,
-            )
-        }
-        PengStatement::For(for_statement) => {
-            generate_for_statement(
-                env,
-                context,
-                for_statement,
-            )
-        }
-        PengStatement::Loop(body) => {
-            generate_loop_statement(env, context, body)
-        }
-        PengStatement::Break => {
-            if context.emit_break() {
-                Ok(())
-            } else {
-                Err(PengError::new_positioned_message(
-                    "'break' used outside a loop".to_string(),
-                    statement.position.clone(),
-                ))
-            }
-        }
-        PengStatement::Continue => {
-            if context.emit_continue() {
-                Ok(())
-            } else {
-                Err(PengError::new_positioned_message(
-                    "'continue' used outside a loop".to_string(),
-                    statement.position.clone(),
-                ))
-            }
-        }
-    }
-}
-
-fn generate_scoped_statements(
-    env: &PengEnv,
-    context: &mut PengGeneratorContext,
-    statements: &Vec<PengPositionedStatement>,
-) -> Result<(), PengError> {
-    context.push_scope();
-
-    let result = generate_statements(
-        env,
-        context,
-        statements,
-    );
-
-    context.pop_scope();
-
-    match result {
-        Ok(()) => Ok(()),
-        Err(e) => Err(e),
-    }
-}
-
-fn generate_if_statement(
-    env: &PengEnv,
-    context: &mut PengGeneratorContext,
-    statement: &PengIfStatement,
-) -> Result<(), PengError> {
-    match generate_expression(
-        env,
-        context,
-        &statement.condition,
-    ) {
-        Ok(()) => {}
-        Err(e) => return Err(e),
-    }
-
-    let false_jump = context.emit_jump_if_false();
-
-    match generate_scoped_statements(
-        env,
-        context,
-        &statement.then_branch,
-    ) {
-        Ok(()) => {}
-        Err(e) => return Err(e),
-    }
-
-    match &statement.else_branch {
-        Some(else_branch) => {
-            let end_jump = context.emit_jump();
-            let else_start = context.bytecode.len();
-            context.patch_jump(false_jump, else_start);
-
-            match generate_scoped_statements(
-                env,
-                context,
-                else_branch,
-            ) {
-                Ok(()) => {}
-                Err(e) => return Err(e),
-            }
-
-            let end = context.bytecode.len();
-            context.patch_jump(end_jump, end);
-        }
-        None => {
-            let end = context.bytecode.len();
-            context.patch_jump(false_jump, end);
-        }
-    }
-
-    Ok(())
-}
-
-fn generate_while_statement(
-    env: &PengEnv,
-    context: &mut PengGeneratorContext,
-    statement: &PengWhileStatement,
-) -> Result<(), PengError> {
-    let condition_start = context.bytecode.len();
-
-    match generate_expression(
-        env,
-        context,
-        &statement.condition,
-    ) {
-        Ok(()) => {}
-        Err(e) => return Err(e),
-    }
-
-    let end_jump = context.emit_jump_if_false();
-    context.push_loop(Some(condition_start));
-
-    let body_result = generate_scoped_statements(
-        env,
-        context,
-        &statement.body,
-    );
-
-    match body_result {
-        Ok(()) => {}
-        Err(e) => {
-            context.pop_loop();
-            return Err(e);
-        }
-    }
-
-    context.bytecode.push(
-        PengInstruction::Jump(condition_start),
-    );
-
-    let end = context.bytecode.len();
-    context.patch_jump(end_jump, end);
-
-    let loop_context = match context.pop_loop() {
-        Some(loop_context) => loop_context,
-        None => {
-            return Err(PengError::new_positioned_message(
-                "missing while loop generation context".to_string(),
-                statement.condition.position.clone(),
-            ));
-        }
-    };
-
-    context.patch_loop(
-        loop_context,
-        end,
-        condition_start,
-    );
-
-    Ok(())
-}
-
-fn generate_loop_statement(
-    env: &PengEnv,
-    context: &mut PengGeneratorContext,
-    body: &Vec<PengPositionedStatement>,
-) -> Result<(), PengError> {
-    let loop_start = context.bytecode.len();
-    context.push_loop(Some(loop_start));
-
-    let body_result = generate_scoped_statements(
-        env,
-        context,
-        body,
-    );
-
-    match body_result {
-        Ok(()) => {}
-        Err(e) => {
-            context.pop_loop();
-            return Err(e);
-        }
-    }
-
-    context.bytecode.push(
-        PengInstruction::Jump(loop_start),
-    );
-
-    let end = context.bytecode.len();
-    let loop_context = match context.pop_loop() {
-        Some(loop_context) => loop_context,
-        None => {
-            return Err(PengError::new_message(
-                "missing loop generation context".to_string(),
-            ));
-        }
-    };
-
-    context.patch_loop(loop_context, end, loop_start);
-    Ok(())
-}
-
-fn generate_for_statement(
-    env: &PengEnv,
-    context: &mut PengGeneratorContext,
-    statement: &PengForStatement,
-) -> Result<(), PengError> {
-    context.push_scope();
-
-    match &statement.initializer {
-        Some(initializer) => {
-            match generate_statement(
-                env,
-                context,
-                initializer,
-            ) {
-                Ok(()) => {}
-                Err(e) => {
-                    context.pop_scope();
-                    return Err(e);
-                }
-            }
-        }
-        None => {}
-    }
-
-    let condition_start = context.bytecode.len();
-    let end_jump = match &statement.condition {
-        Some(condition) => {
-            match generate_expression(
-                env,
-                context,
-                condition,
-            ) {
-                Ok(()) => {}
-                Err(e) => {
-                    context.pop_scope();
-                    return Err(e);
-                }
-            }
-
-            Some(context.emit_jump_if_false())
-        }
-        None => None,
-    };
-
-    context.push_loop(None);
-
-    let body_result = generate_scoped_statements(
-        env,
-        context,
-        &statement.body,
-    );
-
-    match body_result {
-        Ok(()) => {}
-        Err(e) => {
-            context.pop_loop();
-            context.pop_scope();
-            return Err(e);
-        }
-    }
-
-    let increment_start = context.bytecode.len();
-
-    match &statement.increment {
-        Some(increment) => {
-            match generate_statement(
-                env,
-                context,
-                increment,
-            ) {
-                Ok(()) => {}
-                Err(e) => {
-                    context.pop_loop();
-                    context.pop_scope();
-                    return Err(e);
-                }
-            }
-        }
-        None => {}
-    }
-
-    context.bytecode.push(
-        PengInstruction::Jump(condition_start),
-    );
-
-    let end = context.bytecode.len();
-
-    match end_jump {
-        Some(end_jump) => {
-            context.patch_jump(end_jump, end);
-        }
-        None => {}
-    }
-
-    let loop_context = match context.pop_loop() {
-        Some(loop_context) => loop_context,
-        None => {
-            context.pop_scope();
-            return Err(PengError::new_message(
-                "missing for loop generation context".to_string(),
-            ));
-        }
-    };
-
-    context.patch_loop(
-        loop_context,
-        end,
-        increment_start,
-    );
-    context.pop_scope();
-
-    Ok(())
-}
-
-fn generate_local_variable(
+pub fn generate_local_variable(
     env: &PengEnv,
     context: &mut PengGeneratorContext,
     variable: &PengPositionedVariableDeclaration,
@@ -1179,7 +274,7 @@ fn generate_local_variable(
     Ok(())
 }
 
-fn generate_local_as_declaration(
+pub fn generate_local_as_declaration(
     env: &PengEnv,
     context: &mut PengGeneratorContext,
     declaration: &PengPositionedAsDeclaration,
@@ -1203,57 +298,7 @@ fn generate_local_as_declaration(
     Ok(())
 }
 
-fn generate_local_function_declaration(
-    env: &PengEnv,
-    context: &mut PengGeneratorContext,
-    declaration: &PengPositionedFunctionDeclaration,
-) -> Result<(), PengError> {
-    let value = match generate_function_declaration_value(
-        env,
-        declaration,
-    ) {
-        Ok(value) => value,
-        Err(e) => return Err(e),
-    };
-
-    context.push_const_and_const_instruction(value);
-
-    let local = context.create_local(
-        declaration.value.name.value.clone(),
-    );
-    context.bytecode.push(
-        PengInstruction::StoreLocal(local),
-    );
-
-    Ok(())
-}
-
-fn generate_local_operation_declaration(
-    env: &PengEnv,
-    context: &mut PengGeneratorContext,
-    declaration: &PengPositionedOperationDeclaration,
-) -> Result<(), PengError> {
-    let value = match generate_operation_declaration_value(
-        env,
-        declaration,
-    ) {
-        Ok(value) => value,
-        Err(e) => return Err(e),
-    };
-
-    context.push_const_and_const_instruction(value);
-
-    let local = context.create_local(
-        declaration.value.name.value.clone(),
-    );
-    context.bytecode.push(
-        PengInstruction::StoreLocal(local),
-    );
-
-    Ok(())
-}
-
-fn generate_local_type_declaration(
+pub fn generate_local_type_declaration(
     env: &PengEnv,
     context: &mut PengGeneratorContext,
     declaration: &PengPositionedTypeDeclaration,
@@ -1280,7 +325,7 @@ fn generate_local_type_declaration(
     Ok(())
 }
 
-fn generate_assignment(
+pub fn generate_assignment(
     env: &PengEnv,
     context: &mut PengGeneratorContext,
     assignment: &PengAssignStatement,
@@ -1352,7 +397,7 @@ fn generate_assignment(
     }
 }
 
-fn generate_assignment_value(
+pub fn generate_assignment_value(
     env: &PengEnv,
     context: &mut PengGeneratorContext,
     target: &PengPositionedExpression,
@@ -1463,7 +508,7 @@ fn generate_assignment_value(
     }
 }
 
-fn generate_index_assignment(
+pub fn generate_index_assignment(
     env: &PengEnv,
     context: &mut PengGeneratorContext,
     index: &PengIndexExpression,
@@ -1498,7 +543,7 @@ fn generate_index_assignment(
     Ok(())
 }
 
-fn generate_binary_operator(
+pub fn generate_binary_operator(
     context: &mut PengGeneratorContext,
     operator: &PengBinaryOperator,
 ) {

@@ -83,6 +83,8 @@ fn parse_primary_type_expression(
 
         PengToken::LeftBracket => parse_vector_type_expression(ptokens),
 
+        PengToken::Union => parse_builtin_type(ptokens, PengTypeExpression::UnionType),
+
         PengToken::Identifier(_) => {
             let expression = match parse_custom_type_expression(ptokens) {
                 Ok(expression) => expression,
