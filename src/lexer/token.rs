@@ -11,6 +11,7 @@ pub enum PengToken {
     Any,
 
     Type,
+    Union,
 
     As,
     Is,
@@ -59,7 +60,6 @@ pub enum PengToken {
     DoublePipe,
 
     Exclamation,
-    Question,
     Arrow,
 
     Var,
@@ -113,6 +113,7 @@ impl PengToken {
             "any" => Some(Self::Any),
 
             "type" => Some(Self::Type),
+            "union" => Some(Self::Union),
 
             "=" => Some(Self::Equals),
             "." => Some(Self::Dot),
@@ -144,7 +145,6 @@ impl PengToken {
             "||" => Some(Self::DoublePipe),
 
             "!" => Some(Self::Exclamation),
-            "?" => Some(Self::Question),
             "->" => Some(Self::Arrow),
 
             "<" => Some(Self::LessThan),

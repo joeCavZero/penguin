@@ -14,6 +14,8 @@ pub mod position;
 pub mod context;
 pub mod instruction;
 pub mod positioned;
+pub mod unioning;
+pub mod operation;
 
 pub use env::*;
 pub use thread::*;
@@ -31,3 +33,5 @@ pub use position::*;
 pub use context::*;
 pub use instruction::*;
 pub use positioned::*;
+pub use unioning::*;
+pub use operation::*;

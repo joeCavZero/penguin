@@ -39,50 +39,6 @@ pub fn parse_type_declaration_statement(
         Err(e) => return Err(e),
     };
 
-    let has_value = match ptokens.peek() {
-        Some(token) => match &token.value {
-            PengToken::Equals => true,
-            _ => false,
-        },
-        None => false,
-    };
-
-    if has_value {
-        match ptokens.next() {
-            Some(_) => {}
-            None => {
-                return Err(PengError::new_positioned_message(
-                    "expected '='".to_string(),
-                    type_token.position.clone(),
-                ));
-            }
-        }
-
-        let value = match parse_type_expression(ptokens) {
-            Ok(value) => value,
-            Err(e) => return Err(e),
-        };
-
-        let declaration = PengPositioned {
-            value: PengTypeDeclaration {
-                name,
-                generics,
-                value: Some(value),
-                supers: Vec::new(),
-                fields: Vec::new(),
-                functions: Vec::new(),
-            },
-            position: type_token.position.clone(),
-        };
-
-        return Ok(PengPositioned {
-            value: PengStatement::Declaration(
-                PengDeclaration::Type(declaration)
-            ),
-            position: type_token.position.clone(),
-        });
-    }
-
     let supers = match parse_type_supers(ptokens) {
         Ok(supers) => supers,
         Err(e) => return Err(e),
@@ -113,7 +69,7 @@ pub fn parse_type_declaration_statement(
     })
 }
 
-pub(crate) fn parse_type_supers(
+pub fn parse_type_supers(
     ptokens: &mut PengPeekablePositionedToken,
 ) -> Result<Vec<PengPositionedExpression>, PengError> {
     let has_supers = match ptokens.peek() {
@@ -273,7 +229,7 @@ fn parse_type_super_expression(
     Ok(expression)
 }
 
-pub(crate) fn parse_type_members(
+pub fn parse_type_members(
     ptokens: &mut PengPeekablePositionedToken,
 ) -> Result<
     (

@@ -5,7 +5,7 @@ use crate::parser::*;
 pub fn parse_type_expression(
     ptokens: &mut PengPeekablePositionedToken,
 ) -> Result<PengPositionedTypeExpression, PengError> {
-    let first = match parse_single_type_expression(ptokens) {
+    let first = match parse_primary_type_expression(ptokens) {
         Ok(type_expression) => type_expression,
         Err(e) => return Err(e),
     };
@@ -28,7 +28,7 @@ pub fn parse_type_expression(
 
         ptokens.next();
 
-        let type_expression = match parse_single_type_expression(ptokens) {
+        let type_expression = match parse_primary_type_expression(ptokens) {
             Ok(type_expression) => type_expression,
             Err(e) => return Err(e),
         };
@@ -52,35 +52,6 @@ pub fn parse_type_expression(
     }
 }
 
-fn parse_single_type_expression(
-    ptokens: &mut PengPeekablePositionedToken,
-) -> Result<PengPositionedTypeExpression, PengError> {
-    let mut type_expression = match parse_primary_type_expression(ptokens) {
-        Ok(type_expression) => type_expression,
-        Err(e) => return Err(e),
-    };
-
-    let is_nillable = match ptokens.peek() {
-        Some(token) => match &token.value {
-            PengToken::Question => true,
-            _ => false,
-        },
-        None => false,
-    };
-
-    if is_nillable {
-        ptokens.next();
-
-        let position = type_expression.position.clone();
-
-        type_expression = PengPositioned {
-            value: PengTypeExpression::Nillable(Box::new(type_expression)),
-            position,
-        };
-    }
-
-    Ok(type_expression)
-}
 
 fn parse_primary_type_expression(
     ptokens: &mut PengPeekablePositionedToken,
@@ -94,112 +65,315 @@ fn parse_primary_type_expression(
         }
     };
 
-    let is_type_literal = match &token.value {
-        PengToken::Type => match token_after_type_token(ptokens) {
-            Some(next) => match &next.value {
-                PengToken::LessThan
-                | PengToken::Colon
-                | PengToken::LeftCurlyBrace => true,
-                _ => false,
-            },
-            None => false,
-        },
-        _ => false,
-    };
-
-    if is_type_literal {
-        let expression = match parse_type_literal(ptokens) {
-            Ok(expression) => expression,
-            Err(e) => return Err(e),
-        };
-
-        return Ok(PengPositioned {
-            value: PengTypeExpression::Custom(Box::new(expression)),
-            position: token.position.clone(),
-        });
-    }
-
     match &token.value {
-        PengToken::Nil
-        | PengToken::Int
-        | PengToken::Uint
-        | PengToken::Float32
-        | PengToken::Float64
-        | PengToken::Byte
-        | PengToken::Bool
-        | PengToken::String
-        | PengToken::Any
-        | PengToken::Type
-        | PengToken::Mod
-        | PengToken::Func
-        | PengToken::Oper => {
-            ptokens.next();
+        PengToken::Nil => parse_builtin_type(ptokens, PengTypeExpression::Nil),
+        PengToken::Int => parse_builtin_type(ptokens, PengTypeExpression::Int),
+        PengToken::Uint => parse_builtin_type(ptokens, PengTypeExpression::Uint),
+        PengToken::Float32 => parse_builtin_type(ptokens, PengTypeExpression::Float32),
+        PengToken::Float64 => parse_builtin_type(ptokens, PengTypeExpression::Float64),
+        PengToken::Byte => parse_builtin_type(ptokens, PengTypeExpression::Byte),
+        PengToken::Bool => parse_builtin_type(ptokens, PengTypeExpression::Bool),
+        PengToken::String => parse_builtin_type(ptokens, PengTypeExpression::String),
+        PengToken::Any => parse_builtin_type(ptokens, PengTypeExpression::Any),
 
-            let value = match type_expression_from_token(&token.value) {
-                Some(value) => value,
-                None => {
-                    return Err(PengError::new_positioned_message(
-                        "expected type expression".to_string(),
-                        token.position.clone(),
-                    ));
-                }
-            };
+        PengToken::Type => parse_builtin_type(ptokens, PengTypeExpression::Type),
+        PengToken::Mod => parse_builtin_type(ptokens, PengTypeExpression::Module),
+        PengToken::Func => parse_builtin_type(ptokens, PengTypeExpression::Function),
+        PengToken::Oper => parse_builtin_type(ptokens, PengTypeExpression::Operation),
 
-            Ok(PengPositioned {
-                value,
-                position: token.position.clone(),
-            })
-        }
+        PengToken::LeftBracket => parse_vector_type_expression(ptokens),
 
-        PengToken::LeftBracket => {
-            ptokens.next();
-
-            let inner = match parse_type_expression(ptokens) {
-                Ok(type_expression) => type_expression,
-                Err(e) => return Err(e),
-            };
-
-            let close_token = match ptokens.next() {
-                Some(token) => token,
-                None => {
-                    return Err(PengError::new_positioned_message(
-                        "expected ']'".to_string(),
-                        token.position.clone(),
-                    ));
-                }
-            };
-
-            match &close_token.value {
-                PengToken::RightBracket => {
-                    Ok(PengPositioned {
-                        value: PengTypeExpression::Vector(Box::new(inner)),
-                        position: token.position.clone(),
-                    })
-                }
-                _ => {
-                    Err(PengError::new_positioned_message(
-                        "expected ']'".to_string(),
-                        close_token.position.clone(),
-                    ))
-                }
-            }
-        }
-
-        _ => {
-            let expression = match parse_expression(ptokens) {
+        PengToken::Identifier(_) => {
+            let expression = match parse_custom_type_expression(ptokens) {
                 Ok(expression) => expression,
                 Err(e) => return Err(e),
             };
+
+            match reject_invalid_custom_type_tail(ptokens) {
+                Ok(_) => {}
+                Err(e) => return Err(e),
+            }
 
             Ok(PengPositioned {
                 value: PengTypeExpression::Custom(Box::new(expression)),
                 position: token.position.clone(),
             })
         }
+        
+        _ => Err(PengError::new_positioned_message(
+            "expected type expression".to_string(),
+            token.position.clone(),
+        )),
     }
 }
 
-pub(crate) fn type_expression_from_token(
+fn parse_builtin_type(
+    ptokens: &mut PengPeekablePositionedToken,
+    type_expression: PengTypeExpression,
+) -> Result<PengPositionedTypeExpression, PengError> {
+    let token = match ptokens.next() {
+        Some(token) => token,
+        None => {
+            return Err(PengError::new_message(
+                "expected type expression".to_string(),
+            ));
+        }
+    };
+
+    Ok(PengPositioned {
+        value: type_expression,
+        position: token.position.clone(),
+    })
+}
+
+
+fn parse_custom_type_expression(
+    ptokens: &mut PengPeekablePositionedToken,
+) -> Result<PengPositionedExpression, PengError> {
+    let first_token = match ptokens.next() {
+        Some(token) => token,
+        None => {
+            return Err(PengError::new_message(
+                "expected custom type".to_string(),
+            ));
+        }
+    };
+
+    let first_name = match &first_token.value {
+        PengToken::Identifier(name) => PengPositioned {
+            value: name.clone(),
+            position: first_token.position.clone(),
+        },
+        _ => {
+            return Err(PengError::new_positioned_message(
+                "expected custom type name".to_string(),
+                first_token.position.clone(),
+            ));
+        }
+    };
+
+    let mut expression = PengPositioned {
+        value: PengExpression::Identifier(first_name),
+        position: first_token.position.clone(),
+    };
+
+    expression = parse_custom_type_colon_chain(ptokens, expression)?;
+
+    expression = parse_custom_type_generics(ptokens, expression)?;
+
+    Ok(expression)
+}
+
+fn parse_custom_type_colon_chain(
+    ptokens: &mut PengPeekablePositionedToken,
+    left: PengPositionedExpression,
+) -> Result<PengPositionedExpression, PengError> {
+    let has_colon = match ptokens.peek() {
+        Some(token) => match &token.value {
+            PengToken::Colon => true,
+            _ => false,
+        },
+        None => false,
+    };
+
+    if !has_colon {
+        return Ok(left);
+    }
+
+    ptokens.next();
+
+    let name_token = match ptokens.next() {
+        Some(token) => token,
+        None => {
+            return Err(PengError::new_positioned_message(
+                "expected type member name after ':'".to_string(),
+                left.position.clone(),
+            ));
+        }
+    };
+
+    let name = match &name_token.value {
+        PengToken::Identifier(name) => PengPositioned {
+            value: name.clone(),
+            position: name_token.position.clone(),
+        },
+        _ => {
+            return Err(PengError::new_positioned_message(
+                "expected type member name after ':'".to_string(),
+                name_token.position.clone(),
+            ));
+        }
+    };
+
+    let expression = PengPositioned {
+        value: PengExpression::MemberAccess(PengMemberAccessExpression {
+            object: Box::new(left),
+            name,
+        }),
+        position: name_token.position.clone(),
+    };
+
+    let has_another_colon = match ptokens.peek() {
+        Some(token) => match &token.value {
+            PengToken::Colon => true,
+            _ => false,
+        },
+        None => false,
+    };
+
+    if has_another_colon {
+        return parse_custom_type_colon_chain(ptokens, expression);
+    }
+
+    Ok(expression)
+}
+
+fn parse_custom_type_generics(
+    ptokens: &mut PengPeekablePositionedToken,
+    function: PengPositionedExpression,
+) -> Result<PengPositionedExpression, PengError> {
+    let has_generics = match ptokens.peek() {
+        Some(token) => match &token.value {
+            PengToken::LessThan => true,
+            _ => false,
+        },
+        None => false,
+    };
+
+    if !has_generics {
+        return Ok(function);
+    }
+
+    let open_token = match ptokens.next() {
+        Some(token) => token,
+        None => {
+            return Err(PengError::new_message(
+                "expected '<'".to_string(),
+            ));
+        }
+    };
+
+    let mut generics = Vec::new();
+
+    loop {
+        let close_now = match ptokens.peek() {
+            Some(token) => match &token.value {
+                PengToken::GreaterThan => true,
+                _ => false,
+            },
+            None => false,
+        };
+
+        if close_now {
+            break;
+        }
+
+        let generic = match parse_custom_type_expression(ptokens) {
+            Ok(expression) => expression,
+            Err(e) => return Err(e),
+        };
+
+        generics.push(generic);
+
+        let has_comma = match ptokens.peek() {
+            Some(token) => match &token.value {
+                PengToken::Comma => true,
+                _ => false,
+            },
+            None => false,
+        };
+
+        if has_comma {
+            ptokens.next();
+            continue;
+        }
+
+        break;
+    }
+
+    let close_token = match ptokens.next() {
+        Some(token) => token,
+        None => {
+            return Err(PengError::new_positioned_message(
+                "expected '>'".to_string(),
+                open_token.position.clone(),
+            ));
+        }
+    };
+
+    match &close_token.value {
+        PengToken::GreaterThan => {}
+        _ => {
+            return Err(PengError::new_positioned_message(
+                "expected '>'".to_string(),
+                close_token.position.clone(),
+            ));
+        }
+    }
+
+    Ok(PengPositioned {
+        value: PengExpression::FuncCall(PengFuncCallExpression {
+            function: Box::new(function),
+            generics,
+            args: Vec::new(),
+        }),
+        position: open_token.position.clone(),
+    })
+}
+
+fn reject_invalid_custom_type_tail(
+    ptokens: &mut PengPeekablePositionedToken,
+) -> Result<(), PengError> {
+    let token = match ptokens.peek() {
+        Some(token) => token,
+        None => return Ok(()),
+    };
+
+    match &token.value {
+        PengToken::Dot => Err(PengError::new_positioned_message(
+            "'.' is not allowed in type expressions; use ':' for module type access".to_string(),
+            token.position.clone(),
+        )),
+        PengToken::LeftParenthesis => Err(PengError::new_positioned_message(
+            "function call is not allowed in type expressions".to_string(),
+            token.position.clone(),
+        )),
+        _ => Ok(()),
+    }
+}
+
+fn positions_share_line(
+    left: &PengPosition,
+    right: &PengPosition,
+) -> bool {
+    match (left, right) {
+        (
+            PengPosition::File {
+                file_id: left_file,
+                line: left_line,
+                ..
+            },
+            PengPosition::File {
+                file_id: right_file,
+                line: right_line,
+                ..
+            },
+        ) => left_file == right_file && left_line == right_line,
+        (
+            PengPosition::Source {
+                line: left_line,
+                ..
+            },
+            PengPosition::Source {
+                line: right_line,
+                ..
+            },
+        ) => left_line == right_line,
+        _ => false,
+    }
+}
+
+pub fn type_expression_from_token(
     token: &PengToken,
 ) -> Option<PengTypeExpression> {
     match token {
@@ -216,6 +390,7 @@ pub(crate) fn type_expression_from_token(
         PengToken::Mod => Some(PengTypeExpression::Module),
         PengToken::Func => Some(PengTypeExpression::Function),
         PengToken::Oper => Some(PengTypeExpression::Operation),
+        PengToken::Union => Some(PengTypeExpression::Union(Vec::new())),
         _ => None,
     }
 }
@@ -233,5 +408,46 @@ fn token_after_type_token<'a>(
     match lookahead.next() {
         Some(token) => Some(token),
         None => None,
+    }
+}
+
+fn parse_vector_type_expression(
+    ptokens: &mut PengPeekablePositionedToken,
+) -> Result<PengPositionedTypeExpression, PengError> {
+    let open_token = match ptokens.next() {
+        Some(token) => token,
+        None => {
+            return Err(PengError::new_message(
+                "expected '['".to_string(),
+            ));
+        }
+    };
+
+    let inner = match parse_type_expression(ptokens) {
+        Ok(type_expression) => type_expression,
+        Err(e) => return Err(e),
+    };
+
+    let close_token = match ptokens.next() {
+        Some(token) => token,
+        None => {
+            return Err(PengError::new_positioned_message(
+                "expected ']'".to_string(),
+                open_token.position.clone(),
+            ));
+        }
+    };
+
+    match &close_token.value {
+        PengToken::RightBracket => {
+            Ok(PengPositioned {
+                value: PengTypeExpression::Vector(Box::new(inner)),
+                position: open_token.position.clone(),
+            })
+        }
+        _ => Err(PengError::new_positioned_message(
+            "expected ']'".to_string(),
+            close_token.position.clone(),
+        )),
     }
 }

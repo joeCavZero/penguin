@@ -18,27 +18,29 @@ fn parse_expression_bp(
     };
 
     loop {
-        let custom_operator = match ptokens.peek() {
+        let has_operation = match ptokens.peek() {
             Some(token) => match &token.value {
-                PengToken::Identifier(_) => positions_share_line(&left.position, &token.position),
+                PengToken::Identifier(_) | PengToken::Oper => {
+                    positions_share_line(&left.position, &token.position)
+                }
                 _ => false,
             },
             None => false,
         };
 
-        if custom_operator {
-            let custom_bp = 7;
+        if has_operation {
+            let operation_bp = 7;
 
-            if custom_bp < min_bp {
+            if operation_bp < min_bp {
                 break;
             }
 
-            let operator = match parse_custom_operator_name(ptokens) {
-                Ok(operator) => operator,
+            let operation = match parse_infix_operation_expression(ptokens) {
+                Ok(operation) => operation,
                 Err(e) => return Err(e),
             };
 
-            let right = match parse_expression_bp(ptokens, custom_bp + 1) {
+            let right = match parse_expression_bp(ptokens, operation_bp + 1) {
                 Ok(expression) => expression,
                 Err(e) => return Err(e),
             };
@@ -46,9 +48,9 @@ fn parse_expression_bp(
             let position = left.position.clone();
 
             left = PengPositioned {
-                value: PengExpression::CustomBinary {
+                value: PengExpression::OperationCall {
                     left: Box::new(left),
-                    operator,
+                    operation: Box::new(operation),
                     right: Box::new(right),
                 },
                 position,
@@ -75,9 +77,22 @@ fn parse_expression_bp(
 
         ptokens.next();
 
-        let right = match parse_expression_bp(ptokens, right_bp) {
-            Ok(expr) => expr,
-            Err(e) => return Err(e),
+        let right = match &operator_token.value {
+            PengToken::Is => {
+                let type_expression = match parse_type_expression(ptokens) {
+                    Ok(type_expression) => type_expression,
+                    Err(e) => return Err(e),
+                };
+
+                PengPositioned {
+                    value: PengExpression::Type(type_expression.clone()),
+                    position: type_expression.position.clone(),
+                }
+            }
+            _ => match parse_expression_bp(ptokens, right_bp) {
+                Ok(expr) => expr,
+                Err(e) => return Err(e),
+            },
         };
 
         let is_type_union = match &operator_token.value {
@@ -290,6 +305,9 @@ fn parse_primary_expression(
     };
 
     match &primary_token.value {
+        PengToken::Union => {
+            return parse_union_expression(ptokens);
+        }
         PengToken::Type => {
             let is_literal = match token_after_current(ptokens) {
                 Some(token) => match &token.value {
@@ -320,8 +338,16 @@ fn parse_primary_expression(
         }
         PengToken::LeftBracket => return parse_vector_literal(ptokens),
         PengToken::LeftCurlyBrace => return parse_object_literal(ptokens),
-        PengToken::Identifier(name) => {
-            if name == "operator" {
+        PengToken::Oper => {
+            let is_literal = match token_after_current(ptokens) {
+                Some(token) => match &token.value {
+                    PengToken::LeftParenthesis => true,
+                    _ => false,
+                },
+                None => false,
+            };
+
+            if is_literal {
                 return parse_operation_literal(ptokens);
             }
         }
@@ -427,7 +453,7 @@ fn parse_primary_expression(
     }
 }
 
-pub(crate) fn literal_expr(
+pub fn literal_expr(
     literal: PengLiteral,
     position: PengPosition,
 ) -> Result<PengPositionedExpression, PengError> {
@@ -958,9 +984,21 @@ fn parse_generic_arguments(
     Ok(generics)
 }
 
-fn parse_custom_operator_name(
+fn parse_infix_operation_expression(
     ptokens: &mut PengPeekablePositionedToken,
-) -> Result<PengPositioned<String>, PengError> {
+) -> Result<PengPositionedExpression, PengError> {
+    let is_literal = match ptokens.peek() {
+        Some(token) => match &token.value {
+            PengToken::Oper => true,
+            _ => false,
+        },
+        None => false,
+    };
+
+    if is_literal {
+        return parse_operation_literal(ptokens);
+    }
+
     let first_token = match ptokens.next() {
         Some(token) => token,
         None => {
@@ -970,14 +1008,22 @@ fn parse_custom_operator_name(
         }
     };
 
-    let mut name = match &first_token.value {
-        PengToken::Identifier(name) => name.clone(),
+    let name = match &first_token.value {
+        PengToken::Identifier(name) => PengPositioned {
+            value: name.clone(),
+            position: first_token.position.clone(),
+        },
         _ => {
             return Err(PengError::new_positioned_message(
                 "expected operation name".to_string(),
                 first_token.position.clone(),
             ));
         }
+    };
+
+    let mut operation = PengPositioned {
+        value: PengExpression::Identifier(name),
+        position: first_token.position.clone(),
     };
 
     loop {
@@ -1004,14 +1050,20 @@ fn parse_custom_operator_name(
             Err(e) => return Err(e),
         };
 
-        name.push(':');
-        name.push_str(&part.value);
+        let position = operation.position.clone();
+
+        operation = PengPositioned {
+            value: PengExpression::MemberAccess(
+                PengMemberAccessExpression {
+                    object: Box::new(operation),
+                    name: part,
+                },
+            ),
+            position,
+        };
     }
 
-    Ok(PengPositioned {
-        value: name,
-        position: first_token.position.clone(),
-    })
+    Ok(operation)
 }
 
 fn is_type_value_expression(expression: &PengExpression) -> bool {

@@ -6,15 +6,15 @@ use crate::cell::*;
 use crate::error::*;
 
 #[derive(Debug, Clone)]
-pub enum PengFunction {
-    Bytecode(PengBytecodeFunction),
+pub enum PengOperation {
+    Bytecode(PengBytecodeOperation),
     Native(
         fn(&mut PengNativeCallContext) -> Result<PengCell, PengError>
     ),
 }
 
 #[derive(Debug, Clone)]
-pub struct PengBytecodeFunction {
+pub struct PengBytecodeOperation {
     pub bytecode: Vec<PengInstruction>,
     pub consts: Vec<PengValue>,
     pub generics_count: usize,

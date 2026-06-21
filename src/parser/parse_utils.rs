@@ -2,7 +2,7 @@ use crate::core::*;
 use crate::lexer::*;
 use crate::parser::*;
 
-pub(crate) fn consume_optional_semicolon(
+pub fn consume_optional_semicolon(
     ptokens: &mut PengPeekablePositionedToken,
 ) -> Result<(), PengError> {
     loop {
@@ -31,7 +31,7 @@ pub(crate) fn consume_optional_semicolon(
     Ok(())
 }
 
-pub(crate) fn expect_identifier(
+pub fn expect_identifier(
     ptokens: &mut PengPeekablePositionedToken,
     message: String,
     fallback_position: PengPosition,
@@ -62,7 +62,7 @@ pub(crate) fn expect_identifier(
     }
 }
 
-pub(crate) fn block_statements(
+pub fn block_statements(
     statement: PengPositionedStatement,
     message: String,
 ) -> Result<Vec<PengPositionedStatement>, PengError> {

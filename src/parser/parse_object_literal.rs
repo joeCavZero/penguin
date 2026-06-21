@@ -36,7 +36,7 @@ pub fn parse_object_literal(
     )
 }
 
-pub(crate) fn parse_object_fields(
+pub fn parse_object_fields(
     ptokens: &mut PengPeekablePositionedToken,
     open_position: PengPosition,
 ) -> Result<Vec<PengObjectFieldLiteral>, PengError> {

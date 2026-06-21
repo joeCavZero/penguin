@@ -9,7 +9,7 @@ pub fn parse_expression_statement(
     parse_expression_or_assignment_statement(ptokens, true)
 }
 
-pub(crate) fn parse_expression_or_assignment_statement(
+pub fn parse_expression_or_assignment_statement(
     ptokens: &mut PengPeekablePositionedToken,
     consume_semicolon: bool,
 ) -> Result<PengPositionedStatement, PengError> {

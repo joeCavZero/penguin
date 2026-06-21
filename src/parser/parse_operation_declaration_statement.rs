@@ -28,11 +28,6 @@ pub fn parse_operation_declaration_statement(
         }
     }
 
-    let mut params = match parse_function_params_declaration(ptokens) {
-        Ok(params) => params,
-        Err(e) => return Err(e),
-    };
-
     let name = match expect_identifier(
         ptokens,
         "expected operation name".to_string(),
@@ -42,12 +37,17 @@ pub fn parse_operation_declaration_statement(
         Err(e) => return Err(e),
     };
 
-    let mut right_params = match parse_function_params_declaration(ptokens) {
+    let params = match parse_function_params_declaration(ptokens) {
         Ok(params) => params,
         Err(e) => return Err(e),
     };
 
-    params.append(&mut right_params);
+    if params.len() != 2 {
+        return Err(PengError::new_positioned_message(
+            "operation declarations require exactly two parameters".to_string(),
+            name.position.clone(),
+        ));
+    }
 
     let body_statement = match parse_block_statement(ptokens) {
         Ok(statement) => statement,

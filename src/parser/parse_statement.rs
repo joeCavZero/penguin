@@ -35,6 +35,10 @@ pub fn parse_statement(
             parse_type_declaration_statement(ptokens)
         }
 
+        PengToken::Union => {
+            parse_union_declaration_statement(ptokens)
+        }
+
         PengToken::Mod => {
             parse_module_declaration_statement(ptokens)
         }

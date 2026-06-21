@@ -582,19 +582,21 @@ impl PengAST {
                 }
             }
 
-            PengExpression::CustomBinary {
+            PengExpression::OperationCall {
                 left,
-                operator,
+                operation,
                 right,
             } => {
                 Self::print_indent(level);
-                print!("CustomBinary Operator: {}", operator.value);
-                Self::print_position(&operator.position);
-                println!();
+                println!("OperationCall");
 
                 Self::print_indent(level + 1);
                 println!("Left");
                 Self::print_positioned_expression(left, level + 2);
+
+                Self::print_indent(level + 1);
+                println!("Operation");
+                Self::print_positioned_expression(operation, level + 2);
 
                 Self::print_indent(level + 1);
                 println!("Right");
@@ -776,11 +778,6 @@ impl PengAST {
                 for typ in types {
                     Self::print_positioned_type_expression(typ, level + 1);
                 }
-            }
-            PengTypeExpression::Nillable(inner) => {
-                Self::print_indent(level);
-                println!("Nillable");
-                Self::print_positioned_type_expression(inner, level + 1);
             }
         }
     }
@@ -1015,15 +1012,15 @@ pub enum PengExpression {
     FuncCall(PengFuncCallExpression),
     MethodCall(PengMethodCallExpression),
 
-    AttributeAccess(PengAttributeAccessExpression),
-    MemberAccess(PengMemberAccessExpression),
+    AttributeAccess(PengAttributeAccessExpression), // dot access
+    MemberAccess(PengMemberAccessExpression),   // colon access
     Index(PengIndexExpression),
 
     ObjectConstruction(PengObjectConstructionExpression),
 
-    CustomBinary {
+    OperationCall {
         left: Box<PengPositionedExpression>,
-        operator: PengPositioned<String>,
+        operation: Box<PengPositionedExpression>,
         right: Box<PengPositionedExpression>,
     },
 
@@ -1223,7 +1220,6 @@ pub enum PengTypeExpression {
     Custom(Box<PengPositionedExpression>),
 
     Union(Vec<PengPositionedTypeExpression>),
-    Nillable(Box<PengPositionedTypeExpression>),
 }
 
 #[derive(Debug, Clone)]

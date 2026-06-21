@@ -55,7 +55,7 @@ pub fn parse_module_declaration_statement(
     })
 }
 
-pub(crate) fn parse_declaration_body(
+pub fn parse_declaration_body(
     ptokens: &mut PengPeekablePositionedToken,
 ) -> Result<Vec<PengDeclaration>, PengError> {
     let open_token = match ptokens.next() {
@@ -98,6 +98,7 @@ pub(crate) fn parse_declaration_body(
             PengToken::Var
             | PengToken::Func
             | PengToken::Type
+            | PengToken::Union
             | PengToken::Mod
             | PengToken::Oper => {
                 let statement = match parse_statement(ptokens) {

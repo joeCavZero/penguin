@@ -4,6 +4,8 @@ use crate::module::*;
 use crate::typing::*;
 use crate::thread::*;
 use crate::function::*;
+use crate::operation::*;
+use crate::unioning::*;
 
 #[derive(Debug, Clone)]
 pub enum PengValue {
@@ -21,4 +23,6 @@ pub enum PengValue {
     Module(PengModule),
     Thread(PengThread),
     Function(PengFunction),
+    Operation(PengOperation),
+    Union(PengUnion),
 }

@@ -24,25 +24,6 @@ pub fn parse_function_declaration_statement(
         }
     }
 
-    let has_receiver = match ptokens.peek() {
-        Some(token) => {
-            match &token.value {
-                PengToken::LeftParenthesis => true,
-                _ => false,
-            }
-        }
-        None => false,
-    };
-
-    let mut receiver_params = if has_receiver {
-        match parse_function_params_declaration(ptokens) {
-            Ok(params) => params,
-            Err(e) => return Err(e),
-        }
-    } else {
-        Vec::new()
-    };
-
     let name = match parse_function_name(ptokens, &func_token.position) {
         Ok(name) => name,
         Err(e) => return Err(e),
@@ -53,13 +34,10 @@ pub fn parse_function_declaration_statement(
         Err(e) => return Err(e),
     };
 
-    let mut params = match parse_function_params_declaration(ptokens) {
+    let params = match parse_function_params_declaration(ptokens) {
         Ok(params) => params,
         Err(e) => return Err(e),
     };
-
-    receiver_params.append(&mut params);
-    let params = receiver_params;
 
     let has_return_type = match ptokens.peek() {
         Some(token) => match &token.value {
@@ -156,7 +134,7 @@ fn parse_function_name(
     }
 }
 
-pub(crate) fn parse_function_generics(
+pub fn parse_function_generics(
     ptokens: &mut PengPeekablePositionedToken,
 ) -> Result<Vec<PengPositioned<String>>, PengError> {
     let has_generics = match ptokens.peek() {

@@ -6,7 +6,7 @@ use crate::parser::parse_utils::block_statements;
 pub fn parse_operation_literal(
     ptokens: &mut PengPeekablePositionedToken,
 ) -> Result<PengPositionedExpression, PengError> {
-    let operator_token = match ptokens.next() {
+    let oper_token = match ptokens.next() {
         Some(token) => token,
         None => {
             return Err(PengError::new_message(
@@ -15,19 +15,12 @@ pub fn parse_operation_literal(
         }
     };
 
-    match &operator_token.value {
-        PengToken::Identifier(name) => {
-            if name != "operator" {
-                return Err(PengError::new_positioned_message(
-                    "expected 'operator'".to_string(),
-                    operator_token.position.clone(),
-                ));
-            }
-        }
+    match &oper_token.value {
+        PengToken::Oper => {}
         _ => {
             return Err(PengError::new_positioned_message(
-                "expected 'operator'".to_string(),
-                operator_token.position.clone(),
+                "expected 'oper'".to_string(),
+                oper_token.position.clone(),
             ));
         }
     }
@@ -36,6 +29,13 @@ pub fn parse_operation_literal(
         Ok(params) => params,
         Err(e) => return Err(e),
     };
+
+    if params.len() != 2 {
+        return Err(PengError::new_positioned_message(
+            "operation literals require exactly two parameters".to_string(),
+            oper_token.position.clone(),
+        ));
+    }
 
     let body_statement = match parse_block_statement(ptokens) {
         Ok(statement) => statement,
@@ -55,6 +55,6 @@ pub fn parse_operation_literal(
             params,
             body,
         }),
-        operator_token.position.clone(),
+        oper_token.position.clone(),
     )
 }

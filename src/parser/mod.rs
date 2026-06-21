@@ -26,6 +26,7 @@ pub mod parse_while_statement;
 pub mod parse_expression;
 pub mod parse_type_expression;
 pub mod parse_type_literal;
+pub mod parse_union_declaration_statement;
 
 pub use parser::*;
 pub use ast::*;
@@ -54,3 +55,4 @@ pub use parse_while_statement::*;
 pub use parse_expression::*;
 pub use parse_type_expression::*;
 pub use parse_type_literal::*;
+pub use parse_union_declaration_statement::*;
