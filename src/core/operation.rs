@@ -13,10 +13,26 @@ pub enum PengOperation {
     ),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PengBytecodeOperation {
     pub bytecode: Vec<PengInstruction>,
     pub consts: Vec<PengValue>,
     pub generics_count: usize,
     pub using_values: Vec<PengValuePtr>,
+}
+
+impl PartialEq for PengOperation {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (
+                PengOperation::Bytecode(left),
+                PengOperation::Bytecode(right),
+            ) => left == right,
+            (
+                PengOperation::Native(left),
+                PengOperation::Native(right),
+            ) => std::ptr::fn_addr_eq(*left, *right),
+            _ => false,
+        }
+    }
 }

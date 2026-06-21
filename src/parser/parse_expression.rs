@@ -627,13 +627,27 @@ fn parse_colon_func_call_expression(
 
     let is_object = match ptokens.peek() {
         Some(token) => match &token.value {
-            PengToken::LeftCurlyBrace => true,
+            PengToken::LeftCurlyBrace
+            | PengToken::LessThan => true,
             _ => false,
         },
         None => false,
     };
 
     if is_object {
+        let generics = match ptokens.peek() {
+            Some(token) => match &token.value {
+                PengToken::LessThan => {
+                    match parse_generic_arguments(ptokens) {
+                        Ok(generics) => generics,
+                        Err(e) => return Err(e),
+                    }
+                }
+                _ => Vec::new(),
+            },
+            None => Vec::new(),
+        };
+
         let open_token = match ptokens.next() {
             Some(token) => token,
             None => {
@@ -654,7 +668,7 @@ fn parse_colon_func_call_expression(
         return Ok(PengPositioned {
             value: PengExpression::ObjectConstruction(PengObjectConstructionExpression {
                 object_type: Box::new(module),
-                generics: Vec::new(),
+                generics,
                 fields,
             }),
             position,
@@ -772,7 +786,7 @@ fn has_generic_postfix(ptokens: &mut PengPeekablePositionedToken) -> Result<bool
 
     match lookahead.peek() {
         Some(token) => match &token.value {
-            PengToken::LeftParenthesis | PengToken::LeftCurlyBrace | PengToken::Colon => Ok(true),
+            PengToken::LeftParenthesis => Ok(true),
             _ => Ok(false),
         },
         None => Ok(false),
@@ -816,71 +830,8 @@ fn parse_generic_postfix_expression(
                 position,
             })
         }
-        PengToken::LeftCurlyBrace => {
-            let open_token = match ptokens.next() {
-                Some(token) => token,
-                None => {
-                    return Err(PengError::new_message("expected '{'".to_string()));
-                }
-            };
-
-            let fields = match parse_object_fields(ptokens, open_token.position.clone()) {
-                Ok(fields) => fields,
-                Err(e) => return Err(e),
-            };
-
-            let position = value.position.clone();
-
-            Ok(PengPositioned {
-                value: PengExpression::ObjectConstruction(PengObjectConstructionExpression {
-                    object_type: Box::new(value),
-                    generics,
-                    fields,
-                }),
-                position,
-            })
-        }
-        PengToken::Colon => {
-            ptokens.next();
-
-            let open_token = match ptokens.next() {
-                Some(token) => token,
-                None => {
-                    return Err(PengError::new_positioned_message(
-                        "expected '{'".to_string(),
-                        value.position.clone(),
-                    ));
-                }
-            };
-
-            match &open_token.value {
-                PengToken::LeftCurlyBrace => {}
-                _ => {
-                    return Err(PengError::new_positioned_message(
-                        "expected '{'".to_string(),
-                        open_token.position.clone(),
-                    ));
-                }
-            }
-
-            let fields = match parse_object_fields(ptokens, open_token.position.clone()) {
-                Ok(fields) => fields,
-                Err(e) => return Err(e),
-            };
-
-            let position = value.position.clone();
-
-            Ok(PengPositioned {
-                value: PengExpression::ObjectConstruction(PengObjectConstructionExpression {
-                    object_type: Box::new(value),
-                    generics,
-                    fields,
-                }),
-                position,
-            })
-        }
         _ => Err(PengError::new_positioned_message(
-            "expected '(' or '{' after generic arguments".to_string(),
+            "expected '(' after generic arguments".to_string(),
             token.position.clone(),
         )),
     }

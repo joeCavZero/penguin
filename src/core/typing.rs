@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::utils::*;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum PengType {
     Nil,
 
@@ -29,7 +29,7 @@ pub enum PengType {
     Any,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PengCustomType {
     pub fields: HashMap<PengNamePoolPtr, Option<PengValuePtr>>,
 }

@@ -3,6 +3,7 @@ use crate::core::*;
 use crate::generator::generator_utils::{
     create_anonymous_bytecode_function,
     generate_expression,
+    generate_function_declaration_value,
     PengGeneratorContext,
 };
 
@@ -87,6 +88,22 @@ fn generate_program_initialization(
 ) -> Result<(), PengError> {
     for declaration in declarations {
         match declaration {
+            PengDeclaration::Function(function) => {
+                match generate_global_function(
+                    env,
+                    context,
+                    function,
+                ) {
+                    Ok(()) => {}
+                    Err(e) => return Err(e),
+                }
+            }
+            _ => {}
+        }
+    }
+
+    for declaration in declarations {
+        match declaration {
             PengDeclaration::Variable(variable) => {
                 match generate_global_variable(
                     env,
@@ -107,9 +124,7 @@ fn generate_program_initialization(
                     Err(e) => return Err(e),
                 }
             }
-            PengDeclaration::Function(_) => {
-                todo!("generate global function declaration")
-            }
+            PengDeclaration::Function(_) => {}
             PengDeclaration::Type(_) => {
                 todo!("generate global type declaration")
             }
@@ -121,6 +136,40 @@ fn generate_program_initialization(
             }
         }
     }
+
+    Ok(())
+}
+
+fn generate_global_function(
+    env: &PengEnv,
+    context: &mut PengGeneratorContext,
+    declaration: &PengPositionedFunctionDeclaration,
+) -> Result<(), PengError> {
+    let value_ptr = match env.get_global(
+        &declaration.value.name.value,
+    ) {
+        Some(value_ptr) => value_ptr,
+        None => {
+            return Err(PengError::new_positioned_message(
+                "global function was not allocated".to_string(),
+                declaration.value.name.position.clone(),
+            ));
+        }
+    };
+
+    let value = match generate_function_declaration_value(
+        env,
+        declaration,
+    ) {
+        Ok(value) => value,
+        Err(e) => return Err(e),
+    };
+
+    context.bytecode.push(
+        PengInstruction::PushValueRef(value_ptr),
+    );
+    context.push_const_and_const_instruction(value);
+    context.bytecode.push(PengInstruction::StoreValue);
 
     Ok(())
 }
@@ -186,7 +235,7 @@ fn generate_global_variable(
             }
         }
         None => {
-            context.push_const(PengValue::Nil);
+            context.push_const_and_const_instruction(PengValue::Nil);
         }
     }
 

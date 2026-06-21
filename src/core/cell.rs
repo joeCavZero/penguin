@@ -1,6 +1,6 @@
 use crate::utils::*;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum PengCell {
     Nil,
     Int(isize),

@@ -7,7 +7,7 @@ use crate::function::*;
 use crate::operation::*;
 use crate::unioning::*;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum PengValue {
     Nil,
     Int(isize),
