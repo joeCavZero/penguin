@@ -77,22 +77,9 @@ fn parse_expression_bp(
 
         ptokens.next();
 
-        let right = match &operator_token.value {
-            PengToken::Is => {
-                let type_expression = match parse_type_expression(ptokens) {
-                    Ok(type_expression) => type_expression,
-                    Err(e) => return Err(e),
-                };
-
-                PengPositioned {
-                    value: PengExpression::Type(type_expression.clone()),
-                    position: type_expression.position.clone(),
-                }
-            }
-            _ => match parse_expression_bp(ptokens, right_bp) {
-                Ok(expr) => expr,
-                Err(e) => return Err(e),
-            },
+        let right =  match parse_expression_bp(ptokens, right_bp) {
+            Ok(expr) => expr,
+            Err(e) => return Err(e),
         };
 
         let is_type_union = match &operator_token.value {
@@ -487,7 +474,6 @@ fn binary_operator_from_token(token: &PengToken) -> Option<PengBinaryOperator> {
         PengToken::LessThan => Some(PengBinaryOperator::LessThan),
         PengToken::LessThanEquals => Some(PengBinaryOperator::LessEqualsThan),
 
-        PengToken::Is => Some(PengBinaryOperator::Is),
         PengToken::As => Some(PengBinaryOperator::As),
 
         _ => None,
@@ -504,8 +490,7 @@ fn binary_binding_power(op: &PengBinaryOperator) -> (u8, u8) {
         | PengBinaryOperator::GreaterThan
         | PengBinaryOperator::GreaterEqualsThan
         | PengBinaryOperator::LessThan
-        | PengBinaryOperator::LessEqualsThan
-        | PengBinaryOperator::Is => (6, 7),
+        | PengBinaryOperator::LessEqualsThan => (6, 7),
 
         PengBinaryOperator::Concat => (8, 8),
 
@@ -552,7 +537,7 @@ fn parse_dot_expression(
         }
     };
 
-    let name = match crate::parser::parse_utils::expect_identifier(
+    let name = match crate::parser::parser_utils::expect_identifier(
         ptokens,
         "expected attribute name".to_string(),
         dot_token.position.clone(),
@@ -652,7 +637,7 @@ fn parse_colon_func_call_expression(
         });
     }
 
-    let name = match crate::parser::parse_utils::expect_identifier(
+    let name = match crate::parser::parser_utils::expect_identifier(
         ptokens,
         "expected module function name".to_string(),
         colon_token.position.clone(),
@@ -1041,7 +1026,7 @@ fn parse_infix_operation_expression(
 
         ptokens.next();
 
-        let part = match crate::parser::parse_utils::expect_identifier(
+        let part = match crate::parser::parser_utils::expect_identifier(
             ptokens,
             "expected operation name after ':'".to_string(),
             first_token.position.clone(),

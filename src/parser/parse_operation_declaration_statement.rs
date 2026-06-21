@@ -1,7 +1,7 @@
 use crate::core::*;
 use crate::lexer::*;
 use crate::parser::*;
-use crate::parser::parse_utils::{
+use crate::parser::parser_utils::{
     block_statements,
     expect_identifier,
 };

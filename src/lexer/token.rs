@@ -14,7 +14,6 @@ pub enum PengToken {
     Union,
 
     As,
-    Is,
 
     Equals,
     Dot,
@@ -173,7 +172,6 @@ impl PengToken {
             "else" => Some(Self::Else),
 
             "as" => Some(Self::As),
-            "is" => Some(Self::Is),
 
             "for" => Some(Self::For),
             "each" => Some(Self::Each),

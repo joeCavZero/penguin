@@ -45,7 +45,8 @@ pub enum PengInstruction {
         params: usize,
     },
 
-    SuperType(usize), // creates a new type with usize supers
+    CreateSuperType(usize), // creates a new type with usize supers (on stack)
+    CreateUnion(usize), // creates a new union based on usize types (on stack)
 
     GetIndex,       // ...|vec|index| ---> ...|val|
     GetIndexRef,    // ...|vec|index| ---> ...|val ref|

@@ -1,6 +1,6 @@
 use crate::core::*;
 use crate::lexer::*;
-use crate::parser::parse_utils::block_statements;
+use crate::parser::parser_utils::block_statements;
 use crate::parser::*;
 
 pub fn parse_for_statement(
@@ -206,7 +206,7 @@ fn parse_for_each_statement(
 ) -> Result<PengPositionedStatement, PengError> {
     ptokens.next();
 
-    let name = match crate::parser::parse_utils::expect_identifier(
+    let name = match crate::parser::parser_utils::expect_identifier(
         ptokens,
         "expected for each variable".to_string(),
         for_token.position.clone(),

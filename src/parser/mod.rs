@@ -1,5 +1,4 @@
 pub mod parser;
-pub mod ast;
 pub mod parse_program;
 pub mod parse_statement;
 pub mod parse_block_statement;
@@ -11,7 +10,7 @@ pub mod parse_function_params;
 pub mod parse_function_literal;
 pub mod parse_for_statement;
 pub mod parse_if_statement;
-pub mod parse_utils;
+pub mod parser_utils;
 pub mod parse_module_declaration_statement;
 pub mod parse_module_literal;
 pub mod parse_loop_statement;
@@ -29,7 +28,6 @@ pub mod parse_type_literal;
 pub mod parse_union_declaration_statement;
 
 pub use parser::*;
-pub use ast::*;
 pub use parse_program::*;
 pub use parse_statement::*;
 pub use parse_block_statement::*;
