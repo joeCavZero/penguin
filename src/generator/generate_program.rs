@@ -64,11 +64,16 @@ fn allocate_program_globals(
 
 pub fn get_allocated_global(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
+    globals: &HashMap<PengNamePoolPtr, PengValuePtr>,
     name: &str,
 ) -> Option<PengValuePtr> {
     let name_ptr = env.get_pooled_name(name.to_string());
-    globals.get(&name_ptr).copied()
+
+    if let Some(value_ptr) = globals.get(&name_ptr) {
+        return Some(*value_ptr);
+    }
+
+    env.get_global(name)
 }
 
 fn declaration_name(declaration: &PengDeclaration) -> String {
@@ -157,17 +162,19 @@ fn generate_global_structured_type(
     context: &mut PengGeneratorContext,
     declaration: &PengPositionedTypeDeclaration,
 ) -> Result<(), PengError> {
-    let value_ptr = match env
-        .get_global(&declaration.value.name.value)
-        .ok_or_else(|| {
-            PengError::new_positioned_message(
+    let value_ptr = match get_allocated_global(
+        env,
+        globals,
+        &declaration.value.name.value,
+    ) {
+        Some(value_ptr) => value_ptr,
+        None => {
+            return Err(PengError::new_positioned_message(
                 "global type was not allocated".to_string(),
                 declaration.value.name.position.clone(),
-            )
-        }) {
-            Ok(v) => v,
-            Err(e) => return Err(e),
-        };
+            ));
+        }
+    };
 
     let literal = PengTypeLiteral {
         generics: declaration.value.generics.clone(),
@@ -176,14 +183,16 @@ fn generate_global_structured_type(
         functions: declaration.value.functions.clone(),
     };
 
-    context
-        .bytecode
-        .push(PengInstruction::PushValueRef(value_ptr));
-    match generate_type_literal(env, globals, context, &literal) {
-        Ok(()) => {},
+    context.bytecode.push(PengInstruction::PushValueRef(value_ptr));
+    context.bytecode.push(PengInstruction::Duplicate);
+
+    match generate_type_literal_after_base(env, globals, context, &literal) {
+        Ok(()) => {}
         Err(e) => return Err(e),
-    };
+    }
+
     context.bytecode.push(PengInstruction::StoreValue);
+
     Ok(())
 }
 

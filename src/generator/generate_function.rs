@@ -14,11 +14,11 @@ pub fn create_anonymous_bytecode_function(
 }
 
 pub fn create_bytecode_function_value(
-    context: PengGeneratorContext,
+    mut context: PengGeneratorContext,
     generics_count: usize,
 ) -> PengValue {
-    //context.push_const_and_const_instruction(PengValue::Nil);
-    //context.bytecode.push(PengInstruction::Return);
+    context.push_const_and_const_instruction(PengValue::Nil);
+    context.bytecode.push(PengInstruction::Return);
 
     PengValue::Function(PengFunction::Bytecode(PengBytecodeFunction {
         bytecode: context.bytecode,

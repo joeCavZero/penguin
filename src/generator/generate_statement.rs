@@ -82,7 +82,7 @@ pub fn generate_statement(
                 Err(e) => return Err(e),
             }
 
-            context.bytecode.push(PengInstruction::Pop(1));
+            context.bytecode.push(PengInstruction::Pop);
             Ok(())
         }
         PengStatement::If(if_statement) => generate_if_statement(env, globals, context, if_statement),

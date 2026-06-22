@@ -14,12 +14,14 @@ pub enum PengInstruction {
     PushString(PengNamePoolPtr),
 
     CreateObjectType,   // ...|t| ---> ...|tobj| , create obj of type with default fields
+    CreateSuperType(usize), // creates a new type with usize supers (on stack)
+    CreateUnion(usize), // creates a new union based on usize types (on stack)
 
-    Convert,    //
+    Convert,
     CheckType,
 
-    Duplicate(usize), // duplicate <usize> cells from top
-    Pop(usize), // pops <usize> cells
+    Duplicate, // duplicate
+    Pop, // pop
 
     Add,    // ...|v1|v2| ---> ...|v1+v2|
     Subtract,
@@ -54,9 +56,6 @@ pub enum PengInstruction {
         params: usize,
     },
 
-    CreateSuperType(usize), // creates a new type with usize supers (on stack)
-    CreateUnion(usize), // creates a new union based on usize types (on stack)
-
     GetIndex,       // ...|vec|index| ---> ...|val|
     GetIndexRef,    // ...|vec|index| ---> ...|val ref|
     
@@ -82,8 +81,6 @@ impl PengInstruction {
             | (Self::PushValue(left), Self::PushValue(right))
             | (Self::PushValueRef(left), Self::PushValueRef(right))
             | (Self::PushString(left), Self::PushString(right))
-            | (Self::Duplicate(left), Self::Duplicate(right))
-            | (Self::Pop(left), Self::Pop(right))
             | (Self::CreateSuperType(left), Self::CreateSuperType(right))
             | (Self::CreateUnion(left), Self::CreateUnion(right))
             | (Self::GetConstAttribute(left), Self::GetConstAttribute(right))

@@ -29,8 +29,8 @@ pub fn generate_operation_value(
         Err(e) => return Err(e),
     }
 
-    //context.push_const_and_const_instruction(PengValue::Nil);
-    //context.bytecode.push(PengInstruction::Return);
+    context.push_const_and_const_instruction(PengValue::Nil);
+    context.bytecode.push(PengInstruction::Return);
 
     Ok(PengValue::Operation(PengOperation::Bytecode(
         PengBytecodeOperation {

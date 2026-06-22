@@ -7,8 +7,8 @@ use crate::vector::*;
 
 pub struct PengEnv {
     globals: HashMap<PengNamePoolPtr, PengValuePtr>,
-    values: HashMap<PengValuePtr, PengValue>,
-    name_pool: HashMap<PengNamePoolPtr, String>,
+    pub values: HashMap<PengValuePtr, PengValue>,
+    pub name_pool: HashMap<PengNamePoolPtr, String>,
 }
 
 impl PengEnv {
@@ -109,7 +109,7 @@ impl PengEnv {
     }
 
     pub fn get_global(&self, name: &str) -> Option<PengValuePtr> {
-        let name_ptr = self
+        let name_ptr = match self
             .name_pool
             .iter()
             .find_map(|(name_ptr, pooled_name)| {
@@ -118,7 +118,10 @@ impl PengEnv {
                 } else {
                     None
                 }
-            })?;
+            }) {
+                Some(v) => v,
+                None => return None,
+            };
 
         self.globals.get(&name_ptr).copied()
     }

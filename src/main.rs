@@ -7,20 +7,23 @@ fn main() {
             println!("============================");
             match penguin::parse_program(tkns) {
                 Ok(ast) => {
-                    println!("{:#?}", ast);
-                    println!("============================");
-                    ast.pretty_print();
                     println!("============================");
                     let mut env = penguin::PengEnv::new();
+                    env.create_global("g".to_string());
                     match penguin::generate_program(&mut env, &ast) {
-                        Ok((_, init_ptr)) => {
+                        Ok((globals, init_ptr)) => {
                             if let Some(init) = env.get_value(init_ptr).cloned() {
                                 if let penguin::PengValue::Function(init_f) = init {
                                     if let penguin::PengFunction::Bytecode(init_btc) = init_f {
-                                        println!("{:#?}", init_btc.consts);
-                                        println!("- - - - - - - - - - ");
+                                        println!("----- conts do init:\n{:#?}", init_btc.consts);
+                                        println!("- - - - - - init.bytecode - - - - ");
                                         for i in init_btc.bytecode {
                                             println!("{:?}", i);
+                                        }
+                                        println!("----- env.values:\n{:#?}", env.values);
+                                        println!("- - - - - - globals - - - - ");
+                                        for (gn, gvp) in globals {
+                                            println!("{} - {:?}", env.get_name(gn).cloned().unwrap(), env.values.get(&gvp));
                                         }
                                     }
                                 }

@@ -42,7 +42,7 @@ pub fn generate_expression(
 
             match operator {
                 PengBinaryOperator::ShortCircuitAnd | PengBinaryOperator::ShortCircuitOr => {
-                    context.bytecode.push(PengInstruction::Duplicate(1));
+                    context.bytecode.push(PengInstruction::Duplicate);
                     let jump_index = context.bytecode.len();
                     context.bytecode.push(match operator {
                         PengBinaryOperator::ShortCircuitAnd => {
@@ -53,7 +53,7 @@ pub fn generate_expression(
                         }
                         _ => unreachable!(),
                     });
-                    context.bytecode.push(PengInstruction::Pop(1));
+                    context.bytecode.push(PengInstruction::Pop);
 
                     match generate_expression(env, globals, context, right) {
                         Ok(()) => {},
@@ -185,7 +185,7 @@ pub fn generate_object_construction(
     context.bytecode.push(PengInstruction::CreateObjectType);
 
     for field in &construction.fields {
-        context.bytecode.push(PengInstruction::Duplicate(1));
+        context.bytecode.push(PengInstruction::Duplicate);
         let name = env.get_pooled_name(field.name.value.clone());
         context
             .bytecode
@@ -242,7 +242,7 @@ pub fn generate_try_expression(
     context
         .bytecode
         .push(PengInstruction::JumpIfTrue(usize::MAX));
-    context.bytecode.push(PengInstruction::Pop(1));
+    context.bytecode.push(PengInstruction::Pop);
 
     match elsing {
         Some(PengPositioned {

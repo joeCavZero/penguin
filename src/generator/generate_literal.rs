@@ -70,55 +70,12 @@ pub fn generate_type_literal(
     context: &mut PengGeneratorContext,
     literal: &PengTypeLiteral,
 ) -> Result<(), PengError> {
-    if !literal.generics.is_empty() {
-        return Err(PengError::new_positioned_message(
-            "generic type literals are not supported by the current bytecode".to_string(),
-            literal.generics[0].position.clone(),
-        ));
+    context.push_const_and_const_instruction(PengValue::Nil);
+
+    match generate_type_literal_after_base(env, globals, context, literal) {
+        Ok(()) => Ok(()),
+        Err(e) => Err(e),
     }
-
-    for super_type in &literal.supers {
-        match generate_expression(env, globals, context, super_type) {
-            Ok(()) => {},
-            Err(e) => return Err(e),
-        };
-    }
-    context
-        .bytecode
-        .push(PengInstruction::CreateSuperType(literal.supers.len()));
-
-    for field in &literal.fields {
-        context.bytecode.push(PengInstruction::Duplicate(1));
-        let name = env.get_pooled_name(field.value.name.value.clone());
-        context
-            .bytecode
-            .push(PengInstruction::GetConstAttributeRef(name));
-
-        match &field.value.value {
-            Some(value) => match generate_expression(env, globals, context, value) {
-                Ok(()) => {},
-                Err(e) => return Err(e),
-            },
-            None => context.push_const_and_const_instruction(PengValue::Nil),
-        }
-        context.bytecode.push(PengInstruction::StoreValue);
-    }
-
-    for function in &literal.functions {
-        context.bytecode.push(PengInstruction::Duplicate(1));
-        let name = env.get_pooled_name(function.value.name.value.clone());
-        context
-            .bytecode
-            .push(PengInstruction::GetConstAttributeRef(name));
-        let value = match generate_function_declaration_value(env, globals, function) {
-            Ok(v) => v,
-            Err(e) => return Err(e),
-        };
-        context.push_const_and_const_instruction(value);
-        context.bytecode.push(PengInstruction::StoreValue);
-    }
-
-    Ok(())
 }
 
 pub fn generate_object_literal(
@@ -131,7 +88,7 @@ pub fn generate_object_literal(
     context.bytecode.push(PengInstruction::CreateObjectType);
 
     for field in fields {
-        context.bytecode.push(PengInstruction::Duplicate(1));
+        context.bytecode.push(PengInstruction::Duplicate);
         let name = env.get_pooled_name(field.name.value.clone());
         context
             .bytecode
@@ -140,6 +97,75 @@ pub fn generate_object_literal(
             Ok(()) => {},
             Err(e) => return Err(e),
         };
+        context.bytecode.push(PengInstruction::StoreValue);
+    }
+
+    Ok(())
+}
+
+pub fn generate_type_literal_after_base(
+    env: &mut PengEnv,
+    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
+    context: &mut PengGeneratorContext,
+    literal: &PengTypeLiteral,
+) -> Result<(), PengError> {
+    if !literal.generics.is_empty() {
+        return Err(PengError::new_positioned_message(
+            "generic type literals are not supported by the current bytecode".to_string(),
+            literal.generics[0].position.clone(),
+        ));
+    }
+
+    for super_type in &literal.supers {
+        match generate_expression(env, globals, context, super_type) {
+            Ok(()) => {}
+            Err(e) => return Err(e),
+        }
+    }
+
+    context
+        .bytecode
+        .push(PengInstruction::CreateSuperType(literal.supers.len()));
+
+    for field in &literal.fields {
+        context.bytecode.push(PengInstruction::Duplicate);
+
+        let name = env.get_pooled_name(field.value.name.value.clone());
+
+        context
+            .bytecode
+            .push(PengInstruction::GetConstAttributeRef(name));
+
+        match &field.value.value {
+            Some(value) => {
+                match generate_expression(env, globals, context, value) {
+                    Ok(()) => {}
+                    Err(e) => return Err(e),
+                }
+            }
+            None => {
+                context.push_const_and_const_instruction(PengValue::Nil);
+            }
+        }
+
+        context.bytecode.push(PengInstruction::StoreValue);
+    }
+
+    for function in &literal.functions {
+        context.bytecode.push(PengInstruction::Duplicate);
+
+        let name = env.get_pooled_name(function.value.name.value.clone());
+
+        context
+            .bytecode
+            .push(PengInstruction::GetConstAttributeRef(name));
+
+        let value = match generate_function_declaration_value(env, globals, function) {
+            Ok(value) => value,
+            Err(e) => return Err(e),
+        };
+
+        context.push_const_and_const_instruction(value);
         context.bytecode.push(PengInstruction::StoreValue);
     }
 
