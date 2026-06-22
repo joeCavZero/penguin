@@ -122,7 +122,7 @@ pub fn generate_type_literal_after_base(
             Err(e) => return Err(e),
         }
     }
-
+    
     context
         .bytecode
         .push(PengInstruction::CreateSuperType(literal.supers.len()));

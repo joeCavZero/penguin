@@ -356,6 +356,7 @@ pub fn static_type_from_expression(
         PengTypeExpression::Module => Some(PengType::Module),
         PengTypeExpression::Function => Some(PengType::Function),
         PengTypeExpression::Operation => Some(PengType::Operator),
+        PengTypeExpression::Thread => Some(PengType::Thread),
         PengTypeExpression::Any => Some(PengType::Any),
         PengTypeExpression::UnionType => Some(PengType::Union),
         PengTypeExpression::Vector(inner) => match static_type_from_expression(inner) {

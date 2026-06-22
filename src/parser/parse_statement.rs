@@ -55,6 +55,10 @@ pub fn parse_statement(
             parse_if_statement(ptokens)
         }
 
+        PengToken::Match => {
+            parse_match_statement(ptokens)
+        }
+
         PengToken::While => {
             parse_while_statement(ptokens)
         }

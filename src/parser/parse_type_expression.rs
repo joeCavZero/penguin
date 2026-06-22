@@ -80,6 +80,7 @@ fn parse_primary_type_expression(
         PengToken::Mod => parse_builtin_type(ptokens, PengTypeExpression::Module),
         PengToken::Func => parse_builtin_type(ptokens, PengTypeExpression::Function),
         PengToken::Oper => parse_builtin_type(ptokens, PengTypeExpression::Operation),
+        PengToken::Thread => parse_builtin_type(ptokens, PengTypeExpression::Thread),
 
         PengToken::LeftBracket => parse_vector_type_expression(ptokens),
 

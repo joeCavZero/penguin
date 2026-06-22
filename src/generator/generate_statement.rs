@@ -86,6 +86,9 @@ pub fn generate_statement(
             Ok(())
         }
         PengStatement::If(if_statement) => generate_if_statement(env, globals, context, if_statement),
+        PengStatement::Match(match_statement) => {
+            generate_match_statement(env, globals, context, match_statement)
+        }
         PengStatement::While(while_statement) => {
             generate_while_statement(env, globals, context, while_statement)
         }
@@ -168,6 +171,65 @@ pub fn generate_if_statement(
             let end = context.bytecode.len();
             context.patch_jump(false_jump, end);
         }
+    }
+
+    Ok(())
+}
+
+pub fn generate_match_statement(
+    env: &mut PengEnv,
+    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
+    context: &mut PengGeneratorContext,
+    statement: &PengMatchStatement,
+) -> Result<(), PengError> {
+    match generate_expression(env, globals, context, &statement.value) {
+        Ok(()) => {}
+        Err(e) => return Err(e),
+    }
+
+    let matched_local = context.create_temporary_local();
+    context.bytecode.push(PengInstruction::StoreLocal(matched_local));
+
+    let mut end_jumps = Vec::new();
+
+    for arm in &statement.arms {
+        context.bytecode.push(PengInstruction::PushLocal(matched_local));
+
+        match generate_expression(env, globals, context, &arm.pattern) {
+            Ok(()) => {}
+            Err(e) => return Err(e),
+        }
+
+        context.bytecode.push(PengInstruction::Equals);
+
+        let next_arm_jump = context.emit_jump_if_false();
+
+        match generate_scoped_statements(env, globals, context, &arm.body) {
+            Ok(()) => {}
+            Err(e) => return Err(e),
+        }
+
+        let end_jump = context.emit_jump();
+        end_jumps.push(end_jump);
+
+        let next_arm = context.bytecode.len();
+        context.patch_jump(next_arm_jump, next_arm);
+    }
+
+    match &statement.elsing {
+        Some(body) => {
+            match generate_scoped_statements(env, globals, context, body) {
+                Ok(()) => {}
+                Err(e) => return Err(e),
+            }
+        }
+        None => {}
+    }
+
+    let end = context.bytecode.len();
+
+    for jump in end_jumps {
+        context.patch_jump(jump, end);
     }
 
     Ok(())

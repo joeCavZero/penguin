@@ -144,6 +144,46 @@ impl PengAST {
                 }
             }
 
+            PengStatement::Match(match_stmt) => {
+                Self::print_indent(level);
+                println!("Match");
+
+                Self::print_indent(level + 1);
+                println!("Value");
+                Self::print_positioned_expression(&match_stmt.value, level + 2);
+
+                Self::print_indent(level + 1);
+                println!("Arms");
+                for arm in &match_stmt.arms {
+                    Self::print_indent(level + 2);
+                    println!("Arm");
+
+                    Self::print_indent(level + 3);
+                    println!("Pattern");
+                    Self::print_positioned_expression(&arm.pattern, level + 4);
+
+                    Self::print_indent(level + 3);
+                    println!("Body");
+                    for stmt in &arm.body {
+                        Self::print_positioned_statement(stmt, level + 4);
+                    }
+                }
+
+                Self::print_indent(level + 1);
+                println!("Else");
+                match &match_stmt.elsing {
+                    Some(body) => {
+                        for stmt in body {
+                            Self::print_positioned_statement(stmt, level + 2);
+                        }
+                    }
+                    None => {
+                        Self::print_indent(level + 2);
+                        println!("None");
+                    }
+                }
+            }
+
             PengStatement::While(while_stmt) => {
                 Self::print_indent(level);
                 println!("While");
@@ -793,6 +833,10 @@ impl PengAST {
                 Self::print_indent(level);
                 println!("Operation");
             }
+            PengTypeExpression::Thread => {
+                Self::print_indent(level);
+                println!("Thread");
+            }
             PengTypeExpression::Any => {
                 Self::print_indent(level);
                 println!("Any");
@@ -987,6 +1031,7 @@ pub enum PengStatement {
     Return(Option<PengPositionedExpression>),
 
     If(PengIfStatement),
+    Match(PengMatchStatement),
     While(PengWhileStatement),
     For(PengForStatement),
     Loop(Vec<PengPositionedStatement>),
@@ -1151,6 +1196,19 @@ pub struct PengIfStatement {
 }
 
 #[derive(Debug, Clone)]
+pub struct PengMatchStatement {
+    pub value: PengPositionedExpression,
+    pub arms: Vec<PengMatchArm>,
+    pub elsing: Option<Vec<PengPositionedStatement>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct PengMatchArm {
+    pub pattern: PengPositionedExpression,
+    pub body: Vec<PengPositionedStatement>,
+}
+
+#[derive(Debug, Clone)]
 pub struct PengWhileStatement {
     pub condition: PengPositionedExpression,
     pub body: Vec<PengPositionedStatement>,
@@ -1254,6 +1312,7 @@ pub enum PengTypeExpression {
     Module,
     Function,
     Operation,
+    Thread,
     Any,
 
     Custom(Box<PengPositionedExpression>),
