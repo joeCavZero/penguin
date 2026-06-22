@@ -73,7 +73,9 @@ pub fn parse_operation_declaration_statement(
 
     Ok(PengPositioned {
         value: PengStatement::Declaration(
-            PengDeclaration::Operation(declaration)
+            PengBinded::Mutable(
+                PengDeclaration::Operation(declaration)
+            )
         ),
         position: oper_token.position.clone(),
     })

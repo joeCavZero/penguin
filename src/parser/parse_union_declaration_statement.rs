@@ -73,7 +73,9 @@ pub fn parse_union_declaration_statement(
 
     Ok(PengPositioned {
         value: PengStatement::Declaration(
-            PengDeclaration::Type(declaration)
+            PengBinded::Mutable(
+                PengDeclaration::Type(declaration)
+            )
         ),
         position: union_token.position.clone(),
     })

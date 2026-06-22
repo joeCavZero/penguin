@@ -63,7 +63,9 @@ pub fn parse_type_declaration_statement(
 
     Ok(PengPositioned {
         value: PengStatement::Declaration(
-            PengDeclaration::Type(declaration)
+            PengBinded::Mutable(
+                PengDeclaration::Type(declaration)
+            )
         ),
         position: type_token.position.clone(),
     })
@@ -283,7 +285,7 @@ pub fn parse_type_members(
                 };
 
                 match statement.value {
-                    PengStatement::Declaration(PengDeclaration::Variable(field)) => {
+                    PengStatement::Declaration(PengBinded::Mutable(PengDeclaration::Var(field))) => {
                         fields.push(field);
                     }
                     _ => {
@@ -301,7 +303,7 @@ pub fn parse_type_members(
                 };
 
                 match statement.value {
-                    PengStatement::Declaration(PengDeclaration::Function(function)) => {
+                    PengStatement::Declaration(PengBinded::Mutable(PengDeclaration::Function(function))) => {
                         functions.push(function);
                     }
                     _ => {

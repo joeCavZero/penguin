@@ -29,7 +29,7 @@ pub fn step_frame(
 ) -> Result<bool, PengError> {
     match frame {
         PengFrame::Bytecode(btc_frame) => {
-            let (instr, constant) = match env.get_value(btc_frame.function) {
+            let (instr, constant): (PengInstruction, PengValue) = match env.get_value(btc_frame.function) {
                 Some(val) => {
                     if let PengValue::Function(func) = val {
                         match func {
@@ -40,7 +40,7 @@ pub fn step_frame(
                                             (
                                                 instr.clone(),
                                                 match btc_func.consts.get(c) {
-                                                    Some(v) => v.clone(),
+                                                    Some(v) =>  v.clone(),
                                                     None => return Err(PengError::Code(PengErrorCode::TestError)),
                                                 }
                                             )
@@ -55,15 +55,15 @@ pub fn step_frame(
                             PengFunction::Native(ntv_func) => todo!(),
                         }
                     } else {
-                        panic!();
+                        todo!();
                     }
                 }
-                None => panic!(),
+                None => todo!(),
             };
             return execute_instruction(instr, constant, btc_frame, env, thread);
         }
         PengFrame::Native(_ntv) => {
-            todo!()
+            todo!();
         }
     }
 }
@@ -89,7 +89,7 @@ pub fn execute_instruction(
                 PengValue::Byte(aux) => PengCell::Byte(aux),
                 PengValue::Bool(aux) => PengCell::Bool(aux),
                 _ => PengCell::Reference(
-                    env.create_value(constant)
+                    env.create_value(PengBinded::Mutable(constant) )
                 )
             };
 
@@ -177,7 +177,10 @@ pub fn execute_instruction(
                 }
             };
 
-            env.set_value(ptr, value);
+            match env.set_value(ptr, value) {
+                Ok(()) => {}
+                Err(e) => return Err(e),
+            }
             Ok(false)
         }
 
@@ -187,7 +190,10 @@ pub fn execute_instruction(
                 None => return Err(PengError::Code(PengErrorCode::TestError)),
             };
 
-            let ptr = env.create_value(PengValue::String(string));
+            let ptr = env.create_value(
+                PengBinded::Mutable(PengValue::String(string))
+            );
+
             thread.stack.push(PengCell::Reference(ptr));
             Ok(false)
         }

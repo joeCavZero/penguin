@@ -25,7 +25,7 @@ pub type PengPositionedLiteral = PengPositioned<PengLiteral>;
 
 #[derive(Debug, Clone)]
 pub enum PengAST {
-    Program(Vec<PengDeclaration>),
+    Program(Vec<PengBindedDeclaration>),
     Script(Vec<PengPositionedStatement>),
 }
 
@@ -37,8 +37,8 @@ impl PengAST {
             PengAST::Program(declarations) => {
                 println!("  Program");
 
-                for declaration in declarations {
-                    Self::print_declaration(declaration, 2);
+                for d in declarations {
+                    Self::print_binded_declaration(d, 2);
                 }
             }
             PengAST::Script(statements) => {
@@ -100,7 +100,7 @@ impl PengAST {
             PengStatement::Declaration(decl) => {
                 Self::print_indent(level);
                 println!("Declaration");
-                Self::print_declaration(decl, level + 1);
+                Self::print_binded_declaration(decl, level + 1);
             }
 
             PengStatement::Return(expr) => {
@@ -270,9 +270,17 @@ impl PengAST {
         }
     }
 
-    fn print_declaration(decl: &PengDeclaration, level: usize) {
-        match decl {
-            PengDeclaration::Variable(var) => {
+    fn print_binded_declaration(decl: &PengBindedDeclaration, level: usize) {
+        let d = match decl {
+            PengBinded::Immutable(v)
+            | PengBinded::Mutable(v) => v,
+            PengBinded::UninitializedImmutable => {
+                print!("UninitializedImmutable");
+                return;
+            }
+        };
+        match d {
+            PengDeclaration::Var(var) => {
                 Self::print_indent(level);
                 print!("VariableDeclaration");
                 Self::print_position(&var.position);
@@ -440,7 +448,7 @@ impl PengAST {
         Self::print_indent(level);
         println!("Body");
         for decl in &module.body {
-            Self::print_declaration(decl, level + 1);
+            Self::print_binded_declaration(decl, level + 1);
         }
     }
 
@@ -911,7 +919,7 @@ impl PengAST {
         Self::print_indent(level);
         println!("Body");
         for decl in &lit.body {
-            Self::print_declaration(decl, level + 1);
+            Self::print_binded_declaration(decl, level + 1);
         }
     }
 
@@ -1014,7 +1022,7 @@ impl PengAST {
 
 #[derive(Debug, Clone)]
 pub enum PengDeclaration {
-    Variable(PengPositionedVariableDeclaration),
+    Var(PengPositionedVariableDeclaration),
     As(PengPositionedAsDeclaration),
     Function(PengPositionedFunctionDeclaration),
     Type(PengPositionedTypeDeclaration),
@@ -1022,11 +1030,13 @@ pub enum PengDeclaration {
     Operation(PengPositionedOperationDeclaration),
 }
 
+pub type PengBindedDeclaration = PengBinded<PengDeclaration>;
+
 #[derive(Debug, Clone)]
 pub enum PengStatement {
     Block(Vec<PengPositionedStatement>),
 
-    Declaration(PengDeclaration),
+    Declaration(PengBindedDeclaration),
 
     Return(Option<PengPositionedExpression>),
 
@@ -1146,6 +1156,7 @@ pub struct PengVariableDeclaration {
 #[derive(Debug, Clone)]
 pub struct PengAsDeclaration {
     pub name: PengPositioned<String>,
+    pub type_hint: Option<PengPositionedTypeExpression>,
     pub value: PengPositionedExpression,
 }
 
@@ -1178,7 +1189,7 @@ pub struct PengTypeDeclaration {
 #[derive(Debug, Clone)]
 pub struct PengModuleDeclaration {
     pub name: PengPositioned<String>,
-    pub body: Vec<PengDeclaration>,
+    pub body: Vec<PengBindedDeclaration>,
 }
 
 #[derive(Debug, Clone)]
@@ -1340,7 +1351,7 @@ pub struct PengFunctionLiteral {
 
 #[derive(Debug, Clone)]
 pub struct PengModuleLiteral {
-    pub body: Vec<PengDeclaration>,
+    pub body: Vec<PengBindedDeclaration>,
 }
 
 #[derive(Debug, Clone)]

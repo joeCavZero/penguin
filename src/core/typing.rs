@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::utils::*;
+use crate::core::*;
 
 #[derive(Debug, Clone)]
 pub enum PengType {
@@ -32,7 +32,7 @@ pub enum PengType {
 
 #[derive(Debug, Clone)]
 pub struct PengCustomType {
-    pub fields: HashMap<PengNamePoolPtr, PengValuePtr>,
+    pub fields: HashMap<PengNamePoolPtr, PengCell>,
 }
 
 impl PengType {
@@ -63,9 +63,11 @@ impl PengType {
 impl PengCustomType {
     pub fn equals(&self, rhs: &Self) -> bool {
         self.fields.len() == rhs.fields.len()
-            && self
-                .fields
-                .iter()
-                .all(|(name, value)| rhs.fields.get(name) == Some(value))
+            && self.fields.iter().all(|(name, value)| {
+                match rhs.fields.get(name) {
+                    Some(rhs_value) => value.equals(rhs_value),
+                    None => false,
+                }
+            })
     }
 }

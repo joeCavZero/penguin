@@ -103,7 +103,11 @@ pub fn parse_function_declaration_statement(
     };
 
     Ok(PengPositioned {
-        value: PengStatement::Declaration(PengDeclaration::Function(declaration)),
+        value: PengStatement::Declaration(
+            PengBinded::Mutable(
+                PengDeclaration::Function(declaration)
+            )
+        ),
         position: func_token.position.clone(),
     })
 }

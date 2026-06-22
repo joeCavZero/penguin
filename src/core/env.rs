@@ -1,13 +1,15 @@
 use std::collections::HashMap;
 
+use crate::binding::*;
+use crate::cell::*;
+use crate::error::*;
 use crate::utils::*;
 use crate::value::*;
-use crate::cell::*;
 use crate::vector::*;
 
 pub struct PengEnv {
     globals: HashMap<PengNamePoolPtr, PengValuePtr>,
-    pub values: HashMap<PengValuePtr, PengValue>,
+    pub values: HashMap<PengValuePtr, PengBindedValue>,
     pub name_pool: HashMap<PengNamePoolPtr, String>,
 }
 
@@ -21,19 +23,11 @@ impl PengEnv {
     }
 
     fn next_name_ptr(&self) -> PengNamePoolPtr {
-        self.name_pool
-            .keys()
-            .max()
-            .map(|v| v + 1)
-            .unwrap_or(0)
+        self.name_pool.keys().max().map(|v| v + 1).unwrap_or(0)
     }
 
     fn next_value_ptr(&self) -> PengValuePtr {
-        self.values
-            .keys()
-            .max()
-            .map(|v| v + 1)
-            .unwrap_or(0)
+        self.values.keys().max().map(|v| v + 1).unwrap_or(0)
     }
 
     pub fn get_pooled_name(&mut self, name: String) -> PengNamePoolPtr {
@@ -52,7 +46,7 @@ impl PengEnv {
         self.name_pool.get(&name_ptr)
     }
 
-    pub fn create_value(&mut self, value: PengValue) -> PengValuePtr {
+    pub fn create_value(&mut self, value: PengBindedValue) -> PengValuePtr {
         let value_ptr = self.next_value_ptr();
         self.values.insert(value_ptr, value);
         value_ptr
@@ -60,30 +54,94 @@ impl PengEnv {
 
     pub fn create_vector_from_cells(
         &mut self,
-        cells: impl IntoIterator<Item = PengCell>,
-    ) -> PengValuePtr {
+        cells: impl IntoIterator<Item = PengBindedCell>,
+    ) -> Result<PengValuePtr, PengError> {
         let mut vector = PengVector::new();
 
         for cell in cells {
             let value_ptr = match cell {
-                PengCell::Reference(value_ptr) => value_ptr,
-                PengCell::Nil => self.create_value(PengValue::Nil),
-                PengCell::Int(value) => self.create_value(PengValue::Int(value)),
-                PengCell::Uint(value) => self.create_value(PengValue::Uint(value)),
-                PengCell::Float32(value) => {
-                    self.create_value(PengValue::Float32(value))
+                PengBinded::Mutable(cell) => self.create_cell_value(cell, false),
+
+                PengBinded::Immutable(cell) => self.create_cell_value(cell, true),
+
+                PengBinded::UninitializedImmutable => {
+                    return Err(PengError::new_message("cannot create vector from uninitialized immutable cell".to_string()));
                 }
-                PengCell::Float64(value) => {
-                    self.create_value(PengValue::Float64(value))
-                }
-                PengCell::Byte(value) => self.create_value(PengValue::Byte(value)),
-                PengCell::Bool(value) => self.create_value(PengValue::Bool(value)),
             };
 
             vector.push(value_ptr);
         }
 
-        self.create_value(PengValue::Vector(vector))
+        Ok(self.create_value(PengBinded::Mutable(PengValue::Vector(vector))))
+    }
+
+    pub fn create_cell_value(&mut self, cell: PengCell, immutable: bool) -> PengValuePtr {
+        match cell {
+            PengCell::Reference(value_ptr) => value_ptr,
+
+            PengCell::Nil => {
+                let value = PengValue::Nil;
+                if immutable {
+                    self.create_value(PengBinded::Immutable(value))
+                } else {
+                    self.create_value(PengBinded::Mutable(value))
+                }
+            }
+
+            PengCell::Int(v) => {
+                let value = PengValue::Int(v);
+                if immutable {
+                    self.create_value(PengBinded::Immutable(value))
+                } else {
+                    self.create_value(PengBinded::Mutable(value))
+                }
+            }
+
+            PengCell::Uint(v) => {
+                let value = PengValue::Uint(v);
+                if immutable {
+                    self.create_value(PengBinded::Immutable(value))
+                } else {
+                    self.create_value(PengBinded::Mutable(value))
+                }
+            }
+
+            PengCell::Float32(v) => {
+                let value = PengValue::Float32(v);
+                if immutable {
+                    self.create_value(PengBinded::Immutable(value))
+                } else {
+                    self.create_value(PengBinded::Mutable(value))
+                }
+            }
+
+            PengCell::Float64(v) => {
+                let value = PengValue::Float64(v);
+                if immutable {
+                    self.create_value(PengBinded::Immutable(value))
+                } else {
+                    self.create_value(PengBinded::Mutable(value))
+                }
+            }
+
+            PengCell::Byte(v) => {
+                let value = PengValue::Byte(v);
+                if immutable {
+                    self.create_value(PengBinded::Immutable(value))
+                } else {
+                    self.create_value(PengBinded::Mutable(value))
+                }
+            }
+
+            PengCell::Bool(v) => {
+                let value = PengValue::Bool(v);
+                if immutable {
+                    self.create_value(PengBinded::Immutable(value))
+                } else {
+                    self.create_value(PengBinded::Mutable(value))
+                }
+            }
+        }
     }
 
     pub fn create_global(&mut self, name: String) -> PengValuePtr {
@@ -93,51 +151,46 @@ impl PengEnv {
             return *value_ptr;
         }
 
-        let value_ptr = self.create_value(PengValue::Nil);
+        let value_ptr = self.create_value(PengBinded::Mutable(PengValue::Nil));
         self.globals.insert(name_ptr, value_ptr);
 
         value_ptr
     }
 
-    pub fn set_global(
-        &mut self,
-        name: String,
-        value_ptr: PengValuePtr,
-    ) {
+    pub fn set_global(&mut self, name: String, value_ptr: PengValuePtr) {
         let name_ptr = self.get_pooled_name(name);
         self.globals.insert(name_ptr, value_ptr);
     }
 
     pub fn get_global(&self, name: &str) -> Option<PengValuePtr> {
-        let name_ptr = match self
-            .name_pool
-            .iter()
-            .find_map(|(name_ptr, pooled_name)| {
-                if pooled_name == name {
-                    Some(*name_ptr)
-                } else {
-                    None
-                }
-            }) {
-                Some(v) => v,
-                None => return None,
-            };
+        let name_ptr = match self.name_pool.iter().find_map(|(name_ptr, pooled_name)| {
+            if pooled_name == name {
+                Some(*name_ptr)
+            } else {
+                None
+            }
+        }) {
+            Some(v) => v,
+            None => return None,
+        };
 
         self.globals.get(&name_ptr).copied()
     }
 
-    pub fn get_value(
-        &self,
-        value_ptr: PengValuePtr,
-    ) -> Option<&PengValue> {
-        self.values.get(&value_ptr)
+    pub fn get_value(&self, value_ptr: PengValuePtr) -> Option<&PengValue> {
+        match self.values.get(&value_ptr) {
+            Some(PengBinded::Mutable(value)) => Some(value),
+            Some(PengBinded::Immutable(value)) => Some(value),
+            Some(PengBinded::UninitializedImmutable) => None,
+            None => None,
+        }
     }
 
-    pub fn get_value_mut(
-        &mut self,
-        value_ptr: PengValuePtr,
-    ) -> Option<&mut PengValue> {
-        self.values.get_mut(&value_ptr)
+    pub fn get_value_mut(&mut self, value_ptr: PengValuePtr) -> Option<&mut PengValue> {
+        match self.values.get_mut(&value_ptr) {
+            Some(PengBinded::Mutable(value)) => Some(value),
+            _ => None,
+        }
     }
 
     pub fn equals(&self, rhs: &Self) -> bool {
@@ -155,12 +208,27 @@ impl PengEnv {
         &mut self,
         value_ptr: PengValuePtr,
         value: PengValue,
-    ) {
+    ) -> Result<(), PengError> {
         match self.values.get_mut(&value_ptr) {
-            Some(current) => {
+            Some(PengBinded::Mutable(current)) => {
                 *current = value;
             }
-            None => {},
+
+            Some(current @ PengBinded::UninitializedImmutable) => {
+                *current = PengBinded::Immutable(value);
+            }
+
+            Some(PengBinded::Immutable(_)) => {
+                return Err(PengError::new_message(
+                    "cannot set immutable value".to_string(),
+                ));
+            }
+
+            None => {
+                return Err(PengError::new_message("value not found".to_string()));
+            }
         }
+
+        Ok(())
     }
 }

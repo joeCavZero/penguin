@@ -62,6 +62,7 @@ pub enum PengToken {
     Arrow,
 
     Var,
+    Const,
     Func,
     Oper,
     Mod,
@@ -161,6 +162,7 @@ impl PengToken {
             "]" => Some(Self::RightBracket),
 
             "var" => Some(Self::Var),
+            "const" => Some(Self::Const),
             "func" => Some(Self::Func),
             "oper" => Some(Self::Oper),
             "thread" => Some(Self::Thread),

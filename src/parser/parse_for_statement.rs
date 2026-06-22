@@ -1,6 +1,5 @@
 use crate::core::*;
 use crate::lexer::*;
-use crate::parser::parser_utils::block_statements;
 use crate::parser::*;
 
 pub fn parse_for_statement(
@@ -49,8 +48,9 @@ pub fn parse_for_statement(
                 ptokens.next();
                 None
             }
-            PengToken::Var => {
-                let statement = match parse_variable_declaration_statement(ptokens) {
+            PengToken::Const 
+            | PengToken::Var => {
+                let statement = match parse_declaration_statement(ptokens) {
                     Ok(statement) => statement,
                     Err(e) => return Err(e),
                 };

@@ -17,6 +17,7 @@ pub mod positioned;
 pub mod unioning;
 pub mod operation;
 pub mod runtime;
+pub mod binding;
 
 pub use env::*;
 pub use thread::*;
@@ -37,3 +38,4 @@ pub use positioned::*;
 pub use unioning::*;
 pub use operation::*;
 pub use runtime::*;
+pub use binding::*;

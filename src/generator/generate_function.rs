@@ -10,7 +10,7 @@ pub fn create_anonymous_bytecode_function(
 ) -> PengValuePtr {
     let function = create_bytecode_function_value(context, 0);
 
-    env.create_value(function)
+    env.create_value(PengBinded::Mutable(function))
 }
 
 pub fn create_bytecode_function_value(

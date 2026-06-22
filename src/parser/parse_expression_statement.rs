@@ -1,7 +1,6 @@
 use crate::core::*;
 use crate::lexer::*;
 use crate::parser::*;
-use crate::parser::parser_utils::consume_optional_semicolon;
 
 pub fn parse_expression_statement(
     ptokens: &mut PengPeekablePositionedToken,
@@ -20,17 +19,27 @@ pub fn parse_expression_or_assignment_statement(
     };
 
     let mut declaration_lookahead = ptokens.clone();
+
     let as_declaration = match declaration_lookahead.next() {
         Some(as_token) => match &as_token.value {
-            PengToken::As => match declaration_lookahead.next() {
-                Some(name_token) => match &name_token.value {
-                    PengToken::Identifier(_) => {
-                        Some(as_token.clone())
-                    }
-                    _ => None,
-                },
-                None => None,
-            },
+            PengToken::As => {
+                let has_const = match declaration_lookahead.peek() {
+                    Some(token) => matches!(&token.value, PengToken::Const),
+                    None => false,
+                };
+
+                if has_const {
+                    declaration_lookahead.next();
+                }
+
+                match declaration_lookahead.next() {
+                    Some(name_token) => match &name_token.value {
+                        PengToken::Identifier(_) => Some(as_token.clone()),
+                        _ => None,
+                    },
+                    None => None,
+                }
+            }
             _ => None,
         },
         None => None,
@@ -48,6 +57,15 @@ pub fn parse_expression_or_assignment_statement(
                 }
             }
 
+            let is_const = match ptokens.peek() {
+                Some(token) => matches!(&token.value, PengToken::Const),
+                None => false,
+            };
+
+            if is_const {
+                ptokens.next();
+            }
+
             let name = match crate::parser::parser_utils::expect_identifier(
                 ptokens,
                 "expected declaration name after 'as'".to_string(),
@@ -55,6 +73,21 @@ pub fn parse_expression_or_assignment_statement(
             ) {
                 Ok(name) => name,
                 Err(e) => return Err(e),
+            };
+
+            let type_hint = match ptokens.peek() {
+                Some(token) => match &token.value {
+                    PengToken::Colon => {
+                        ptokens.next();
+
+                        match parse_type_expression(ptokens) {
+                            Ok(type_expression) => Some(type_expression),
+                            Err(e) => return Err(e),
+                        }
+                    }
+                    _ => None,
+                },
+                None => None,
             };
 
             if consume_semicolon {
@@ -65,18 +98,24 @@ pub fn parse_expression_or_assignment_statement(
             }
 
             let position = declaration_value.position.clone();
+
             let declaration = PengPositioned {
                 value: PengAsDeclaration {
                     name,
+                    type_hint,
                     value: declaration_value,
                 },
                 position: as_token.position.clone(),
             };
 
+            let binded_declaration = if is_const {
+                PengBinded::Immutable(PengDeclaration::As(declaration))
+            } else {
+                PengBinded::Mutable(PengDeclaration::As(declaration))
+            };
+
             return Ok(PengPositioned {
-                value: PengStatement::Declaration(
-                    PengDeclaration::As(declaration),
-                ),
+                value: PengStatement::Declaration(binded_declaration),
                 position,
             });
         }
@@ -182,6 +221,8 @@ pub fn parse_expression_or_assignment_statement(
 fn is_assignable(expression: &PengExpression) -> bool {
     matches!(
         expression,
-        PengExpression::Identifier(_) | PengExpression::AttributeAccess(_) | PengExpression::Index(_)
+        PengExpression::Identifier(_)
+            | PengExpression::AttributeAccess(_)
+            | PengExpression::Index(_)
     )
 }

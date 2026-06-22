@@ -27,28 +27,44 @@ pub fn generate_statement(
     statement: &PengPositionedStatement,
 ) -> Result<(), PengError> {
     match &statement.value {
-        PengStatement::Declaration(PengDeclaration::Variable(variable)) => {
-            generate_local_variable(env, globals, context, variable)
+        PengStatement::Declaration(binded_declaration) => {
+            let declaration = match binded_declaration {
+                PengBinded::Mutable(declaration) => declaration,
+                PengBinded::Immutable(declaration) => declaration,
+                PengBinded::UninitializedImmutable => {
+                    return Err(PengError::new_positioned_message(
+                        "uninitialized const declaration is not valid here".to_string(),
+                        statement.position.clone(),
+                    ));
+                }
+            };
+
+            match declaration {
+                PengDeclaration::Var(variable) => {
+                    generate_local_variable(env, globals, context, variable)
+                }
+                PengDeclaration::As(declaration) => {
+                    generate_local_as_declaration(env, globals, context, declaration)
+                }
+                PengDeclaration::Function(declaration) => {
+                    generate_local_function_declaration(env, globals, context, declaration)
+                }
+                PengDeclaration::Operation(declaration) => {
+                    generate_local_operation_declaration(env, globals, context, declaration)
+                }
+                PengDeclaration::Type(declaration) => {
+                    generate_local_type_declaration(env, globals, context, declaration)
+                }
+                PengDeclaration::Module(declaration) => {
+                    Err(PengError::new_positioned_message(
+                        "local module declarations require module-construction bytecode support"
+                            .to_string(),
+                        declaration.position.clone(),
+                    ))
+                }
+            }
         }
-        PengStatement::Declaration(PengDeclaration::As(declaration)) => {
-            generate_local_as_declaration(env, globals, context, declaration)
-        }
-        PengStatement::Declaration(PengDeclaration::Function(declaration)) => {
-            generate_local_function_declaration(env, globals, context, declaration)
-        }
-        PengStatement::Declaration(PengDeclaration::Operation(declaration)) => {
-            generate_local_operation_declaration(env, globals, context, declaration)
-        }
-        PengStatement::Declaration(PengDeclaration::Type(declaration)) => {
-            generate_local_type_declaration(env, globals, context, declaration)
-        }
-        PengStatement::Declaration(PengDeclaration::Module(declaration)) => {
-            Err(PengError::new_positioned_message(
-                "local module declarations require module-construction bytecode support"
-                    .to_string(),
-                declaration.position.clone(),
-            ))
-        }
+
         PengStatement::Block(statements) => {
             context.push_scope();
 
@@ -61,12 +77,15 @@ pub fn generate_statement(
                 Err(e) => Err(e),
             }
         }
+
         PengStatement::Return(value) => {
             match value {
-                Some(value) => match generate_expression(env, globals, context, value) {
-                    Ok(()) => {}
-                    Err(e) => return Err(e),
-                },
+                Some(value) => {
+                    match generate_expression(env, globals, context, value) {
+                        Ok(()) => {}
+                        Err(e) => return Err(e),
+                    }
+                }
                 None => {
                     context.push_const_and_const_instruction(PengValue::Nil);
                 }
@@ -75,7 +94,11 @@ pub fn generate_statement(
             context.bytecode.push(PengInstruction::Return);
             Ok(())
         }
-        PengStatement::Assign(assignment) => generate_assignment(env, globals, context, assignment),
+
+        PengStatement::Assign(assignment) => {
+            generate_assignment(env, globals, context, assignment)
+        }
+
         PengStatement::Expression(expression) => {
             match generate_expression(env, globals, context, expression) {
                 Ok(()) => {}
@@ -85,15 +108,27 @@ pub fn generate_statement(
             context.bytecode.push(PengInstruction::Pop);
             Ok(())
         }
-        PengStatement::If(if_statement) => generate_if_statement(env, globals, context, if_statement),
+
+        PengStatement::If(if_statement) => {
+            generate_if_statement(env, globals, context, if_statement)
+        }
+
         PengStatement::Match(match_statement) => {
             generate_match_statement(env, globals, context, match_statement)
         }
+
         PengStatement::While(while_statement) => {
             generate_while_statement(env, globals, context, while_statement)
         }
-        PengStatement::For(for_statement) => generate_for_statement(env, globals, context, for_statement),
-        PengStatement::Loop(body) => generate_loop_statement(env, globals, context, body),
+
+        PengStatement::For(for_statement) => {
+            generate_for_statement(env, globals, context, for_statement)
+        }
+
+        PengStatement::Loop(body) => {
+            generate_loop_statement(env, globals, context, body)
+        }
+
         PengStatement::Break => {
             if context.emit_break() {
                 Ok(())
@@ -104,6 +139,7 @@ pub fn generate_statement(
                 ))
             }
         }
+
         PengStatement::Continue => {
             if context.emit_continue() {
                 Ok(())

@@ -41,7 +41,7 @@ pub fn generate_program(
 
 fn allocate_program_globals(
     env: &mut PengEnv,
-    declarations: &Vec<PengDeclaration>,
+    declarations: &Vec<PengBindedDeclaration>,
 ) -> Result<HashMap<PengNamePoolPtr, PengValuePtr>, PengError> {
     let mut globals = HashMap::new();
 
@@ -55,7 +55,20 @@ fn allocate_program_globals(
             ));
         }
 
-        let value_ptr = env.create_value(PengValue::Nil);
+        let value_ptr = match declaration {
+            PengBinded::Mutable(_) => {
+                env.create_value(PengBinded::Mutable(PengValue::Nil))
+            }
+
+            PengBinded::Immutable(_) => {
+                env.create_value(PengBinded::UninitializedImmutable)
+            }
+
+            PengBinded::UninitializedImmutable => {
+                env.create_value(PengBinded::UninitializedImmutable)
+            }
+        };
+
         globals.insert(name_ptr, value_ptr);
     }
 
@@ -76,9 +89,17 @@ pub fn get_allocated_global(
     env.get_global(name)
 }
 
-fn declaration_name(declaration: &PengDeclaration) -> String {
+fn declaration_name(declaration: &PengBindedDeclaration) -> String {
+    let declaration = match declaration {
+        PengBinded::Mutable(declaration) => declaration,
+        PengBinded::Immutable(declaration) => declaration,
+        PengBinded::UninitializedImmutable => {
+            return "<uninitialized>".to_string();
+        }
+    };
+
     match declaration {
-        PengDeclaration::Variable(declaration) => declaration.value.name.value.clone(),
+        PengDeclaration::Var(declaration) => declaration.value.name.value.clone(),
         PengDeclaration::As(declaration) => declaration.value.name.value.clone(),
         PengDeclaration::Function(declaration) => declaration.value.name.value.clone(),
         PengDeclaration::Type(declaration) => declaration.value.name.value.clone(),
@@ -90,23 +111,31 @@ fn declaration_name(declaration: &PengDeclaration) -> String {
 fn generate_program_initialization(
     env: &mut PengEnv,
     globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
-    declarations: &Vec<PengDeclaration>,
+    declarations: &Vec<PengBindedDeclaration>,
     context: &mut PengGeneratorContext,
 ) -> Result<(), PengError> {
     for declaration in declarations {
+        let declaration = match declaration {
+            PengBinded::Mutable(declaration) => declaration,
+            PengBinded::Immutable(declaration) => declaration,
+            PengBinded::UninitializedImmutable => continue,
+        };
+
         match declaration {
             PengDeclaration::Function(function) => {
                 match generate_global_function(env, globals, context, function) {
-                    Ok(()) => {}
+                    Ok(()) => {},
                     Err(e) => return Err(e),
                 }
             }
+
             PengDeclaration::Operation(operation) => {
                 match generate_global_operation(env, globals, context, operation) {
                     Ok(()) => {}
                     Err(e) => return Err(e),
                 }
             }
+
             PengDeclaration::Type(declaration) => {
                 if declaration.value.value.is_some() {
                     match generate_global_type_value(env, globals, context, declaration) {
@@ -115,83 +144,10 @@ fn generate_program_initialization(
                     }
                 }
             }
+
             _ => {}
         }
     }
-
-    for declaration in declarations {
-        match declaration {
-            PengDeclaration::Variable(variable) => {
-                match generate_global_variable(env, globals, context, variable) {
-                    Ok(()) => {}
-                    Err(e) => return Err(e),
-                }
-            }
-            PengDeclaration::As(declaration) => {
-                match generate_global_as_declaration(env, globals, context, declaration) {
-                    Ok(()) => {}
-                    Err(e) => return Err(e),
-                }
-            }
-            PengDeclaration::Function(_) => {}
-            PengDeclaration::Type(type_declaration) => {
-                if type_declaration.value.value.is_none() {
-                    match generate_global_structured_type(env, globals, context, type_declaration) {
-                        Ok(()) => {},
-                        Err(e) => return Err(e),
-                    };
-                }
-            }
-            PengDeclaration::Module(declaration) => {
-                return Err(PengError::new_positioned_message(
-                    "global module declarations require module-construction bytecode support"
-                        .to_string(),
-                    declaration.position.clone(),
-                ));
-            }
-            PengDeclaration::Operation(_) => {}
-        }
-    }
-
-    Ok(())
-}
-
-fn generate_global_structured_type(
-    env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
-    context: &mut PengGeneratorContext,
-    declaration: &PengPositionedTypeDeclaration,
-) -> Result<(), PengError> {
-    let value_ptr = match get_allocated_global(
-        env,
-        globals,
-        &declaration.value.name.value,
-    ) {
-        Some(value_ptr) => value_ptr,
-        None => {
-            return Err(PengError::new_positioned_message(
-                "global type was not allocated".to_string(),
-                declaration.value.name.position.clone(),
-            ));
-        }
-    };
-
-    let literal = PengTypeLiteral {
-        generics: declaration.value.generics.clone(),
-        supers: declaration.value.supers.clone(),
-        fields: declaration.value.fields.clone(),
-        functions: declaration.value.functions.clone(),
-    };
-
-    context.bytecode.push(PengInstruction::PushValueRef(value_ptr));
-    context.bytecode.push(PengInstruction::Duplicate);
-
-    match generate_type_literal_after_base(env, globals, context, &literal) {
-        Ok(()) => {}
-        Err(e) => return Err(e),
-    }
-
-    context.bytecode.push(PengInstruction::StoreValue);
 
     Ok(())
 }
@@ -292,68 +248,5 @@ fn generate_global_function(
     context.push_const_and_const_instruction(value);
     context.bytecode.push(PengInstruction::StoreValue);
 
-    Ok(())
-}
-
-fn generate_global_as_declaration(
-    env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
-    context: &mut PengGeneratorContext,
-    declaration: &PengPositionedAsDeclaration,
-) -> Result<(), PengError> {
-    let value_ptr = match get_allocated_global(env, globals, &declaration.value.name.value) {
-        Some(value_ptr) => value_ptr,
-        None => {
-            return Err(PengError::new_positioned_message(
-                "global as declaration was not allocated".to_string(),
-                declaration.value.name.position.clone(),
-            ));
-        }
-    };
-
-    context
-        .bytecode
-        .push(PengInstruction::PushValueRef(value_ptr));
-
-    match generate_expression(env, globals, context, &declaration.value.value) {
-        Ok(()) => {}
-        Err(e) => return Err(e),
-    }
-
-    context.bytecode.push(PengInstruction::StoreValue);
-    Ok(())
-}
-
-fn generate_global_variable(
-    env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
-    context: &mut PengGeneratorContext,
-    variable: &PengPositionedVariableDeclaration,
-) -> Result<(), PengError> {
-    let value_ptr = match get_allocated_global(env, globals, &variable.value.name.value) {
-        Some(value_ptr) => value_ptr,
-        None => {
-            return Err(PengError::new_positioned_message(
-                "global variable was not allocated".to_string(),
-                variable.value.name.position.clone(),
-            ));
-        }
-    };
-
-    context
-        .bytecode
-        .push(PengInstruction::PushValueRef(value_ptr));
-
-    match &variable.value.value {
-        Some(value) => match generate_expression(env, globals, context, value) {
-            Ok(()) => {}
-            Err(e) => return Err(e),
-        },
-        None => {
-            context.push_const_and_const_instruction(PengValue::Nil);
-        }
-    }
-
-    context.bytecode.push(PengInstruction::StoreValue);
     Ok(())
 }

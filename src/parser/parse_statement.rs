@@ -1,7 +1,6 @@
 use crate::core::*;
 use crate::lexer::*;
 use crate::parser::*;
-use crate::parser::parser_utils::consume_optional_semicolon;
 
 pub fn parse_statement(
     ptokens: &mut PengPeekablePositionedToken,
@@ -23,28 +22,14 @@ pub fn parse_statement(
             parse_block_statement(ptokens)
         }
 
-        PengToken::Var => {
-            parse_variable_declaration_statement(ptokens)
-        }
-
-        PengToken::Func => {
-            parse_function_declaration_statement(ptokens)
-        }
-
-        PengToken::Type => {
-            parse_type_declaration_statement(ptokens)
-        }
-
-        PengToken::Union => {
-            parse_union_declaration_statement(ptokens)
-        }
-
-        PengToken::Mod => {
-            parse_module_declaration_statement(ptokens)
-        }
-
-        PengToken::Oper => {
-            parse_operation_declaration_statement(ptokens)
+        PengToken::Const
+        | PengToken::Var
+        | PengToken::Func
+        | PengToken::Type
+        | PengToken::Union
+        | PengToken::Mod
+        | PengToken::Oper => {
+            parse_declaration_statement(ptokens)
         }
 
         PengToken::Return => {

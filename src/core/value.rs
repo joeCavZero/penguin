@@ -6,6 +6,9 @@ use crate::thread::*;
 use crate::function::*;
 use crate::operation::*;
 use crate::unioning::*;
+use crate::binding::*;
+
+pub type PengBindedValue = PengBinded<PengValue>;
 
 #[derive(Debug, Clone)]
 pub enum PengValue {
@@ -26,6 +29,8 @@ pub enum PengValue {
     Operation(PengOperation),
     Union(PengUnion),
 }
+
+
 
 impl PengValue {
     pub fn equals(&self, rhs: &Self) -> bool {
@@ -48,6 +53,19 @@ impl PengValue {
             (PengValue::Function(a), PengValue::Function(b)) => a.equals(b),
             (PengValue::Operation(a), PengValue::Operation(b)) => a.equals(b),
             (PengValue::Union(a), PengValue::Union(b)) => a.equals(b),
+
+            _ => false,
+        }
+    }
+}
+
+impl PengBinded<PengValue> {
+    pub fn equals(&self, rhs: &Self) -> bool {
+        match (self, rhs) {
+            (
+                Self::Immutable(v1) | Self::Mutable(v1),
+                Self::Immutable(v2) | Self::Mutable(v2),
+            ) => v1.equals(v2),
 
             _ => false,
         }
