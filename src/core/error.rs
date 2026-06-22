@@ -2,6 +2,7 @@ use crate::position::*;
 
 #[derive(Debug, Clone)]
 pub enum PengError {
+    Code(PengErrorCode),
     Message(String),
     Position(PengPosition),
     PositionedMessage {
@@ -46,4 +47,9 @@ impl PengError {
             _ => false,
         }
     }
+}
+
+#[derive(Debug, Clone)]
+pub enum PengErrorCode {
+    TestError,
 }

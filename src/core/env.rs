@@ -150,4 +150,17 @@ impl PengEnv {
                     .is_some_and(|rhs_value| value.equals(rhs_value))
             })
     }
+
+    pub fn set_value(
+        &mut self,
+        value_ptr: PengValuePtr,
+        value: PengValue,
+    ) {
+        match self.values.get_mut(&value_ptr) {
+            Some(current) => {
+                *current = value;
+            }
+            None => {},
+        }
+    }
 }
