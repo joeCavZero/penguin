@@ -34,11 +34,6 @@ pub fn parse_type_declaration_statement(
         Err(e) => return Err(e),
     };
 
-    let generics = match parse_function_generics(ptokens) {
-        Ok(generics) => generics,
-        Err(e) => return Err(e),
-    };
-
     let supers = match parse_type_supers(ptokens) {
         Ok(supers) => supers,
         Err(e) => return Err(e),
@@ -52,7 +47,6 @@ pub fn parse_type_declaration_statement(
     let declaration = PengPositioned {
         value: PengTypeDeclaration {
             name,
-            generics,
             value: None,
             supers,
             fields,

@@ -36,7 +36,6 @@ pub fn generate_operation_value(
         PengBytecodeOperation {
             bytecode: context.bytecode,
             consts: context.consts,
-            generics_count: 0,
             using_values: Vec::new(),
         },
     )))

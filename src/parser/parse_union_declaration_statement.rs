@@ -47,10 +47,7 @@ pub fn parse_union_declaration_statement(
     match &equals_token.value {
         PengToken::Equals => {}
         _ => {
-            return Err(PengError::new_positioned_message(
-                "union declarations do not accept generics; expected '='".to_string(),
-                equals_token.position.clone(),
-            ));
+            return Err(PengError::Code(PengErrorCode::TestError));
         }
     }
 
@@ -62,7 +59,6 @@ pub fn parse_union_declaration_statement(
     let declaration = PengPositioned {
         value: PengTypeDeclaration {
             name,
-            generics: Vec::new(),
             value: Some(value),
             supers: Vec::new(),
             fields: Vec::new(),

@@ -210,10 +210,14 @@ impl PengEnv {
         heap_ptr: PengHeapPtr,
         heap: PengValue,
     ) -> Result<(), PengError> {
-        let coloured = self
-            .heap
-            .get_mut(&heap_ptr)
-            .ok_or_else(|| PengError::new_message("value not found".to_string()))?;
+        let coloured = match self.heap.get_mut(&heap_ptr) {
+            Some(coloured) => coloured,
+            None => {
+                return Err(
+                    PengError::new_message("value not found".to_string())
+                );
+            }
+        };
 
         match &mut coloured.value {
             PengBinded::Mutable(current) => {
@@ -222,13 +226,16 @@ impl PengEnv {
             }
 
             PengBinded::Immutable(PengStated::Uninitialized) => {
-                coloured.value = PengBinded::Immutable(PengStated::Initialized(heap));
+                coloured.value =
+                    PengBinded::Immutable(PengStated::Initialized(heap));
                 Ok(())
             }
 
-            PengBinded::Immutable(_) => Err(PengError::new_message(
-                "cannot set immutable value".to_string(),
-            )),
+            PengBinded::Immutable(_) => Err(
+                PengError::new_message(
+                    "cannot set immutable value".to_string(),
+                )
+            ),
         }
     }
 }

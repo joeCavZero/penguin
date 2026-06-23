@@ -264,22 +264,6 @@ fn parse_postfix_expression(
                 };
             }
 
-            PengToken::LessThan => {
-                let is_generic_postfix = match has_generic_postfix(ptokens) {
-                    Ok(value) => value,
-                    Err(e) => return Err(e),
-                };
-
-                if !is_generic_postfix {
-                    break;
-                }
-
-                expr = match parse_generic_postfix_expression(ptokens, expr) {
-                    Ok(expression) => expression,
-                    Err(e) => return Err(e),
-                };
-            }
-
             _ => break,
         }
     }
@@ -293,8 +277,8 @@ fn parse_primary_expression(
     let is_function_literal = match ptokens.peek() {
         Some(token) => match &token.value {
             PengToken::Func => match token_after_current(ptokens) {
-                Some(next) => match &next.value {
-                    PengToken::LessThan | PengToken::LeftParenthesis => true,
+                Some(token) => match &token.value {
+                    PengToken::LeftParenthesis => true,
                     _ => false,
                 },
                 None => false,
@@ -322,8 +306,7 @@ fn parse_primary_expression(
         PengToken::Type => {
             let is_literal = match token_after_current(ptokens) {
                 Some(token) => match &token.value {
-                    PengToken::LessThan
-                    | PengToken::Colon
+                    PengToken::Colon
                     | PengToken::LeftCurlyBrace => true,
                     _ => false,
                 },
@@ -547,7 +530,6 @@ fn parse_func_call_expression(
     Ok(PengPositioned {
         value: PengExpression::FuncCall(PengFuncCallExpression {
             function: Box::new(function),
-            generics: Vec::new(),
             args,
         }),
         position,
@@ -578,20 +560,12 @@ fn parse_dot_expression(
     let has_call = match ptokens.peek() {
         Some(token) => match &token.value {
             PengToken::LeftParenthesis => true,
-            PengToken::LessThan => match has_generic_postfix(ptokens) {
-                Ok(value) => value,
-                Err(e) => return Err(e),
-            },
             _ => false,
         },
         None => false,
     };
 
     if has_call {
-        let generics = match parse_optional_generic_arguments(ptokens) {
-            Ok(generics) => generics,
-            Err(e) => return Err(e),
-        };
 
         let args = match parse_function_params(ptokens) {
             Ok(args) => args,
@@ -602,7 +576,6 @@ fn parse_dot_expression(
             value: PengExpression::MethodCall(PengMethodCallExpression {
                 object: Box::new(object),
                 method: name,
-                generics,
                 args,
             }),
             position,
@@ -639,19 +612,6 @@ fn parse_colon_func_call_expression(
     };
 
     if is_object {
-        let generics = match ptokens.peek() {
-            Some(token) => match &token.value {
-                PengToken::LessThan => {
-                    match parse_generic_arguments(ptokens) {
-                        Ok(generics) => generics,
-                        Err(e) => return Err(e),
-                    }
-                }
-                _ => Vec::new(),
-            },
-            None => Vec::new(),
-        };
-
         let open_token = match ptokens.next() {
             Some(token) => token,
             None => {
@@ -672,7 +632,6 @@ fn parse_colon_func_call_expression(
         return Ok(PengPositioned {
             value: PengExpression::ObjectConstruction(PengObjectConstructionExpression {
                 object_type: Box::new(module),
-                generics,
                 fields,
             }),
             position,
@@ -700,10 +659,6 @@ fn parse_colon_func_call_expression(
     let has_call = match ptokens.peek() {
         Some(token) => match &token.value {
             PengToken::LeftParenthesis => true,
-            PengToken::LessThan => match has_generic_postfix(ptokens) {
-                Ok(value) => value,
-                Err(e) => return Err(e),
-            },
             _ => false,
         },
         None => false,
@@ -713,11 +668,6 @@ fn parse_colon_func_call_expression(
         return Ok(member);
     }
 
-    let generics = match parse_optional_generic_arguments(ptokens) {
-        Ok(generics) => generics,
-        Err(e) => return Err(e),
-    };
-
     let args = match parse_function_params(ptokens) {
         Ok(args) => args,
         Err(e) => return Err(e),
@@ -726,7 +676,6 @@ fn parse_colon_func_call_expression(
     Ok(PengPositioned {
         value: PengExpression::FuncCall(PengFuncCallExpression {
             function: Box::new(member),
-            generics,
             args,
         }),
         position,
@@ -778,174 +727,6 @@ fn parse_index_expression(
         }),
         position,
     })
-}
-
-fn has_generic_postfix(ptokens: &mut PengPeekablePositionedToken) -> Result<bool, PengError> {
-    let mut lookahead = ptokens.clone();
-
-    match parse_generic_arguments(&mut lookahead) {
-        Ok(_) => {}
-        Err(_) => return Ok(false),
-    }
-
-    match lookahead.peek() {
-        Some(token) => match &token.value {
-            PengToken::LeftParenthesis => Ok(true),
-            _ => Ok(false),
-        },
-        None => Ok(false),
-    }
-}
-
-fn parse_generic_postfix_expression(
-    ptokens: &mut PengPeekablePositionedToken,
-    value: PengPositionedExpression,
-) -> Result<PengPositionedExpression, PengError> {
-    let generics = match parse_generic_arguments(ptokens) {
-        Ok(generics) => generics,
-        Err(e) => return Err(e),
-    };
-
-    let token = match ptokens.peek() {
-        Some(token) => token,
-        None => {
-            return Err(PengError::new_positioned_message(
-                "expected '(' or '{' after generic arguments".to_string(),
-                value.position.clone(),
-            ));
-        }
-    };
-
-    match &token.value {
-        PengToken::LeftParenthesis => {
-            let args = match parse_function_params(ptokens) {
-                Ok(args) => args,
-                Err(e) => return Err(e),
-            };
-
-            let position = value.position.clone();
-
-            Ok(PengPositioned {
-                value: PengExpression::FuncCall(PengFuncCallExpression {
-                    function: Box::new(value),
-                    generics,
-                    args,
-                }),
-                position,
-            })
-        }
-        _ => Err(PengError::new_positioned_message(
-            "expected '(' after generic arguments".to_string(),
-            token.position.clone(),
-        )),
-    }
-}
-
-fn parse_optional_generic_arguments(
-    ptokens: &mut PengPeekablePositionedToken,
-) -> Result<Vec<PengPositionedExpression>, PengError> {
-    let has_generics = match ptokens.peek() {
-        Some(token) => match &token.value {
-            PengToken::LessThan => true,
-            _ => false,
-        },
-        None => false,
-    };
-
-    if has_generics {
-        parse_generic_arguments(ptokens)
-    } else {
-        Ok(Vec::new())
-    }
-}
-
-fn parse_generic_arguments(
-    ptokens: &mut PengPeekablePositionedToken,
-) -> Result<Vec<PengPositionedExpression>, PengError> {
-    let open_token = match ptokens.next() {
-        Some(token) => token,
-        None => {
-            return Err(PengError::new_message("expected '<'".to_string()));
-        }
-    };
-
-    match &open_token.value {
-        PengToken::LessThan => {}
-        _ => {
-            return Err(PengError::new_positioned_message(
-                "expected '<'".to_string(),
-                open_token.position.clone(),
-            ));
-        }
-    }
-
-    let mut generics = Vec::new();
-
-    loop {
-        let token = match ptokens.next() {
-            Some(token) => token,
-            None => {
-                return Err(PengError::new_positioned_message(
-                    "expected generic argument".to_string(),
-                    open_token.position.clone(),
-                ));
-            }
-        };
-
-        let generic = match &token.value {
-            PengToken::Identifier(name) => PengPositioned {
-                value: PengExpression::Identifier(PengPositioned {
-                    value: name.clone(),
-                    position: token.position.clone(),
-                }),
-                position: token.position.clone(),
-            },
-            _ => {
-                let type_expression = match type_expression_from_token(&token.value) {
-                    Some(type_expression) => type_expression,
-                    None => {
-                        return Err(PengError::new_positioned_message(
-                            "expected generic argument".to_string(),
-                            token.position.clone(),
-                        ));
-                    }
-                };
-
-                PengPositioned {
-                    value: PengExpression::Type(PengPositioned {
-                        value: type_expression,
-                        position: token.position.clone(),
-                    }),
-                    position: token.position.clone(),
-                }
-            }
-        };
-
-        generics.push(generic);
-
-        let separator = match ptokens.next() {
-            Some(token) => token,
-            None => {
-                return Err(PengError::new_positioned_message(
-                    "expected ',' or '>'".to_string(),
-                    open_token.position.clone(),
-                ));
-            }
-        };
-
-        match &separator.value {
-            PengToken::Comma => {}
-            PengToken::GreaterThan => break,
-            _ => {
-                return Err(PengError::new_positioned_message(
-                    "expected ',' or '>'".to_string(),
-                    separator.position.clone(),
-                ));
-            }
-        }
-    }
-
-    Ok(generics)
 }
 
 fn parse_infix_operation_expression(

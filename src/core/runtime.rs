@@ -31,7 +31,7 @@ pub fn step_thread(env: &mut PengEnv, thread_ptr: PengHeapPtr) -> Result<bool, P
             None => todo!()
         };
 
-    let (should_end_frame, instruction, constant, _generics_count) =
+    let (should_end_frame, instruction, constant) =
         match env.get_heap(frame_function_ptr) {
             Some(coloured) => {
                 if let PengStated::Initialized(fval) = coloured.value.value() {
@@ -62,7 +62,6 @@ pub fn step_thread(env: &mut PengEnv, thread_ptr: PengHeapPtr) -> Result<bool, P
                                     false,
                                     instr,
                                     constant,
-                                    func_btc.generics_count,
                                 )
                             }
 
@@ -87,7 +86,10 @@ pub fn step_thread(env: &mut PengEnv, thread_ptr: PengHeapPtr) -> Result<bool, P
         return Ok(true);
     }
 
-    execute_instruction(instruction, constant, thread_ptr, frame_base, env)?;
+    match execute_instruction(instruction, constant, thread_ptr, frame_base, env)  {
+        Ok(_) => {}
+        Err(e) => return Err(e),
+    };
 
     match env.get_heap_mut(thread_ptr) {
         Some(coloured) => {
@@ -293,12 +295,12 @@ pub fn execute_instruction(
             todo!("OperationCall");
         }
 
-        PengInstruction::FunctionCall { .. } => {
-            todo!("FunctionCall usando a como generics e b como params");
+        PengInstruction::FunctionCall (_) => {
+            todo!();
         }
 
-        PengInstruction::TryFunctionCall { .. } => {
-            todo!("TryFunctionCall usando a como generics e b como params");
+        PengInstruction::TryFunctionCall (_) => {
+            todo!();
         }
 
         PengInstruction::GetIndex => {

@@ -379,7 +379,6 @@ impl PengAST {
         Self::print_position(&func.name.position);
         println!();
 
-        Self::print_generics(&func.generics, level);
         Self::print_function_params("Params", &func.params, level);
         Self::print_return_type(&func.return_type, level);
 
@@ -395,8 +394,6 @@ impl PengAST {
         print!("Name: {}", typ.name.value);
         Self::print_position(&typ.name.position);
         println!();
-
-        Self::print_generics(&typ.generics, level);
 
         Self::print_indent(level);
         println!("Value");
@@ -576,9 +573,6 @@ impl PengAST {
                 Self::print_indent(level + 1);
                 println!("Function");
                 Self::print_positioned_expression(&call.function, level + 2);
-
-                Self::print_expression_list("Generics", &call.generics, level + 1);
-                Self::print_expression_list("Args", &call.args, level + 1);
             }
 
             PengExpression::MethodCall(call) => {
@@ -593,9 +587,6 @@ impl PengAST {
                 print!("Method: {}", call.method.value);
                 Self::print_position(&call.method.position);
                 println!();
-
-                Self::print_expression_list("Generics", &call.generics, level + 1);
-                Self::print_expression_list("Args", &call.args, level + 1);
             }
 
             PengExpression::AttributeAccess(attr) => {
@@ -646,8 +637,6 @@ impl PengAST {
                 Self::print_indent(level + 1);
                 println!("ObjectType");
                 Self::print_positioned_expression(&obj.object_type, level + 2);
-
-                Self::print_expression_list("Generics", &obj.generics, level + 1);
 
                 Self::print_indent(level + 1);
                 println!("Fields");
@@ -870,8 +859,6 @@ impl PengAST {
     }
 
     fn print_type_literal(lit: &PengTypeLiteral, level: usize) {
-        Self::print_generics(&lit.generics, level);
-
         Self::print_indent(level);
         println!("Supers");
         for sup in &lit.supers {
@@ -900,7 +887,6 @@ impl PengAST {
     }
 
     fn print_function_literal(lit: &PengFunctionLiteral, level: usize) {
-        Self::print_generics(&lit.generics, level);
         Self::print_function_params("Params", &lit.params, level);
         Self::print_return_type(&lit.return_type, level);
 
@@ -938,17 +924,6 @@ impl PengAST {
         Self::print_indent(level + 1);
         println!("Value");
         Self::print_positioned_expression(&field.value, level + 2);
-    }
-
-    fn print_generics(generics: &Vec<PengPositioned<String>>, level: usize) {
-        Self::print_indent(level);
-        println!("Generics");
-        for generic in generics {
-            Self::print_indent(level + 1);
-            print!("{}", generic.value);
-            Self::print_position(&generic.position);
-            println!();
-        }
     }
 
     fn print_function_params(
@@ -998,19 +973,6 @@ impl PengAST {
                 Self::print_indent(level + 1);
                 println!("None");
             }
-        }
-    }
-
-    fn print_expression_list(
-        title: &str,
-        values: &Vec<PengPositionedExpression>,
-        level: usize,
-    ) {
-        Self::print_indent(level);
-        println!("{}", title);
-
-        for value in values {
-            Self::print_positioned_expression(value, level + 1);
         }
     }
 }
@@ -1159,7 +1121,6 @@ pub struct PengAsDeclaration {
 #[derive(Debug, Clone)]
 pub struct PengFunctionDeclaration {
     pub name: PengPositioned<String>,
-    pub generics: Vec<PengPositioned<String>>,
     pub params: Vec<PengPositionedFunctionParam>,
     pub return_type: Option<PengPositionedTypeExpression>,
     pub body: Vec<PengPositionedStatement>,
@@ -1175,7 +1136,6 @@ pub struct PengFunctionParam {
 #[derive(Debug, Clone)]
 pub struct PengTypeDeclaration {
     pub name: PengPositioned<String>,
-    pub generics: Vec<PengPositioned<String>>,
     pub value: Option<PengPositionedTypeExpression>,
     pub supers: Vec<PengPositionedExpression>,
     pub fields: Vec<PengPositionedVariableDeclaration>,
@@ -1232,7 +1192,6 @@ pub struct PengForStatement {
 #[derive(Debug, Clone)]
 pub struct PengFuncCallExpression {
     pub function: Box<PengPositionedExpression>,
-    pub generics: Vec<PengPositionedExpression>,
     pub args: Vec<PengPositionedExpression>,
 }
 
@@ -1240,7 +1199,6 @@ pub struct PengFuncCallExpression {
 pub struct PengMethodCallExpression {
     pub object: Box<PengPositionedExpression>,
     pub method: PengPositioned<String>,
-    pub generics: Vec<PengPositionedExpression>,
     pub args: Vec<PengPositionedExpression>,
 }
 
@@ -1265,7 +1223,6 @@ pub struct PengIndexExpression {
 #[derive(Debug, Clone)]
 pub struct PengObjectConstructionExpression {
     pub object_type: Box<PengPositionedExpression>,
-    pub generics: Vec<PengPositionedExpression>,
     pub fields: Vec<PengObjectFieldLiteral>,
 }
 
@@ -1331,7 +1288,6 @@ pub enum PengTypeExpression {
 
 #[derive(Debug, Clone)]
 pub struct PengTypeLiteral {
-    pub generics: Vec<PengPositioned<String>>,
     pub supers: Vec<PengPositionedExpression>,
     pub fields: Vec<PengPositionedVariableDeclaration>,
     pub functions: Vec<PengPositionedFunctionDeclaration>,
@@ -1339,7 +1295,6 @@ pub struct PengTypeLiteral {
 
 #[derive(Debug, Clone)]
 pub struct PengFunctionLiteral {
-    pub generics: Vec<PengPositioned<String>>,
     pub params: Vec<PengPositionedFunctionParam>,
     pub return_type: Option<PengPositionedTypeExpression>,
     pub body: Vec<PengPositionedStatement>,

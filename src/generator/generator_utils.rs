@@ -302,7 +302,6 @@ pub fn generate_structured_local_type_declaration(
     declaration: &PengPositionedTypeDeclaration,
 ) -> Result<(), PengError> {
     let literal = PengTypeLiteral {
-        generics: declaration.value.generics.clone(),
         supers: declaration.value.supers.clone(),
         fields: declaration.value.fields.clone(),
         functions: declaration.value.functions.clone(),
@@ -481,10 +480,31 @@ pub fn generate_index_assignment(
     value: &PengPositionedExpression,
     operation: Option<PengInstruction>,
 ) -> Result<(), PengError> {
+    if operation.is_none() {
+        match generate_expression(env, globals, context, &index.object) {
+            Ok(()) => {}
+            Err(e) => return Err(e),
+        }
+
+        match generate_expression(env, globals, context, &index.index) {
+            Ok(()) => {}
+            Err(e) => return Err(e),
+        }
+
+        match generate_expression(env, globals, context, value) {
+            Ok(()) => {}
+            Err(e) => return Err(e),
+        }
+
+        context.bytecode.push(PengInstruction::SetIndex);
+        return Ok(());
+    }
+
     match generate_expression(env, globals, context, &index.object) {
         Ok(()) => {}
         Err(e) => return Err(e),
     }
+
     let object_local = context.create_temporary_local();
     context
         .bytecode
@@ -494,6 +514,7 @@ pub fn generate_index_assignment(
         Ok(()) => {}
         Err(e) => return Err(e),
     }
+
     let index_local = context.create_temporary_local();
     context
         .bytecode
@@ -506,25 +527,24 @@ pub fn generate_index_assignment(
         .bytecode
         .push(PengInstruction::PushLocal(index_local));
 
-    if let Some(operation) = operation {
-        context
-            .bytecode
-            .push(PengInstruction::PushLocal(object_local));
-        context
-            .bytecode
-            .push(PengInstruction::PushLocal(index_local));
-        context.bytecode.push(PengInstruction::GetIndex);
+    match operation {
+        Some(operation) => {
+            context
+                .bytecode
+                .push(PengInstruction::PushLocal(object_local));
+            context
+                .bytecode
+                .push(PengInstruction::PushLocal(index_local));
+            context.bytecode.push(PengInstruction::GetIndex);
 
-        match generate_expression(env, globals, context, value) {
-            Ok(()) => {}
-            Err(e) => return Err(e),
+            match generate_expression(env, globals, context, value) {
+                Ok(()) => {}
+                Err(e) => return Err(e),
+            }
+
+            context.bytecode.push(operation);
         }
-        context.bytecode.push(operation);
-    } else {
-        match generate_expression(env, globals, context, value) {
-            Ok(()) => {}
-            Err(e) => return Err(e),
-        }
+        None => unreachable!(),
     }
 
     context.bytecode.push(PengInstruction::SetIndex);
@@ -539,39 +559,56 @@ pub fn generate_attribute_assignment(
     value: &PengPositionedExpression,
     operation: Option<PengInstruction>,
 ) -> Result<(), PengError> {
+    let name = env.ensure_pooled_name_ptr(attribute.name.value.clone());
+
+    if operation.is_none() {
+        match generate_expression(env, globals, context, &attribute.object) {
+            Ok(()) => {}
+            Err(e) => return Err(e),
+        }
+
+        match generate_expression(env, globals, context, value) {
+            Ok(()) => {}
+            Err(e) => return Err(e),
+        }
+
+        context
+            .bytecode
+            .push(PengInstruction::SetConstAttribute(name));
+        return Ok(());
+    }
+
     match generate_expression(env, globals, context, &attribute.object) {
         Ok(()) => {}
         Err(e) => return Err(e),
     }
+
     let object_local = context.create_temporary_local();
     context
         .bytecode
         .push(PengInstruction::StoreLocal(object_local));
 
-    let name = env.ensure_pooled_name_ptr(attribute.name.value.clone());
-
     context
         .bytecode
         .push(PengInstruction::PushLocal(object_local));
 
-    if let Some(operation) = operation {
-        context
-            .bytecode
-            .push(PengInstruction::PushLocal(object_local));
-        context
-            .bytecode
-            .push(PengInstruction::GetConstAttribute(name));
+    match operation {
+        Some(operation) => {
+            context
+                .bytecode
+                .push(PengInstruction::PushLocal(object_local));
+            context
+                .bytecode
+                .push(PengInstruction::GetConstAttribute(name));
 
-        match generate_expression(env, globals, context, value) {
-            Ok(()) => {}
-            Err(e) => return Err(e),
+            match generate_expression(env, globals, context, value) {
+                Ok(()) => {}
+                Err(e) => return Err(e),
+            }
+
+            context.bytecode.push(operation);
         }
-        context.bytecode.push(operation);
-    } else {
-        match generate_expression(env, globals, context, value) {
-            Ok(()) => {}
-            Err(e) => return Err(e),
-        }
+        None => unreachable!(),
     }
 
     context
@@ -614,37 +651,52 @@ pub fn generate_member_assignment(
     value: &PengPositionedExpression,
     operation: Option<PengInstruction>,
 ) -> Result<(), PengError> {
+    let name = env.ensure_pooled_name_ptr(member.name.value.clone());
+
+    if operation.is_none() {
+        match generate_expression(env, globals, context, &member.object) {
+            Ok(()) => {}
+            Err(e) => return Err(e),
+        }
+
+        match generate_expression(env, globals, context, value) {
+            Ok(()) => {}
+            Err(e) => return Err(e),
+        }
+
+        context.bytecode.push(PengInstruction::SetConstMember(name));
+        return Ok(());
+    }
+
     match generate_expression(env, globals, context, &member.object) {
         Ok(()) => {}
         Err(e) => return Err(e),
     }
+
     let object_local = context.create_temporary_local();
     context
         .bytecode
         .push(PengInstruction::StoreLocal(object_local));
 
-    let name = env.ensure_pooled_name_ptr(member.name.value.clone());
-
     context
         .bytecode
         .push(PengInstruction::PushLocal(object_local));
 
-    if let Some(operation) = operation {
-        context
-            .bytecode
-            .push(PengInstruction::PushLocal(object_local));
-        context.bytecode.push(PengInstruction::GetConstMember(name));
+    match operation {
+        Some(operation) => {
+            context
+                .bytecode
+                .push(PengInstruction::PushLocal(object_local));
+            context.bytecode.push(PengInstruction::GetConstMember(name));
 
-        match generate_expression(env, globals, context, value) {
-            Ok(()) => {}
-            Err(e) => return Err(e),
+            match generate_expression(env, globals, context, value) {
+                Ok(()) => {}
+                Err(e) => return Err(e),
+            }
+
+            context.bytecode.push(operation);
         }
-        context.bytecode.push(operation);
-    } else {
-        match generate_expression(env, globals, context, value) {
-            Ok(()) => {}
-            Err(e) => return Err(e),
-        }
+        None => unreachable!(),
     }
 
     context.bytecode.push(PengInstruction::SetConstMember(name));
@@ -661,29 +713,16 @@ pub fn generate_local_module_declaration(
 
     for binded_declaration in &declaration.value.body {
         let declaration_value = match binded_declaration {
-            PengBinded::Mutable(declaration)
-            | PengBinded::Immutable(declaration) => declaration,
+            PengBinded::Mutable(declaration) | PengBinded::Immutable(declaration) => declaration,
         };
 
         let name = match declaration_value {
-            PengDeclaration::Var(declaration) => {
-                declaration.value.name.value.clone()
-            }
-            PengDeclaration::As(declaration) => {
-                declaration.value.name.value.clone()
-            }
-            PengDeclaration::Function(declaration) => {
-                declaration.value.name.value.clone()
-            }
-            PengDeclaration::Type(declaration) => {
-                declaration.value.name.value.clone()
-            }
-            PengDeclaration::Module(declaration) => {
-                declaration.value.name.value.clone()
-            }
-            PengDeclaration::Operation(declaration) => {
-                declaration.value.name.value.clone()
-            }
+            PengDeclaration::Var(declaration) => declaration.value.name.value.clone(),
+            PengDeclaration::As(declaration) => declaration.value.name.value.clone(),
+            PengDeclaration::Function(declaration) => declaration.value.name.value.clone(),
+            PengDeclaration::Type(declaration) => declaration.value.name.value.clone(),
+            PengDeclaration::Module(declaration) => declaration.value.name.value.clone(),
+            PengDeclaration::Operation(declaration) => declaration.value.name.value.clone(),
         };
 
         let name_ptr = env.ensure_pooled_name_ptr(name);
@@ -691,55 +730,73 @@ pub fn generate_local_module_declaration(
         context.bytecode.push(PengInstruction::Duplicate);
 
         match declaration_value {
-            PengDeclaration::Var(declaration) => {
-                match &declaration.value.value {
-                    Some(value) => {
-                        generate_expression(env, globals, context, value)?;
-                    }
-                    None => {
-                        context.push_const_and_const_instruction(PengValue::Nil);
-                    }
+            PengDeclaration::Var(declaration) => match &declaration.value.value {
+                Some(value) => {
+                    match generate_expression(env, globals, context, value) {
+                        Ok(()) => {}
+                        Err(e) => return Err(e),
+                    };
                 }
-            }
+                None => {
+                    context.push_const_and_const_instruction(PengValue::Nil);
+                }
+            },
 
             PengDeclaration::As(declaration) => {
-                generate_expression(env, globals, context, &declaration.value.value)?;
+                match generate_expression(env, globals, context, &declaration.value.value) {
+                    Ok(()) => {}
+                    Err(e) => return Err(e),
+                };
             }
 
             PengDeclaration::Function(declaration) => {
-                let value = generate_function_declaration_value(env, globals, declaration)?;
+                let value = match generate_function_declaration_value(env, globals, declaration) {
+                    Ok(v) => v,
+                    Err(e) => return Err(e),
+                };
                 context.push_const_and_const_instruction(value);
             }
 
             PengDeclaration::Operation(declaration) => {
-                let value = generate_operation_declaration_value(env, globals, declaration)?;
+                let value = match generate_operation_declaration_value(env, globals, declaration) {
+                    Ok(v) => v,
+                    Err(e) => return Err(e),
+                };
                 context.push_const_and_const_instruction(value);
             }
 
-            PengDeclaration::Type(declaration) => {
-                match &declaration.value.value {
-                    Some(value) => {
-                        generate_type_expression(env, globals, context, value)?;
-                    }
-                    None => {
-                        let literal = PengTypeLiteral {
-                            generics: declaration.value.generics.clone(),
-                            supers: declaration.value.supers.clone(),
-                            fields: declaration.value.fields.clone(),
-                            functions: declaration.value.functions.clone(),
-                        };
-
-                        generate_type_literal(env, globals, context, &literal)?;
-                    }
+            PengDeclaration::Type(declaration) => match &declaration.value.value {
+                Some(value) => {
+                    match generate_type_expression(env, globals, context, value) {
+                        Ok(()) => {}
+                        Err(e) => return Err(e),
+                    };
                 }
-            }
+                None => {
+                    let literal = PengTypeLiteral {
+                        supers: declaration.value.supers.clone(),
+                        fields: declaration.value.fields.clone(),
+                        functions: declaration.value.functions.clone(),
+                    };
+
+                    match generate_type_literal(env, globals, context, &literal) {
+                        Ok(()) => {}
+                        Err(e) => return Err(e),
+                    };
+                }
+            },
 
             PengDeclaration::Module(declaration) => {
-                generate_module_declaration_value(env, globals, context, declaration)?;
+                match generate_module_declaration_value(env, globals, context, declaration) {
+                    Ok(()) => {}
+                    Err(e) => return Err(e),
+                };
             }
         }
 
-        context.bytecode.push(PengInstruction::SetConstMember(name_ptr));
+        context
+            .bytecode
+            .push(PengInstruction::SetConstMember(name_ptr));
     }
 
     let local = context.create_local(declaration.value.name.value.clone());
@@ -758,8 +815,7 @@ pub fn generate_module_declaration_value(
 
     for binded_declaration in &declaration.value.body {
         let declaration_value = match binded_declaration {
-            PengBinded::Mutable(declaration)
-            | PengBinded::Immutable(declaration) => declaration,
+            PengBinded::Mutable(declaration) | PengBinded::Immutable(declaration) => declaration,
         };
 
         let name = match declaration_value {
@@ -776,49 +832,67 @@ pub fn generate_module_declaration_value(
         context.bytecode.push(PengInstruction::Duplicate);
 
         match declaration_value {
-            PengDeclaration::Var(declaration) => {
-                match &declaration.value.value {
-                    Some(value) => generate_expression(env, globals, context, value)?,
-                    None => context.push_const_and_const_instruction(PengValue::Nil),
-                }
-            }
+            PengDeclaration::Var(declaration) => match &declaration.value.value {
+                Some(value) => match generate_expression(env, globals, context, value) {
+                    Ok(()) => {},
+                    Err(e) => return Err(e),
+                },
+                None => context.push_const_and_const_instruction(PengValue::Nil),
+            },
 
             PengDeclaration::As(declaration) => {
-                generate_expression(env, globals, context, &declaration.value.value)?;
+                match generate_expression(env, globals, context, &declaration.value.value) {
+                    Ok(()) => {}
+                    Err(e) => return Err(e),
+                };
             }
 
             PengDeclaration::Function(declaration) => {
-                let value = generate_function_declaration_value(env, globals, declaration)?;
+                let value = match generate_function_declaration_value(env, globals, declaration) {
+                    Ok(v) => v,
+                    Err(e) => return Err(e),
+                };
                 context.push_const_and_const_instruction(value);
             }
 
             PengDeclaration::Operation(declaration) => {
-                let value = generate_operation_declaration_value(env, globals, declaration)?;
+                let value = match generate_operation_declaration_value(env, globals, declaration) {
+                    Ok(v) => v,
+                    Err(e) => return Err(e),
+                };
                 context.push_const_and_const_instruction(value);
             }
 
-            PengDeclaration::Type(declaration) => {
-                match &declaration.value.value {
-                    Some(value) => generate_type_expression(env, globals, context, value)?,
-                    None => {
-                        let literal = PengTypeLiteral {
-                            generics: declaration.value.generics.clone(),
-                            supers: declaration.value.supers.clone(),
-                            fields: declaration.value.fields.clone(),
-                            functions: declaration.value.functions.clone(),
-                        };
+            PengDeclaration::Type(declaration) => match &declaration.value.value {
+                Some(value) => match generate_type_expression(env, globals, context, value)  {
+                    Ok(()) => {},
+                    Err(e) => return Err(e),
+                },
+                None => {
+                    let literal = PengTypeLiteral {
+                        supers: declaration.value.supers.clone(),
+                        fields: declaration.value.fields.clone(),
+                        functions: declaration.value.functions.clone(),
+                    };
 
-                        generate_type_literal(env, globals, context, &literal)?;
-                    }
+                    match generate_type_literal(env, globals, context, &literal) {
+                        Ok(()) => {}
+                        Err(e) => return Err(e),
+                    };
                 }
-            }
+            },
 
             PengDeclaration::Module(declaration) => {
-                generate_module_declaration_value(env, globals, context, declaration)?;
+                match generate_module_declaration_value(env, globals, context, declaration) {
+                    Ok(()) => {}
+                    Err(e) => return Err(e),
+                };
             }
         }
 
-        context.bytecode.push(PengInstruction::SetConstMember(name_ptr));
+        context
+            .bytecode
+            .push(PengInstruction::SetConstMember(name_ptr));
     }
 
     Ok(())

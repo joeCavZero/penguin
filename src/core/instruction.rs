@@ -18,7 +18,9 @@ pub enum PengInstruction {
     CreateVector(usize), // ...|v0|v1|...|vn| ---> ...|vector|
     CreateSuperType(usize), // creates a new type with usize supers (on stack)
     CreateUnion(usize), // creates a new union based on usize types (on stack)
-    CreateTypedObject,   // ...|t| ---> ...|tobj| , create obj of type with default fields
+    CreateTypedObject,
+
+    
 
     Convert,
     CheckType,
@@ -49,15 +51,9 @@ pub enum PengInstruction {
 
     OperationCall,
 
-    FunctionCall {  // ...|func|g0..gn|p0..pn| ---> ...|ret?|
-        generics: usize,
-        params: usize,
-    },
+    FunctionCall(usize),  // ...|func|p0..pn| ---> ...|ret?|
 
-    TryFunctionCall { // ...|func|g0..gn|p0..pn| ---> ...|value|bool ok|
-        generics: usize,
-        params: usize,
-    },
+    TryFunctionCall(usize),  // ...|func|p0..pn| ---> ...|value|bool ok|
 
     GetIndex,
     SetIndex,
@@ -92,29 +88,11 @@ impl PengInstruction {
             | (Self::SetConstAttribute(left), Self::SetConstAttribute(right))
             | (Self::GetConstMember(left), Self::GetConstMember(right))
             | (Self::SetConstMember(left), Self::SetConstMember(right))
+            | (Self::FunctionCall(left), Self::FunctionCall(right))
+            | (Self::TryFunctionCall(left), Self::TryFunctionCall(right))
             | (Self::Jump(left), Self::Jump(right))
             | (Self::JumpIfTrue(left), Self::JumpIfTrue(right))
             | (Self::JumpIfFalse(left), Self::JumpIfFalse(right)) => left == right,
-            (
-                Self::FunctionCall {
-                    generics: left_generics,
-                    params: left_params,
-                },
-                Self::FunctionCall {
-                    generics: right_generics,
-                    params: right_params,
-                },
-            )
-            | (
-                Self::TryFunctionCall {
-                    generics: left_generics,
-                    params: left_params,
-                },
-                Self::TryFunctionCall {
-                    generics: right_generics,
-                    params: right_params,
-                },
-            ) => left_generics == right_generics && left_params == right_params,
             _ => std::mem::discriminant(self) == std::mem::discriminant(rhs),
         }
     }

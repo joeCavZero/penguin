@@ -129,7 +129,6 @@ fn parse_builtin_type(
     })
 }
 
-
 fn parse_custom_type_expression(
     ptokens: &mut PengPeekablePositionedToken,
 ) -> Result<PengPositionedExpression, PengError> {
@@ -161,11 +160,6 @@ fn parse_custom_type_expression(
     };
 
     expression = match parse_custom_type_colon_chain(ptokens, expression)  {
-        Ok(v) => v,
-        Err(e) => return Err(e),
-    };
-
-    expression = match parse_custom_type_generics(ptokens, expression)  {
         Ok(v) => v,
         Err(e) => return Err(e),
     };
@@ -235,99 +229,6 @@ fn parse_custom_type_colon_chain(
     }
 
     Ok(expression)
-}
-
-fn parse_custom_type_generics(
-    ptokens: &mut PengPeekablePositionedToken,
-    function: PengPositionedExpression,
-) -> Result<PengPositionedExpression, PengError> {
-    let has_generics = match ptokens.peek() {
-        Some(token) => match &token.value {
-            PengToken::LessThan => true,
-            _ => false,
-        },
-        None => false,
-    };
-
-    if !has_generics {
-        return Ok(function);
-    }
-
-    let open_token = match ptokens.next() {
-        Some(token) => token,
-        None => {
-            return Err(PengError::new_message(
-                "expected '<'".to_string(),
-            ));
-        }
-    };
-
-    let mut generics = Vec::new();
-
-    loop {
-        let close_now = match ptokens.peek() {
-            Some(token) => match &token.value {
-                PengToken::GreaterThan => true,
-                _ => false,
-            },
-            None => false,
-        };
-
-        if close_now {
-            break;
-        }
-
-        let generic = match parse_custom_type_expression(ptokens) {
-            Ok(expression) => expression,
-            Err(e) => return Err(e),
-        };
-
-        generics.push(generic);
-
-        let has_comma = match ptokens.peek() {
-            Some(token) => match &token.value {
-                PengToken::Comma => true,
-                _ => false,
-            },
-            None => false,
-        };
-
-        if has_comma {
-            ptokens.next();
-            continue;
-        }
-
-        break;
-    }
-
-    let close_token = match ptokens.next() {
-        Some(token) => token,
-        None => {
-            return Err(PengError::new_positioned_message(
-                "expected '>'".to_string(),
-                open_token.position.clone(),
-            ));
-        }
-    };
-
-    match &close_token.value {
-        PengToken::GreaterThan => {}
-        _ => {
-            return Err(PengError::new_positioned_message(
-                "expected '>'".to_string(),
-                close_token.position.clone(),
-            ));
-        }
-    }
-
-    Ok(PengPositioned {
-        value: PengExpression::FuncCall(PengFuncCallExpression {
-            function: Box::new(function),
-            generics,
-            args: Vec::new(),
-        }),
-        position: open_token.position.clone(),
-    })
 }
 
 fn reject_invalid_custom_type_tail(
@@ -451,11 +352,6 @@ fn parse_type_type_expression(
         });
     }
 
-    let generics = match parse_function_generics(ptokens) {
-        Ok(generics) => generics,
-        Err(e) => return Err(e),
-    };
-
     let supers = Vec::new();
 
     let (fields, functions) = match parse_type_members(ptokens) {
@@ -467,7 +363,6 @@ fn parse_type_type_expression(
         value: PengTypeExpression::Custom(Box::new(PengPositioned {
             value: PengExpression::Literal(PengPositioned {
                 value: PengLiteral::Type(PengTypeLiteral {
-                    generics,
                     supers,
                     fields,
                     functions,

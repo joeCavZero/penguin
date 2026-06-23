@@ -24,11 +24,6 @@ pub fn parse_function_literal(
         }
     }
 
-    let generics = match parse_function_generics(ptokens) {
-        Ok(generics) => generics,
-        Err(e) => return Err(e),
-    };
-
     let params = match parse_function_params_declaration(ptokens) {
         Ok(params) => params,
         Err(e) => return Err(e),
@@ -88,7 +83,6 @@ pub fn parse_function_literal(
 
     let literal = PengPositioned {
         value: PengLiteral::Function(PengFunctionLiteral {
-            generics,
             params,
             return_type,
             body,

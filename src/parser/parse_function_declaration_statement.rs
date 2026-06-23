@@ -29,11 +29,6 @@ pub fn parse_function_declaration_statement(
         Err(e) => return Err(e),
     };
 
-    let generics = match parse_function_generics(ptokens) {
-        Ok(generics) => generics,
-        Err(e) => return Err(e),
-    };
-
     let params = match parse_function_params_declaration(ptokens) {
         Ok(params) => params,
         Err(e) => return Err(e),
@@ -94,7 +89,6 @@ pub fn parse_function_declaration_statement(
     let declaration = PengPositioned {
         value: PengFunctionDeclaration {
             name,
-            generics,
             params,
             return_type,
             body,
@@ -136,89 +130,4 @@ fn parse_function_name(
             token.position.clone(),
         )),
     }
-}
-
-pub fn parse_function_generics(
-    ptokens: &mut PengPeekablePositionedToken,
-) -> Result<Vec<PengPositioned<String>>, PengError> {
-    let has_generics = match ptokens.peek() {
-        Some(token) => match &token.value {
-            PengToken::LessThan => true,
-            _ => false,
-        },
-        None => false,
-    };
-
-    if !has_generics {
-        return Ok(Vec::new());
-    }
-
-    let open_token = match ptokens.next() {
-        Some(token) => token,
-        None => {
-            return Err(PengError::new_message("expected '<'".to_string()));
-        }
-    };
-
-    let mut generics = Vec::new();
-
-    loop {
-        let token = match ptokens.next() {
-            Some(token) => token,
-            None => {
-                return Err(PengError::new_positioned_message(
-                    "expected generic parameter".to_string(),
-                    open_token.position.clone(),
-                ));
-            }
-        };
-
-        let generic = match &token.value {
-            PengToken::Identifier(name) => PengPositioned {
-                value: name.clone(),
-                position: token.position.clone(),
-            },
-            PengToken::GreaterThan => {
-                if generics.is_empty() {
-                    return Err(PengError::new_positioned_message(
-                        "expected generic parameter".to_string(),
-                        token.position.clone(),
-                    ));
-                }
-
-                break;
-            }
-            _ => {
-                return Err(PengError::new_positioned_message(
-                    "expected generic parameter".to_string(),
-                    token.position.clone(),
-                ));
-            }
-        };
-
-        generics.push(generic);
-
-        let separator = match ptokens.next() {
-            Some(token) => token,
-            None => {
-                return Err(PengError::new_positioned_message(
-                    "expected ',' or '>'".to_string(),
-                    open_token.position.clone(),
-                ));
-            }
-        };
-
-        match &separator.value {
-            PengToken::Comma => {}
-            PengToken::GreaterThan => break,
-            _ => {
-                return Err(PengError::new_positioned_message(
-                    "expected ',' or '>'".to_string(),
-                    separator.position.clone(),
-                ));
-            }
-        }
-    }
-
-    Ok(generics)
 }

@@ -8,14 +8,13 @@ pub fn create_anonymous_bytecode_function(
     env: &mut PengEnv,
     context: PengGeneratorContext,
 ) -> PengHeapPtr {
-    let function = create_bytecode_function_value(context, 0);
+    let function = create_bytecode_function_value(context);
 
     env.create_binded_stated_heap(PengBinded::Mutable(PengStated::Initialized(function)))
 }
 
 pub fn create_bytecode_function_value(
     mut context: PengGeneratorContext,
-    generics_count: usize,
 ) -> PengValue {
     context.push_const_and_const_instruction(PengValue::Nil);
     context.bytecode.push(PengInstruction::Return);
@@ -23,7 +22,6 @@ pub fn create_bytecode_function_value(
     PengValue::Function(PengFunction::Bytecode(PengBytecodeFunction {
         bytecode: context.bytecode,
         consts: context.consts,
-        generics_count,
         using_values: Vec::new(),
     }))
 }
@@ -36,7 +34,6 @@ pub fn generate_function_declaration_value(
     generate_function_value(
         env,
         globals,
-        &declaration.value.generics,
         &declaration.value.params,
         &declaration.value.body,
     )
@@ -45,7 +42,6 @@ pub fn generate_function_declaration_value(
 pub fn generate_function_value(
     env: &mut PengEnv,
     globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
-    generics: &Vec<PengPositioned<String>>,
     params: &Vec<PengPositionedFunctionParam>,
     body: &Vec<PengPositionedStatement>,
 ) -> Result<PengValue, PengError> {
@@ -60,7 +56,7 @@ pub fn generate_function_value(
         Err(e) => return Err(e),
     }
 
-    Ok(create_bytecode_function_value(context, generics.len()))
+    Ok(create_bytecode_function_value(context))
 }
 
 pub fn generate_function_call(
@@ -74,13 +70,6 @@ pub fn generate_function_call(
         Err(e) => return Err(e),
     }
 
-    for generic in &call.generics {
-        match generate_expression(env, globals, context, generic) {
-            Ok(()) => {}
-            Err(e) => return Err(e),
-        }
-    }
-
     for arg in &call.args {
         match generate_expression(env, globals, context, arg) {
             Ok(()) => {}
@@ -88,10 +77,9 @@ pub fn generate_function_call(
         }
     }
 
-    context.bytecode.push(PengInstruction::FunctionCall {
-        generics: call.generics.len(),
-        params: call.args.len(),
-    });
+    context
+        .bytecode
+        .push(PengInstruction::FunctionCall(call.args.len()));
 
     Ok(())
 }

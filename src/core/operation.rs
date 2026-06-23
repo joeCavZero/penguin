@@ -17,7 +17,6 @@ pub enum PengOperation {
 pub struct PengBytecodeOperation {
     pub bytecode: Vec<PengInstruction>,
     pub consts: Vec<PengValue>,
-    pub generics_count: usize,
     pub using_values: Vec<PengHeapPtr>,
 }
 
@@ -47,7 +46,6 @@ impl PengBytecodeOperation {
                 .iter()
                 .zip(&rhs.consts)
                 .all(|(left, right)| left.equals(right))
-            && self.generics_count == rhs.generics_count
             && self.using_values.len() == rhs.using_values.len()
             && self
                 .using_values

@@ -141,27 +141,21 @@ pub fn generate_method_call(
         .bytecode
         .push(PengInstruction::GetConstAttribute(method));
 
-    for generic in &call.generics {
-        match generate_expression(env, globals, context, generic) {
-            Ok(()) => {},
+    context
+        .bytecode
+        .push(PengInstruction::PushLocal(object_local));
+
+    for arg in &call.args {
+        match generate_expression(env, globals, context, arg) {
+            Ok(()) => {}
             Err(e) => return Err(e),
-        };
+        }
     }
 
     context
         .bytecode
-        .push(PengInstruction::PushLocal(object_local));
-    for arg in &call.args {
-        match generate_expression(env, globals, context, arg) {
-            Ok(()) => {},
-            Err(e) => return Err(e),
-        };
-    }
+        .push(PengInstruction::FunctionCall(call.args.len() + 1));
 
-    context.bytecode.push(PengInstruction::FunctionCall {
-        generics: call.generics.len(),
-        params: call.args.len() + 1,
-    });
     Ok(())
 }
 
@@ -171,14 +165,11 @@ pub fn generate_object_construction(
     context: &mut PengGeneratorContext,
     construction: &PengObjectConstructionExpression,
 ) -> Result<(), PengError> {
-    if !construction.generics.is_empty() {
-        todo!();
+    match generate_expression(env, globals, context, &construction.object_type) {
+        Ok(()) => {}
+        Err(e) => return Err(e),
     }
 
-    match generate_expression(env, globals, context, &construction.object_type) {
-        Ok(()) => {},
-        Err(e) => return Err(e),
-    };
     context.bytecode.push(PengInstruction::CreateTypedObject);
 
     for field in &construction.fields {
@@ -187,7 +178,7 @@ pub fn generate_object_construction(
         let name = env.ensure_pooled_name_ptr(field.name.value.clone());
 
         match generate_expression(env, globals, context, &field.value) {
-            Ok(()) => {},
+            Ok(()) => {}
             Err(e) => return Err(e),
         }
 
@@ -215,22 +206,17 @@ pub fn generate_try_expression(
         Ok(()) => {},
         Err(e) => return Err(e),
     };
-    for generic in &call.generics {
-        match generate_expression(env, globals, context, generic) {
-            Ok(()) => {},
-            Err(e) => return Err(e),
-        };
-    }
+    
     for arg in &call.args {
         match generate_expression(env, globals, context, arg) {
             Ok(()) => {},
             Err(e) => return Err(e),
         };
     }
-    context.bytecode.push(PengInstruction::TryFunctionCall {
-        generics: call.generics.len(),
-        params: call.args.len(),
-    });
+
+    context
+        .bytecode
+        .push(PengInstruction::TryFunctionCall(call.args.len()));
 
     let success_jump = context.bytecode.len();
     context
