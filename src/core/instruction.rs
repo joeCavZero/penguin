@@ -7,8 +7,8 @@ pub enum PengInstruction {
     PushLocal(usize),   // ...| ---> ...|v| , v := *<usize>
     StoreLocal(usize),  // ...|v| ---> ...| , *<usize> := v
 
-    PushValue(PengValuePtr), // ...| ---> ...|v| , v := *<PengValuePtr>
-    PushValueRef(PengValuePtr), // ...| ---> ...|ref|
+    PushValue(PengHeapPtr), // ...| ---> ...|v| , v := *<PengValuePtr>
+    PushValueRef(PengHeapPtr), // ...| ---> ...|ref|
     StoreValue,   // ...|ref|v ---> ...| , *ref := v
 
     PushString(PengNamePoolPtr),

@@ -1,8 +1,9 @@
 use crate::utils::*;
+use crate::cell::*;
 
 #[derive(Debug, Clone)]
 pub struct PengVector {
-    values: Vec<PengValuePtr>
+    values: Vec<PengBindedStatedCell>
 }
 
 impl PengVector {
@@ -12,7 +13,7 @@ impl PengVector {
         }
     }
 
-    pub fn push(&mut self, value: PengValuePtr) {
+    pub fn push(&mut self, value: PengBindedStatedCell) {
         self.values.push(value);
     }
 
@@ -24,8 +25,8 @@ impl PengVector {
         self.values.is_empty()
     }
 
-    pub fn get(&self, index: usize) -> Option<PengValuePtr> {
-        self.values.get(index).copied()
+    pub fn get(&self, index: usize) -> Option<&PengBindedStatedCell> {
+        self.values.get(index)
     }
 
     pub fn equals(&self, rhs: &Self) -> bool {
@@ -34,6 +35,6 @@ impl PengVector {
                 .values
                 .iter()
                 .zip(&rhs.values)
-                .all(|(left, right)| left == right)
+                .all(|(left, right)| left.equals(right))
     }
 }

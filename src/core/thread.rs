@@ -3,7 +3,7 @@ use crate::frame::*;
 
 #[derive(Debug, Clone)]
 pub struct PengThread {
-    pub stack: Vec<PengCell>,
+    pub stack: Vec<PengBindedStatedCell>,
     pub frames: Vec<PengFrame>,
 }
 

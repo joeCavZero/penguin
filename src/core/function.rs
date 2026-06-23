@@ -19,7 +19,7 @@ pub struct PengBytecodeFunction {
     pub consts: Vec<PengValue>,
     pub generics_count: usize,
 
-    pub using_values: Vec<PengValuePtr>,
+    pub using_values: Vec<PengHeapPtr>,
 }
 
 impl PengFunction {

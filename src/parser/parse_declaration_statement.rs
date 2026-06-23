@@ -200,6 +200,11 @@ pub fn parse_const_declaration(
             extract_declaration(statement)
         }
 
+        Some(PengToken::Union) => {
+            let statement = parse_union_declaration_statement(tokens)?;
+            extract_declaration(statement)
+        }
+
         Some(PengToken::Identifier(_)) => {
             parse_const_variable_declaration(tokens)
                 .map(PengDeclaration::Var)
@@ -316,30 +321,42 @@ pub fn parse_declaration_statement(
 pub fn parse_mutable_declaration(
     tokens: &mut PengPeekablePositionedToken,
 ) -> Result<PengDeclaration, PengError> {
-    let statement = match parse_statement(tokens) {
-        Ok(v) => v,
-        Err(e) => return Err(e),
-    };
-
-    match statement.value {
-        PengStatement::Declaration(PengBinded::Mutable(declaration)) => {
-            Ok(declaration)
+    match tokens.peek().map(|t| &t.value) {
+        Some(PengToken::Var) => {
+            let statement = parse_variable_declaration_statement(tokens)?;
+            extract_declaration(statement)
         }
 
-        PengStatement::Declaration(PengBinded::Immutable(_)) => {
-            Err(PengError::new_positioned_message(
-                "unexpected const declaration".to_string(),
-                statement.position,
-            ))
+        Some(PengToken::Func) => {
+            let statement = parse_function_declaration_statement(tokens)?;
+            extract_declaration(statement)
         }
 
-        _ => Err(PengError::new_positioned_message(
-            "expected declaration".to_string(),
-            statement.position,
+        Some(PengToken::Type) => {
+            let statement = parse_type_declaration_statement(tokens)?;
+            extract_declaration(statement)
+        }
+
+        Some(PengToken::Union) => {
+            let statement = parse_union_declaration_statement(tokens)?;
+            extract_declaration(statement)
+        }
+
+        Some(PengToken::Mod) => {
+            let statement = parse_module_declaration_statement(tokens)?;
+            extract_declaration(statement)
+        }
+
+        Some(PengToken::Oper) => {
+            let statement = parse_operation_declaration_statement(tokens)?;
+            extract_declaration(statement)
+        }
+
+        _ => Err(PengError::new_message(
+            "expected mutable declaration".to_string(),
         )),
     }
 }
-
 
 fn extract_declaration(
     statement: PengPositionedStatement,

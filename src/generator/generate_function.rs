@@ -7,10 +7,10 @@ use crate::parser::*;
 pub fn create_anonymous_bytecode_function(
     env: &mut PengEnv,
     context: PengGeneratorContext,
-) -> PengValuePtr {
+) -> PengHeapPtr {
     let function = create_bytecode_function_value(context, 0);
 
-    env.create_value(PengBinded::Mutable(function))
+    env.ensure_binded_stated_value(PengBinded::Mutable(PengStated::Initialized(function)))
 }
 
 pub fn create_bytecode_function_value(
@@ -30,7 +30,7 @@ pub fn create_bytecode_function_value(
 
 pub fn generate_function_declaration_value(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
+    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     declaration: &PengPositionedFunctionDeclaration,
 ) -> Result<PengValue, PengError> {
     generate_function_value(
@@ -44,7 +44,7 @@ pub fn generate_function_declaration_value(
 
 pub fn generate_function_value(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
+    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     generics: &Vec<PengPositioned<String>>,
     params: &Vec<PengPositionedFunctionParam>,
     body: &Vec<PengPositionedStatement>,
@@ -65,7 +65,7 @@ pub fn generate_function_value(
 
 pub fn generate_function_call(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
+    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     call: &PengFuncCallExpression,
 ) -> Result<(), PengError> {
@@ -98,7 +98,7 @@ pub fn generate_function_call(
 
 pub fn generate_local_function_declaration(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
+    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     declaration: &PengPositionedFunctionDeclaration,
 ) -> Result<(), PengError> {

@@ -6,7 +6,7 @@ use crate::parser::*;
 
 pub fn generate_statements(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
+    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     statements: &Vec<PengPositionedStatement>,
 ) -> Result<(), PengError> {
@@ -22,7 +22,7 @@ pub fn generate_statements(
 
 pub fn generate_statement(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
+    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     statement: &PengPositionedStatement,
 ) -> Result<(), PengError> {
@@ -31,12 +31,6 @@ pub fn generate_statement(
             let declaration = match binded_declaration {
                 PengBinded::Mutable(declaration) => declaration,
                 PengBinded::Immutable(declaration) => declaration,
-                PengBinded::UninitializedImmutable => {
-                    return Err(PengError::new_positioned_message(
-                        "uninitialized const declaration is not valid here".to_string(),
-                        statement.position.clone(),
-                    ));
-                }
             };
 
             match declaration {
@@ -155,7 +149,7 @@ pub fn generate_statement(
 
 pub fn generate_scoped_statements(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
+    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     statements: &Vec<PengPositionedStatement>,
 ) -> Result<(), PengError> {
@@ -173,7 +167,7 @@ pub fn generate_scoped_statements(
 
 pub fn generate_if_statement(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
+    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     statement: &PengIfStatement,
 ) -> Result<(), PengError> {
@@ -214,7 +208,7 @@ pub fn generate_if_statement(
 
 pub fn generate_match_statement(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
+    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     statement: &PengMatchStatement,
 ) -> Result<(), PengError> {

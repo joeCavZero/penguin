@@ -1,3 +1,5 @@
+use crate::colour::*;
+use crate::state::*;
 use crate::vector::*;
 use crate::object::*;
 use crate::module::*;
@@ -8,7 +10,11 @@ use crate::operation::*;
 use crate::unioning::*;
 use crate::binding::*;
 
-pub type PengBindedValue = PengBinded<PengValue>;
+pub type PengStatedValue = PengStated<PengValue>;
+
+pub type PengBindedStatedValue = PengBinded<PengStatedValue>;
+
+pub type PengColouredBindedStatedValue = PengColoured<PengBindedStatedValue>;
 
 #[derive(Debug, Clone)]
 pub enum PengValue {
@@ -59,15 +65,28 @@ impl PengValue {
     }
 }
 
-impl PengBinded<PengValue> {
+impl PengStatedValue {
+    pub fn equals(&self, rhs: &Self) -> bool {
+        match (self, rhs) {
+            (Self::Initialized(v1) , Self::Initialized(v2)) => v1.equals(v2),
+            _ => false,
+        }
+    }
+}
+
+impl PengBindedStatedValue {
     pub fn equals(&self, rhs: &Self) -> bool {
         match (self, rhs) {
             (
                 Self::Immutable(v1) | Self::Mutable(v1),
                 Self::Immutable(v2) | Self::Mutable(v2),
             ) => v1.equals(v2),
-
-            _ => false,
         }
+    }
+}
+
+impl PengColouredBindedStatedValue {
+    pub fn equals(&self, rhs: &Self) -> bool {
+        self.value.equals(&rhs.value)
     }
 }

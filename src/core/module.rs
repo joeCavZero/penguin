@@ -3,7 +3,7 @@ use crate::utils::*;
 
 #[derive(Debug, Clone)]
 pub struct PengModule {
-    values: HashMap<PengNamePoolPtr, PengValuePtr>
+    values: HashMap<PengNamePoolPtr, PengHeapPtr>
 }
 
 impl PengModule {

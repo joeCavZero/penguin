@@ -7,7 +7,7 @@ use crate::generator::*;
 pub fn generate_script(
     env: &mut PengEnv,
     ast: &PengAST,
-) -> Result<PengValuePtr, PengError> {
+) -> Result<PengHeapPtr, PengError> {
     let statements = match ast {
         PengAST::Script(statements) => statements,
         PengAST::Program(_) => {

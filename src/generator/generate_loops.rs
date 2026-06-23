@@ -6,7 +6,7 @@ use crate::parser::*;
 
 pub fn generate_while_statement(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
+    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     statement: &PengWhileStatement,
 ) -> Result<(), PengError> {
@@ -54,7 +54,7 @@ pub fn generate_while_statement(
 
 pub fn generate_loop_statement(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
+    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     body: &Vec<PengPositionedStatement>,
 ) -> Result<(), PengError> {
@@ -89,7 +89,7 @@ pub fn generate_loop_statement(
 
 pub fn generate_for_statement(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
+    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     statement: &PengForStatement,
 ) -> Result<(), PengError> {

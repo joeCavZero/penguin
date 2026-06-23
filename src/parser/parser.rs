@@ -274,10 +274,6 @@ impl PengAST {
         let d = match decl {
             PengBinded::Immutable(v)
             | PengBinded::Mutable(v) => v,
-            PengBinded::UninitializedImmutable => {
-                print!("UninitializedImmutable");
-                return;
-            }
         };
         match d {
             PengDeclaration::Var(var) => {

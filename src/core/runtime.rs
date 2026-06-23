@@ -1,83 +1,155 @@
 use crate::core::*;
 
-pub fn step_thread(
-    env: &mut PengEnv,
-    thread: &mut PengThread,
-) -> Result<bool, PengError> {
-    let mut frame = match thread.frames.pop() {
-        Some(frame) => frame,
-        None => return Ok(true),
-    };
-
-    let finished = match step_frame(&mut frame, env, thread) {
-        Ok(v) => v,
-        Err(e) => return Err(e),
-    };
-
-    if !finished {
-        thread.frames.push(frame);
-    }
-
-    Ok(thread.frames.is_empty())
-}
-
-
-pub fn step_frame(
-    frame: &mut PengFrame,
-    env: &mut PengEnv,
-    thread: &mut PengThread,
-) -> Result<bool, PengError> {
-    match frame {
-        PengFrame::Bytecode(btc_frame) => {
-            let (instr, constant): (PengInstruction, PengValue) = match env.get_value(btc_frame.function) {
-                Some(val) => {
-                    if let PengValue::Function(func) = val {
-                        match func {
-                            PengFunction::Bytecode(btc_func) => {
-                                match btc_func.bytecode.get(btc_frame.instruction_counter) {
-                                    Some(instr) => match instr.clone() {
-                                        PengInstruction::PushConst(c) => {
-                                            (
-                                                instr.clone(),
-                                                match btc_func.consts.get(c) {
-                                                    Some(v) =>  v.clone(),
-                                                    None => return Err(PengError::Code(PengErrorCode::TestError)),
-                                                }
-                                            )
-                                        }
-                                        _ => {
-                                            (instr.clone(), PengValue::Nil)
-                                        }
-                                    },
-                                    None => return Ok(true),
-                                }
+/*
+pub fn step_thread(env: &mut PengEnv, thread_ptr: PengHeapPtr) -> Result<bool, PengError> {
+    let (frame_program_counter, frame_base, frame_function_ptr, _frame_params_count) =
+        match env.get_heap(thread_ptr) {
+            Some(PengBinded::Immutable(tval)) | Some(PengBinded::Mutable(tval)) => {
+                if let PengValue::Thread(thread) = tval {
+                    if let Some(last_frame) = thread.frames.last() {
+                        match last_frame {
+                            PengFrame::Bytecode(fr_btc) => (
+                                fr_btc.program_counter,
+                                fr_btc.base,
+                                fr_btc.function,
+                                fr_btc.params_count,
+                            ),
+                            PengFrame::Native(_fr_ntv) => {
+                                todo!()
                             }
-                            PengFunction::Native(ntv_func) => todo!(),
                         }
                     } else {
-                        todo!();
+                        return Ok(true);
                     }
+                } else {
+                    return Err(PengError::Code(PengErrorCode::TestError));
                 }
-                None => todo!(),
-            };
-            return execute_instruction(instr, constant, btc_frame, env, thread);
+            }
+
+            Some(PengBinded::UninitializedImmutable) => {
+                return Err(PengError::Code(PengErrorCode::TestError));
+            }
+
+            None => {
+                return Err(PengError::Code(PengErrorCode::TestError));
+            }
+        };
+
+    let (should_end_frame, instruction, constant, _generics_count) =
+        match env.get_heap(frame_function_ptr) {
+            Some(PengBinded::Immutable(fval)) | Some(PengBinded::Mutable(fval)) => {
+                if let PengValue::Function(func) = fval {
+                    match func {
+                        PengFunction::Bytecode(func_btc) => {
+                            let instr = match func_btc.bytecode.get(frame_program_counter) {
+                                Some(i) => i.clone(),
+                                None => {
+                                    return Ok(true);
+                                }
+                            };
+
+                            let constant = match instr {
+                                PengInstruction::PushConst(const_index) => {
+                                    match func_btc.consts.get(const_index) {
+                                        Some(v) => v.clone(),
+                                        None => {
+                                            return Err(PengError::Code(PengErrorCode::TestError));
+                                        }
+                                    }
+                                }
+
+                                _ => PengValue::Nil,
+                            };
+
+                            (
+                                false,
+                                instr,
+                                constant,
+                                func_btc.generics_count,
+                            )
+                        }
+
+                        PengFunction::Native(_func_ntv) => {
+                            todo!()
+                        }
+                    }
+                } else {
+                    return Err(PengError::Code(PengErrorCode::TestError));
+                }
+            }
+
+            Some(PengBinded::UninitializedImmutable) => {
+                return Err(PengError::Code(PengErrorCode::TestError));
+            }
+
+            None => {
+                return Err(PengError::Code(PengErrorCode::TestError));
+            }
+        };
+
+    if should_end_frame {
+        return Ok(true);
+    }
+
+    execute_instruction(instruction, constant, thread_ptr, frame_base, env)?;
+
+    match env.get_heap_mut(thread_ptr) {
+        Some(PengBinded::Immutable(_)) => {
+            return Err(PengError::Code(PengErrorCode::TestError));
         }
-        PengFrame::Native(_ntv) => {
-            todo!();
+
+        Some(PengBinded::Mutable(tval)) => {
+            if let PengValue::Thread(thread) = tval {
+                if let Some(last_frame) = thread.frames.last_mut() {
+                    match last_frame {
+                        PengFrame::Bytecode(fr_btc) => {
+                            fr_btc.program_counter = fr_btc
+                                .program_counter
+                                .checked_add(1)
+                                .ok_or(PengError::Code(PengErrorCode::TestError))?;
+                        }
+
+                        PengFrame::Native(_fr_ntv) => {
+                            todo!();
+                        }
+                    }
+                } else {
+                    return Ok(true);
+                }
+            } else {
+                return Err(PengError::Code(PengErrorCode::TestError));
+            }
+        }
+
+        Some(PengBinded::UninitializedImmutable) => {
+            return Err(PengError::Code(PengErrorCode::TestError));
+        }
+
+        None => {
+            return Err(PengError::Code(PengErrorCode::TestError));
         }
     }
-}
 
+    Ok(false)
+}
 
 pub fn execute_instruction(
     instruction: PengInstruction,
     constant: PengValue,
-    btc_frame: &mut PengBytecodeFrame,
+    actual_thread_ptr: PengHeapPtr,
+    frame_base: usize,
     env: &mut PengEnv,
-    thread: &mut PengThread,
 ) -> Result<bool, PengError> {
-    btc_frame.instruction_counter += 1;
+    todo!();
+}
 
+pub fn execute_instruction(
+    instruction: PengInstruction,
+    constant: PengValue,
+    actual_thread_ptr: PengValuePtr,
+    frame_base: usize,
+    env: &mut PengEnv,
+) -> Result<bool, PengError> {
     match instruction {
         PengInstruction::PushConst(_) => {
             let cell = match constant {
@@ -88,54 +160,94 @@ pub fn execute_instruction(
                 PengValue::Float64(aux) => PengCell::Float64(aux),
                 PengValue::Byte(aux) => PengCell::Byte(aux),
                 PengValue::Bool(aux) => PengCell::Bool(aux),
-                _ => PengCell::Reference(
-                    env.create_value(PengBinded::Mutable(constant) )
-                )
+                _ => PengCell::Reference(env.create_value(PengBinded::Mutable(constant))),
             };
 
-            thread.stack.push(cell);
+            if let Some(tval) = env.get_value_mut(actual_thread_ptr) {
+                match tval {
+                    PengBinded::Immutable(value_thread)
+                    | PengBinded::Mutable(value_thread) => {
+                        if let PengValue::Thread(thread) = value_thread {
+                            thread.stack.push(PengBinded::Mutable(cell));
+                        }
+                    }
+                    PengBinded::UninitializedImmutable => return Err(PengError::Code(PengErrorCode::TestError))
+                }
+                
+            } else {
+                return Err(PengError::Code(PengErrorCode::TestError));
+            }
             Ok(false)
         }
 
         PengInstruction::PushLocal(a) => {
-            let ptr = match thread.stack.get(btc_frame.base.saturating_add(a)) {
-                Some(v) => v.clone(),
-                None => return Err(PengError::Code(PengErrorCode::TestError)),
-            };
-            thread.stack.push(ptr);
-            Ok(false)
-        }
-
-        PengInstruction::StoreLocal(a) => {
-            let value = match thread.stack.pop() {
-                Some(v) => v,
-                None => return Err(PengError::Code(PengErrorCode::TestError)),
-            };
-            match thread.stack.get_mut(btc_frame.base.saturating_add(a)) {
-                Some(v) => *v = value,
+            match env.get_value(actual_thread_ptr) {
+                Some(tval) => {
+                    if let PengValue::Thread(thread) = tval {
+                        let cell = match thread.stack.get(frame_base.saturating_add(a)) {
+                            Some(v) => v.clone(),
+                            None => return Err(PengError::Code(PengErrorCode::TestError)),
+                        };
+                        thread.stack.push(cell);
+                    } else {
+                        return Err(PengError::Code(PengErrorCode::TestError));
+                    }
+                }
                 None => return Err(PengError::Code(PengErrorCode::TestError)),
             }
             Ok(false)
         }
 
-        PengInstruction::PushValue(a) => {
-            let cell = match env.get_value(a) {
-                Some(v) => {
-                    match v {
-                        PengValue::Nil => PengCell::Nil,
-                        PengValue::Int(aux) => PengCell::Int(*aux),
-                        PengValue::Uint(aux) => PengCell::Uint(*aux),
-                        PengValue::Float32(aux) => PengCell::Float32(*aux),
-                        PengValue::Float64(aux) => PengCell::Float64(*aux),
-                        PengValue::Byte(aux) => PengCell::Byte(*aux),
-                        PengValue::Bool(aux) => PengCell::Bool(*aux),
-                        _ => PengCell::Reference(a),
+        PengInstruction::StoreLocal(a) => {
+            let value = match env.get_value_mut(actual_thread_ptr) {
+                Some(tval) => {
+                    if let PengValue::Thread(thread) = tval {
+                        match thread.stack.pop() {
+                            Some(v) => v,
+                            None => return Err(PengError::Code(PengErrorCode::TestError)),
+                        }
+                    } else {
+                        return Err(PengError::Code(PengErrorCode::TestError));
                     }
                 }
                 None => return Err(PengError::Code(PengErrorCode::TestError)),
             };
 
-            thread.stack.push(cell);
+            match env.get_value_mut(actual_thread_ptr) {
+                Some(tval) => {
+                    if let PengValue::Thread(thread) = tval {
+                        match thread.stack.get_mut(frame_base.saturating_add(a)) {
+                            Some(local) => {
+                                *local = value;
+                            }
+                            None => return Err(PengError::Code(PengErrorCode::TestError)),
+                        }
+                    } else {
+                        return Err(PengError::Code(PengErrorCode::TestError));
+                    }
+                }
+                None => return Err(PengError::Code(PengErrorCode::TestError)),
+            }
+
+            Ok(false)
+        }
+
+        PengInstruction::PushValue(a) => {
+            let cell = match env.get_value(a) {
+                Some(v) => match v {
+                    PengValue::Nil => PengCell::Nil,
+                    PengValue::Int(aux) => PengCell::Int(*aux),
+                    PengValue::Uint(aux) => PengCell::Uint(*aux),
+                    PengValue::Float32(aux) => PengCell::Float32(*aux),
+                    PengValue::Float64(aux) => PengCell::Float64(*aux),
+                    PengValue::Byte(aux) => PengCell::Byte(*aux),
+                    PengValue::Bool(aux) => PengCell::Bool(*aux),
+                    _ => PengCell::Reference(a),
+                },
+                None => return Err(PengError::Code(PengErrorCode::TestError)),
+            };
+
+            thread.stack.push(PengBinded::Mutable(cell));
             Ok(false)
         }
 
@@ -169,12 +281,10 @@ pub fn execute_instruction(
                 PengCell::Byte(v) => PengValue::Byte(v),
                 PengCell::Bool(v) => PengValue::Bool(v),
 
-                PengCell::Reference(value_ptr) => {
-                    match env.get_value(value_ptr) {
-                        Some(v) => v.clone(),
-                        None => return Err(PengError::Code(PengErrorCode::TestError)),
-                    }
-                }
+                PengCell::Reference(value_ptr) => match env.get_value(value_ptr) {
+                    Some(v) => v.clone(),
+                    None => return Err(PengError::Code(PengErrorCode::TestError)),
+                },
             };
 
             match env.set_value(ptr, value) {
@@ -190,14 +300,11 @@ pub fn execute_instruction(
                 None => return Err(PengError::Code(PengErrorCode::TestError)),
             };
 
-            let ptr = env.create_value(
-                PengBinded::Mutable(PengValue::String(string))
-            );
+            let ptr = env.create_value(PengBinded::Mutable(PengValue::String(string)));
 
             thread.stack.push(PengCell::Reference(ptr));
             Ok(false)
         }
-
 
         PengInstruction::CreateObjectType => {
             todo!("CreateObjectType");
@@ -220,7 +327,9 @@ pub fn execute_instruction(
         }
 
         PengInstruction::Duplicate => {
-            let value = thread.stack.last()
+            let value = thread
+                .stack
+                .last()
                 .ok_or_else(|| PengError::Message("stack underflow".to_string()))?
                 .clone();
 
@@ -229,7 +338,9 @@ pub fn execute_instruction(
         }
 
         PengInstruction::Pop => {
-            thread.stack.pop()
+            thread
+                .stack
+                .pop()
                 .ok_or_else(|| PengError::Message("stack underflow".to_string()))?;
 
             Ok(false)
@@ -340,7 +451,7 @@ pub fn execute_instruction(
         }
 
         PengInstruction::Jump(a) => {
-            btc_frame.instruction_counter = a;
+            btc_frame.program_counter = a;
             Ok(false)
         }
 
@@ -352,8 +463,7 @@ pub fn execute_instruction(
             todo!()
         }
 
-        PengInstruction::Return => {
-            Ok(true)
-        }
+        PengInstruction::Return => Ok(true),
     }
 }
+*/

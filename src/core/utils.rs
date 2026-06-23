@@ -1,2 +1,2 @@
-pub type PengValuePtr = usize;
+pub type PengHeapPtr = usize;
 pub type PengNamePoolPtr = usize;

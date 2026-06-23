@@ -1,7 +1,9 @@
 use crate::utils::*;
 use crate::binding::*;
+use crate::state::*;
 
-pub type PengBindedCell = PengBinded<PengCell>;
+pub type PengStatedCell = PengStated<PengCell>;
+pub type PengBindedStatedCell = PengBinded<PengStatedCell>;
 
 #[derive(Debug, Clone)]
 pub enum PengCell {
@@ -12,7 +14,7 @@ pub enum PengCell {
     Float64(f64),
     Byte(u8),
     Bool(bool),
-    Reference(PengValuePtr),
+    Reference(PengHeapPtr),
 }
 
 impl PengCell {
@@ -26,6 +28,27 @@ impl PengCell {
             (Self::Byte(left), Self::Byte(right)) => left == right,
             (Self::Bool(left), Self::Bool(right)) => left == right,
             (Self::Reference(left), Self::Reference(right)) => left == right,
+            _ => false,
+        }
+    }
+}
+
+impl PengStated<PengCell> {
+    pub fn equals(&self, rhs: &Self) -> bool {
+        match (self, rhs) {
+            (Self::Initialized(left), Self::Initialized(right)) => left.equals(right),
+            (Self::Uninitialized, Self::Uninitialized) => true,
+            (Self::Initialized(_), Self::Uninitialized) => false,
+            (Self::Uninitialized, Self::Initialized(_)) => false,
+        }
+    }
+}
+
+impl PengBindedStatedCell {
+    pub fn equals(&self, rhs: &Self) -> bool {
+        match (self, rhs) {
+            (Self::Mutable(left), Self::Mutable(right)) => left.equals(right),
+            (Self::Immutable(left), Self::Immutable(right)) => left.equals(right),
             _ => false,
         }
     }

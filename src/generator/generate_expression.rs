@@ -6,7 +6,7 @@ use crate::parser::*;
 
 pub fn generate_expression(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
+    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     expression: &PengPositionedExpression,
 ) -> Result<(), PengError> {
@@ -88,7 +88,7 @@ pub fn generate_expression(
                 Ok(()) => {},
                 Err(e) => return Err(e),
             };
-            let name = env.get_pooled_name(attribute.name.value.clone());
+            let name = env.ensure_pooled_name_ptr(attribute.name.value.clone());
             context
                 .bytecode
                 .push(PengInstruction::GetConstAttribute(name));
@@ -99,7 +99,7 @@ pub fn generate_expression(
                 Ok(()) => {},
                 Err(e) => return Err(e),
             };
-            let name = env.get_pooled_name(member.name.value.clone());
+            let name = env.ensure_pooled_name_ptr(member.name.value.clone());
             context.bytecode.push(PengInstruction::GetConstMember(name));
             Ok(())
         }
@@ -120,7 +120,7 @@ pub fn generate_expression(
 
 pub fn generate_method_call(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
+    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     call: &PengMethodCallExpression,
 ) -> Result<(), PengError> {
@@ -133,7 +133,7 @@ pub fn generate_method_call(
         .bytecode
         .push(PengInstruction::StoreLocal(object_local));
 
-    let method = env.get_pooled_name(call.method.value.clone());
+    let method = env.ensure_pooled_name_ptr(call.method.value.clone());
     context
         .bytecode
         .push(PengInstruction::PushLocal(object_local));
@@ -167,7 +167,7 @@ pub fn generate_method_call(
 
 pub fn generate_object_construction(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
+    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     construction: &PengObjectConstructionExpression,
 ) -> Result<(), PengError> {
@@ -186,7 +186,7 @@ pub fn generate_object_construction(
 
     for field in &construction.fields {
         context.bytecode.push(PengInstruction::Duplicate);
-        let name = env.get_pooled_name(field.name.value.clone());
+        let name = env.ensure_pooled_name_ptr(field.name.value.clone());
         context
             .bytecode
             .push(PengInstruction::GetConstAttributeRef(name));
@@ -202,7 +202,7 @@ pub fn generate_object_construction(
 
 pub fn generate_try_expression(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
+    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     value: &PengPositionedExpression,
     elsing: Option<&PengPositionedExpression>,
@@ -266,7 +266,7 @@ pub fn generate_try_expression(
 
 pub fn generate_index_expression(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
+    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     index: &PengIndexExpression,
 ) -> Result<(), PengError> {
@@ -286,7 +286,7 @@ pub fn generate_index_expression(
 
 pub fn generate_type_expression(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
+    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     type_expression: &PengPositionedTypeExpression,
 ) -> Result<(), PengError> {

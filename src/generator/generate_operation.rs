@@ -6,7 +6,7 @@ use crate::parser::*;
 
 pub fn generate_operation_declaration_value(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
+    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     declaration: &PengPositionedOperationDeclaration,
 ) -> Result<PengValue, PengError> {
     generate_operation_value(env, globals, &declaration.value.params, &declaration.value.body)
@@ -14,7 +14,7 @@ pub fn generate_operation_declaration_value(
 
 pub fn generate_operation_value(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
+    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     params: &Vec<PengPositionedFunctionParam>,
     body: &Vec<PengPositionedStatement>,
 ) -> Result<PengValue, PengError> {
@@ -44,7 +44,7 @@ pub fn generate_operation_value(
 
 pub fn generate_operation_call(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
+    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     left: &PengPositionedExpression,
     operation: &PengPositionedExpression,
@@ -72,7 +72,7 @@ pub fn generate_operation_call(
 
 pub fn generate_local_operation_declaration(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
+    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     declaration: &PengPositionedOperationDeclaration,
 ) -> Result<(), PengError> {

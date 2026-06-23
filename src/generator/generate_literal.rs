@@ -6,7 +6,7 @@ use crate::parser::*;
 
 pub fn generate_literal(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
+    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     literal: &PengPositionedLiteral,
 ) -> Result<(), PengError> {
@@ -66,7 +66,7 @@ pub fn generate_literal(
 
 pub fn generate_type_literal(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
+    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     literal: &PengTypeLiteral,
 ) -> Result<(), PengError> {
@@ -80,7 +80,7 @@ pub fn generate_type_literal(
 
 pub fn generate_object_literal(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
+    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     fields: &[PengObjectFieldLiteral],
 ) -> Result<(), PengError> {
@@ -89,7 +89,7 @@ pub fn generate_object_literal(
 
     for field in fields {
         context.bytecode.push(PengInstruction::Duplicate);
-        let name = env.get_pooled_name(field.name.value.clone());
+        let name = env.ensure_pooled_name_ptr(field.name.value.clone());
         context
             .bytecode
             .push(PengInstruction::GetConstAttributeRef(name));
@@ -105,7 +105,7 @@ pub fn generate_object_literal(
 
 pub fn generate_type_literal_after_base(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
+    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     literal: &PengTypeLiteral,
 ) -> Result<(), PengError> {
@@ -130,7 +130,7 @@ pub fn generate_type_literal_after_base(
     for field in &literal.fields {
         context.bytecode.push(PengInstruction::Duplicate);
 
-        let name = env.get_pooled_name(field.value.name.value.clone());
+        let name = env.ensure_pooled_name_ptr(field.value.name.value.clone());
 
         context
             .bytecode
@@ -154,7 +154,7 @@ pub fn generate_type_literal_after_base(
     for function in &literal.functions {
         context.bytecode.push(PengInstruction::Duplicate);
 
-        let name = env.get_pooled_name(function.value.name.value.clone());
+        let name = env.ensure_pooled_name_ptr(function.value.name.value.clone());
 
         context
             .bytecode

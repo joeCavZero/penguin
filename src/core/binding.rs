@@ -2,5 +2,4 @@
 pub enum PengBinded<T> {
     Mutable(T),
     Immutable(T),
-    UninitializedImmutable,
 }

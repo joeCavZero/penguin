@@ -208,7 +208,7 @@ impl PengGeneratorContext {
 
 pub fn generate_identifier(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
+    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     identifier: &PengPositioned<String>,
 ) -> Result<(), PengError> {
@@ -234,7 +234,7 @@ pub fn generate_identifier(
 
 pub fn generate_local_variable(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
+    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     variable: &PengPositionedVariableDeclaration,
 ) -> Result<(), PengError> {
@@ -256,7 +256,7 @@ pub fn generate_local_variable(
 
 pub fn generate_local_as_declaration(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
+    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     declaration: &PengPositionedAsDeclaration,
 ) -> Result<(), PengError> {
@@ -273,7 +273,7 @@ pub fn generate_local_as_declaration(
 
 pub fn generate_local_type_declaration(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
+    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     declaration: &PengPositionedTypeDeclaration,
 ) -> Result<(), PengError> {
@@ -297,7 +297,7 @@ pub fn generate_local_type_declaration(
 
 pub fn generate_structured_local_type_declaration(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
+    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     declaration: &PengPositionedTypeDeclaration,
 ) -> Result<(), PengError> {
@@ -319,7 +319,7 @@ pub fn generate_structured_local_type_declaration(
 
 pub fn generate_assignment(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
+    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     assignment: &PengAssignStatement,
 ) -> Result<(), PengError> {
@@ -355,7 +355,7 @@ pub fn generate_assignment(
 
 pub fn generate_assignment_value(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
+    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     target: &PengPositionedExpression,
     value: &PengPositionedExpression,
@@ -445,7 +445,7 @@ pub fn generate_assignment_value(
 
 pub fn generate_index_assignment(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
+    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     index: &PengIndexExpression,
     value: &PengPositionedExpression,
@@ -503,7 +503,7 @@ pub fn generate_index_assignment(
 
 pub fn generate_attribute_assignment(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengValuePtr>,
+    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     attribute: &PengAttributeAccessExpression,
     value: &PengPositionedExpression,
@@ -518,7 +518,7 @@ pub fn generate_attribute_assignment(
         .bytecode
         .push(PengInstruction::StoreLocal(object_local));
 
-    let name = env.get_pooled_name(attribute.name.value.clone());
+    let name = env.ensure_pooled_name_ptr(attribute.name.value.clone());
 
     context
         .bytecode

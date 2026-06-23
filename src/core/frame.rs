@@ -9,9 +9,9 @@ pub enum PengFrame {
 
 #[derive(Debug, Clone)]
 pub struct PengBytecodeFrame {
-    pub instruction_counter: usize,
+    pub program_counter: usize,
     pub base: usize,
-    pub function: PengValuePtr,
+    pub function: PengHeapPtr,
     pub params_count: usize,
     pub error: Option<PengError>,
 }
@@ -19,7 +19,7 @@ pub struct PengBytecodeFrame {
 #[derive(Debug, Clone)]
 pub struct PengNativeFrame {
     pub base: usize,
-    pub function: PengValuePtr,
+    pub function: PengHeapPtr,
     pub params_count: usize,
     pub error: Option<PengError>,
 }
@@ -36,7 +36,7 @@ impl PengFrame {
 
 impl PengBytecodeFrame {
     pub fn equals(&self, rhs: &Self) -> bool {
-        self.instruction_counter == rhs.instruction_counter
+        self.program_counter == rhs.program_counter
             && self.base == rhs.base
             && self.function == rhs.function
             && self.params_count == rhs.params_count
