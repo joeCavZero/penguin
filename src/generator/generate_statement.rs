@@ -50,11 +50,7 @@ pub fn generate_statement(
                     generate_local_type_declaration(env, globals, context, declaration)
                 }
                 PengDeclaration::Module(declaration) => {
-                    Err(PengError::new_positioned_message(
-                        "local module declarations require module-construction bytecode support"
-                            .to_string(),
-                        declaration.position.clone(),
-                    ))
+                    generate_local_module_declaration(env, globals, context, declaration)
                 }
             }
         }

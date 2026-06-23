@@ -48,7 +48,7 @@ impl PengEnv {
         self.name_pool.get(&name_ptr)
     }
 
-    pub fn ensure_binded_stated_value(&mut self, value: PengBindedStatedValue) -> PengHeapPtr {
+    pub fn create_binded_stated_heap(&mut self, value: PengBindedStatedValue) -> PengHeapPtr {
         let value_ptr = self.next_heap_ptr();
         let coloured = PengColoured::new(value);
         self.heap.insert(value_ptr, coloured);
@@ -66,7 +66,7 @@ impl PengEnv {
         }
 
         Ok(
-            self.ensure_binded_stated_value(
+            self.create_binded_stated_heap(
                 PengBinded::Mutable(
                     PengStated::Initialized(PengValue::Vector(vector)),
                 )
@@ -152,7 +152,7 @@ impl PengEnv {
             return *value_ptr;
         }
 
-        let heap_ptr = self.ensure_binded_stated_value(
+        let heap_ptr = self.create_binded_stated_heap(
             PengBinded::Mutable(
                 PengStated::Uninitialized,
             )

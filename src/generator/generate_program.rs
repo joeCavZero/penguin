@@ -57,11 +57,11 @@ fn allocate_program_globals(
 
         let value_ptr = match declaration {
             PengBinded::Mutable(_) => {
-                env.ensure_binded_stated_value(PengBinded::Mutable(PengStated::Initialized(PengValue::Nil)))
+                env.create_binded_stated_heap(PengBinded::Mutable(PengStated::Initialized(PengValue::Nil)))
             }
 
             PengBinded::Immutable(_) => {
-                env.ensure_binded_stated_value(PengBinded::Immutable(PengStated::Uninitialized))
+                env.create_binded_stated_heap(PengBinded::Immutable(PengStated::Uninitialized))
             }
         };
 
@@ -172,14 +172,14 @@ fn generate_global_type_value(
 
     context
         .bytecode
-        .push(PengInstruction::PushValueRef(value_ptr));
+        .push(PengInstruction::PushHeapRef(value_ptr));
 
     match generate_type_expression(env, globals, context, value) {
         Ok(()) => {}
         Err(e) => return Err(e),
     }
 
-    context.bytecode.push(PengInstruction::StoreValue);
+    context.bytecode.push(PengInstruction::StoreHeap);
     Ok(())
 }
 
@@ -206,9 +206,9 @@ fn generate_global_operation(
 
     context
         .bytecode
-        .push(PengInstruction::PushValueRef(value_ptr));
+        .push(PengInstruction::PushHeapRef(value_ptr));
     context.push_const_and_const_instruction(value);
-    context.bytecode.push(PengInstruction::StoreValue);
+    context.bytecode.push(PengInstruction::StoreHeap);
 
     Ok(())
 }
@@ -236,9 +236,9 @@ fn generate_global_function(
 
     context
         .bytecode
-        .push(PengInstruction::PushValueRef(value_ptr));
+        .push(PengInstruction::PushHeapRef(value_ptr));
     context.push_const_and_const_instruction(value);
-    context.bytecode.push(PengInstruction::StoreValue);
+    context.bytecode.push(PengInstruction::StoreHeap);
 
     Ok(())
 }

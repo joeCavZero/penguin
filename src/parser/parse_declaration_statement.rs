@@ -201,7 +201,10 @@ pub fn parse_const_declaration(
         }
 
         Some(PengToken::Union) => {
-            let statement = parse_union_declaration_statement(tokens)?;
+            let statement = match parse_union_declaration_statement(tokens) {
+                Ok(v) => v,
+                Err(e) => return Err(e),
+            };
             extract_declaration(statement)
         }
 
@@ -323,32 +326,50 @@ pub fn parse_mutable_declaration(
 ) -> Result<PengDeclaration, PengError> {
     match tokens.peek().map(|t| &t.value) {
         Some(PengToken::Var) => {
-            let statement = parse_variable_declaration_statement(tokens)?;
+            let statement = match parse_variable_declaration_statement(tokens) {
+                Ok(v) => v,
+                Err(e) => return Err(e),
+            };
             extract_declaration(statement)
         }
 
         Some(PengToken::Func) => {
-            let statement = parse_function_declaration_statement(tokens)?;
+            let statement = match parse_function_declaration_statement(tokens) {
+                Ok(v) => v,
+                Err(e) => return Err(e),
+            };
             extract_declaration(statement)
         }
 
         Some(PengToken::Type) => {
-            let statement = parse_type_declaration_statement(tokens)?;
+            let statement = match parse_type_declaration_statement(tokens) {
+                Ok(v) => v,
+                Err(e) => return Err(e),
+            };
             extract_declaration(statement)
         }
 
         Some(PengToken::Union) => {
-            let statement = parse_union_declaration_statement(tokens)?;
+            let statement = match parse_union_declaration_statement(tokens) {
+                Ok(v) => v,
+                Err(e) => return Err(e),
+            };
             extract_declaration(statement)
         }
 
         Some(PengToken::Mod) => {
-            let statement = parse_module_declaration_statement(tokens)?;
+            let statement = match parse_module_declaration_statement(tokens) {
+                Ok(v) => v,
+                Err(e) => return Err(e),
+            };
             extract_declaration(statement)
         }
 
         Some(PengToken::Oper) => {
-            let statement = parse_operation_declaration_statement(tokens)?;
+            let statement = match parse_operation_declaration_statement(tokens) {
+                Ok(v) => v,
+                Err(e) => return Err(e),
+            };
             extract_declaration(statement)
         }
 

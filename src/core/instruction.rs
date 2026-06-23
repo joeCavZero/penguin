@@ -7,15 +7,18 @@ pub enum PengInstruction {
     PushLocal(usize),   // ...| ---> ...|v| , v := *<usize>
     StoreLocal(usize),  // ...|v| ---> ...| , *<usize> := v
 
-    PushValue(PengHeapPtr), // ...| ---> ...|v| , v := *<PengValuePtr>
-    PushValueRef(PengHeapPtr), // ...| ---> ...|ref|
-    StoreValue,   // ...|ref|v ---> ...| , *ref := v
+    PushHeap(PengHeapPtr), // ...| ---> ...|v| , v := *<PengValuePtr>
+    PushHeapRef(PengHeapPtr), // ...| ---> ...|ref|
+    StoreHeap,   // ...|ref|v ---> ...| , *ref := v
 
     PushString(PengNamePoolPtr),
 
-    CreateObjectType,   // ...|t| ---> ...|tobj| , create obj of type with default fields
+    CreateEmptyObject,
+    CreateEmptyModule,
+    CreateVector(usize), // ...|v0|v1|...|vn| ---> ...|vector|
     CreateSuperType(usize), // creates a new type with usize supers (on stack)
     CreateUnion(usize), // creates a new union based on usize types (on stack)
+    CreateTypedObject,   // ...|t| ---> ...|tobj| , create obj of type with default fields
 
     Convert,
     CheckType,
@@ -56,13 +59,14 @@ pub enum PengInstruction {
         params: usize,
     },
 
-    GetIndex,       // ...|vec|index| ---> ...|val|
-    GetIndexRef,    // ...|vec|index| ---> ...|val ref|
-    
-    GetConstAttribute(PengNamePoolPtr),      // ...|obj| ---> ...|val
-    GetConstAttributeRef(PengNamePoolPtr),   // ...|obj| ---> ...|val ref|
-    GetConstMember(PengNamePoolPtr),     // ...|mod| ---> ...|member|
-    GetConstMemberRef(PengNamePoolPtr),  // ...|mod| ---> ...|member ref|
+    GetIndex,
+    SetIndex,
+
+    GetConstAttribute(PengNamePoolPtr),
+    SetConstAttribute(PengNamePoolPtr),
+
+    GetConstMember(PengNamePoolPtr),
+    SetConstMember(PengNamePoolPtr),
 
     Jump(usize),
     JumpIfTrue(usize),
@@ -78,15 +82,16 @@ impl PengInstruction {
             (Self::PushConst(left), Self::PushConst(right))
             | (Self::PushLocal(left), Self::PushLocal(right))
             | (Self::StoreLocal(left), Self::StoreLocal(right))
-            | (Self::PushValue(left), Self::PushValue(right))
-            | (Self::PushValueRef(left), Self::PushValueRef(right))
+            | (Self::PushHeap(left), Self::PushHeap(right))
+            | (Self::PushHeapRef(left), Self::PushHeapRef(right))
             | (Self::PushString(left), Self::PushString(right))
             | (Self::CreateSuperType(left), Self::CreateSuperType(right))
+            | (Self::CreateVector(left), Self::CreateVector(right))
             | (Self::CreateUnion(left), Self::CreateUnion(right))
             | (Self::GetConstAttribute(left), Self::GetConstAttribute(right))
-            | (Self::GetConstAttributeRef(left), Self::GetConstAttributeRef(right))
+            | (Self::SetConstAttribute(left), Self::SetConstAttribute(right))
             | (Self::GetConstMember(left), Self::GetConstMember(right))
-            | (Self::GetConstMemberRef(left), Self::GetConstMemberRef(right))
+            | (Self::SetConstMember(left), Self::SetConstMember(right))
             | (Self::Jump(left), Self::Jump(right))
             | (Self::JumpIfTrue(left), Self::JumpIfTrue(right))
             | (Self::JumpIfFalse(left), Self::JumpIfFalse(right)) => left == right,

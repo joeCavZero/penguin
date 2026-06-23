@@ -172,29 +172,26 @@ pub fn generate_object_construction(
     construction: &PengObjectConstructionExpression,
 ) -> Result<(), PengError> {
     if !construction.generics.is_empty() {
-        return Err(PengError::new_positioned_message(
-            "generic object construction is not supported by the current bytecode".to_string(),
-            construction.object_type.position.clone(),
-        ));
+        todo!();
     }
 
     match generate_expression(env, globals, context, &construction.object_type) {
         Ok(()) => {},
         Err(e) => return Err(e),
     };
-    context.bytecode.push(PengInstruction::CreateObjectType);
+    context.bytecode.push(PengInstruction::CreateTypedObject);
 
     for field in &construction.fields {
         context.bytecode.push(PengInstruction::Duplicate);
+
         let name = env.ensure_pooled_name_ptr(field.name.value.clone());
-        context
-            .bytecode
-            .push(PengInstruction::GetConstAttributeRef(name));
+
         match generate_expression(env, globals, context, &field.value) {
             Ok(()) => {},
             Err(e) => return Err(e),
-        };
-        context.bytecode.push(PengInstruction::StoreValue);
+        }
+
+        context.bytecode.push(PengInstruction::SetConstAttribute(name));
     }
 
     Ok(())
@@ -210,10 +207,7 @@ pub fn generate_try_expression(
     let call = match &value.value {
         PengExpression::FuncCall(call) => call,
         _ => {
-            return Err(PengError::new_positioned_message(
-                "'try' currently requires a function call".to_string(),
-                value.position.clone(),
-            ));
+            todo!();
         }
     };
 
@@ -309,10 +303,7 @@ pub fn generate_type_expression(
             let inner_type = match static_type_from_expression(inner) {
                 Some(inner_type) => inner_type,
                 None => {
-                    return Err(PengError::new_positioned_message(
-                        "vector type requires a static inner type".to_string(),
-                        inner.position.clone(),
-                    ));
+                    todo!();
                 }
             };
 

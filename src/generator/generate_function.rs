@@ -10,7 +10,7 @@ pub fn create_anonymous_bytecode_function(
 ) -> PengHeapPtr {
     let function = create_bytecode_function_value(context, 0);
 
-    env.ensure_binded_stated_value(PengBinded::Mutable(PengStated::Initialized(function)))
+    env.create_binded_stated_heap(PengBinded::Mutable(PengStated::Initialized(function)))
 }
 
 pub fn create_bytecode_function_value(
