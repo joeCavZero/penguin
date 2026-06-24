@@ -1,18 +1,19 @@
-use std::collections::HashMap;
-
 use crate::core::*;
 
-pub fn step_thread(env: &mut PengEnv, thread_ptr: PengHeapPtr) -> Result<Option<PengBindedStatedCell>, PengError> {
+pub fn step_thread(
+    env: &mut PengEnv,
+    thread_ptr: PengHeapPtr,
+) -> Result<Option<PengBindedStatedCell>, PengError> {
     let (frame_program_counter, frame_base, frame_function_ptr, _frame_params_count) =
         match env.get_heap(thread_ptr) {
             Some(coloured) => {
-                if let PengStated::Initialized(tval)= coloured.value.value() {
+                if let PengStated::Initialized(tval) = coloured.value.value() {
                     if let PengValue::Thread(thread) = tval {
                         if let Some(last_frame) = thread.frames.last() {
                             (
                                 last_frame.program_counter,
                                 last_frame.base,
-                                last_frame.function,
+                                last_frame.procedure,
                                 last_frame.params_count,
                             )
                         } else {
@@ -25,780 +26,2135 @@ pub fn step_thread(env: &mut PengEnv, thread_ptr: PengHeapPtr) -> Result<Option<
                     return Err(PengError::Code(PengErrorCode::TestError));
                 }
             }
-            None => todo!()
+            None => todo!(),
         };
 
-    let (should_end_frame, instruction, constant) =
-        match env.get_heap(frame_function_ptr) {
-            Some(coloured) => {
-                if let PengStated::Initialized(fval) = coloured.value.value() {
-                    if let PengValue::Function(func) = fval {
-                        match func {
-                            PengFunction::Bytecode(func_btc) => {
-                                let instr = match func_btc.bytecode.get(frame_program_counter) {
-                                    Some(i) => i.clone(),
-                                    None => {
-                                        return Ok(None);
-                                    }
-                                };
+    let (should_end_frame, instruction, constant) = match env.get_heap(frame_function_ptr) {
+        Some(coloured) => {
+            if let PengStated::Initialized(fval) = coloured.value.value() {
+                if let PengValue::Function(func) = fval {
+                    match func {
+                        PengFunction::Bytecode(func_btc) => {
+                            let instr = match func_btc.bytecode.get(frame_program_counter) {
+                                Some(i) => i.clone(),
+                                None => {
+                                    return Ok(None);
+                                }
+                            };
 
-                                let constant = match instr {
-                                    PengInstruction::PushConst(const_index) => {
-                                        match func_btc.consts.get(const_index) {
-                                            Some(v) => v.clone(),
-                                            None => {
-                                                return Err(PengError::Code(PengErrorCode::TestError));
-                                            }
+                            let constant = match instr {
+                                PengInstruction::PushConst(const_index) => {
+                                    match func_btc.consts.get(const_index) {
+                                        Some(v) => v.clone(),
+                                        None => {
+                                            return Err(PengError::Code(PengErrorCode::TestError));
                                         }
                                     }
+                                }
 
-                                    _ => PengValue::Nil,
-                                };
+                                _ => PengValue::Nil,
+                            };
 
-                                (
-                                    false,
-                                    instr,
-                                    constant,
-                                )
-                            }
-
-                            PengFunction::Native(_func_ntv) => {
-                                todo!()
-                            }
+                            (false, instr, constant)
                         }
-                    } else {
-                        return Err(PengError::Code(PengErrorCode::TestError));
+
+                        PengFunction::Native(_func_ntv) => {
+                            todo!()
+                        }
                     }
                 } else {
-                    todo!()
+                    return Err(PengError::Code(PengErrorCode::TestError));
                 }
+            } else {
+                todo!()
             }
-            None => {
-                return Err(PengError::Code(PengErrorCode::TestError));
-            }
-
-        };
+        }
+        None => {
+            return Err(PengError::Code(PengErrorCode::TestError));
+        }
+    };
 
     if should_end_frame {
         return Ok(None);
     }
 
-    match execute_instruction(instruction, constant, thread_ptr, frame_base, env)  {
-        Ok(res) => {
-            match res {
-                Some(ret) => return Ok(Some(ret)),
-                None => {}
-            }
-        }
-        Err(e) => return Err(e),
-    };
-
     match env.get_heap_mut(thread_ptr) {
-        Some(coloured) => {
-            match &mut coloured.value {
-                PengBinded::Immutable(_) => {
-                    return Err(PengError::Code(PengErrorCode::TestError));
+        Some(coloured) => match &mut coloured.value {
+            PengBinded::Mutable(PengStated::Initialized(PengValue::Thread(thread))) => {
+                if let Some(last_frame) = thread.frames.last_mut() {
+                    last_frame.program_counter = match last_frame.program_counter.checked_add(1) {
+                        Some(r) => r,
+                        None => return Err(PengError::Code(PengErrorCode::TestError)),
+                    };
+                } else {
+                    return Ok(None);
+                }
+            }
+            _ => return Err(PengError::Code(PengErrorCode::TestError)),
+        },
+        None => return Err(PengError::Code(PengErrorCode::TestError)),
+    }
+
+    match execute_instruction(instruction, constant, thread_ptr, frame_base, env) {
+        Ok(res) => match res {
+            Some(ret) => {
+                let frame = match env.pop_thread_frame(thread_ptr) {
+                    Ok(frame) => frame,
+                    Err(e) => return Err(e),
+                };
+
+                match env.truncate_thread_stack(thread_ptr, frame.base) {
+                    Ok(()) => {}
+                    Err(e) => return Err(e),
                 }
 
-                PengBinded::Mutable(mutval) => {
-                    match mutval {
-                        PengStated::Initialized(tval) => {
-                            if let PengValue::Thread(thread) = tval {
-                                if let Some(last_frame) = thread.frames.last_mut() {
-                                    last_frame.program_counter = match last_frame.program_counter.checked_add(1) {
-                                        Some(r) => r,
-                                        None => return Err(PengError::Code(PengErrorCode::TestError))
-                                    };
-                                } else {
-                                    return Ok(None);
-                                }
-                            } else {
-                                return Err(PengError::Code(PengErrorCode::TestError));
+                match env.get_thread_frames_len(thread_ptr) {
+                    Ok(frames_len) => {
+                        if frames_len == 0 {
+                            return Ok(Some(ret));
+                        }
+
+                        match env.push_thread_binded_stated_cell(thread_ptr, ret) {
+                            Ok(()) => {}
+                            Err(e) => return Err(e),
+                        }
+
+                        if frame.is_try {
+                            match env.push_thread_binded_stated_cell(
+                                thread_ptr,
+                                PengBinded::Mutable(PengStated::Initialized(PengCell::Bool(true))),
+                            ) {
+                                Ok(()) => {}
+                                Err(e) => return Err(e),
                             }
                         }
-                        PengStated::Uninitialized => {
-                            todo!();
-                        }
                     }
+
+                    Err(e) => return Err(e),
                 }
             }
-        } 
-        None => {
-            todo!()
-        }
-    }
+
+            None => {}
+        },
+
+        Err(e) => match env.recover_thread_try_error(thread_ptr) {
+            Ok(recovered) => {
+                if !recovered {
+                    return Err(e);
+                }
+            }
+
+            Err(e) => return Err(e),
+        },
+    };
 
     Ok(None)
 }
+
 pub fn execute_instruction(
     instruction: PengInstruction,
     constant: PengValue,
-    actual_thread_ptr: PengHeapPtr,
-    frame_base: usize,
+    thread_ptr: PengHeapPtr,
+    _frame_base: usize,
     env: &mut PengEnv,
 ) -> Result<Option<PengBindedStatedCell>, PengError> {
-    fn initialized_cell(cell: PengCell) -> PengBindedStatedCell {
-        PengBinded::Mutable(PengStated::Initialized(cell))
-    }
-
-    fn nil_cell() -> PengBindedStatedCell {
-        initialized_cell(PengCell::Nil)
-    }
-
-    fn value_to_cell(
-        value: PengValue,
-        env: &mut PengEnv,
-    ) -> PengBindedStatedCell {
-        match value {
-            PengValue::Nil => initialized_cell(PengCell::Nil),
-            PengValue::Int(v) => initialized_cell(PengCell::Int(v)),
-            PengValue::Uint(v) => initialized_cell(PengCell::Uint(v)),
-            PengValue::Float32(v) => initialized_cell(PengCell::Float32(v)),
-            PengValue::Float64(v) => initialized_cell(PengCell::Float64(v)),
-            PengValue::Byte(v) => initialized_cell(PengCell::Byte(v)),
-            PengValue::Bool(v) => initialized_cell(PengCell::Bool(v)),
-            other => {
-                let ptr = env.create_binded_stated_heap(
-                    PengBinded::Mutable(PengStated::Initialized(other))
-                );
-
-                initialized_cell(PengCell::Reference(ptr))
-            }
-        }
-    }
-
-    fn cell_to_value(
-        cell: &PengBindedStatedCell,
-        env: &PengEnv,
-    ) -> Result<PengValue, PengError> {
-        match cell.value() {
-            PengStated::Initialized(cell_value) => {
-                match cell_value {
-                    PengCell::Nil => Ok(PengValue::Nil),
-                    PengCell::Int(v) => Ok(PengValue::Int(*v)),
-                    PengCell::Uint(v) => Ok(PengValue::Uint(*v)),
-                    PengCell::Float32(v) => Ok(PengValue::Float32(*v)),
-                    PengCell::Float64(v) => Ok(PengValue::Float64(*v)),
-                    PengCell::Byte(v) => Ok(PengValue::Byte(*v)),
-                    PengCell::Bool(v) => Ok(PengValue::Bool(*v)),
-                    PengCell::Reference(ptr) => {
-                        match env.get_heap(*ptr) {
-                            Some(coloured) => {
-                                match coloured.value.value() {
-                                    PengStated::Initialized(value) => Ok(value.clone()),
-                                    PengStated::Uninitialized => {
-                                        Err(PengError::Code(PengErrorCode::TestError))
-                                    }
-                                }
-                            }
-                            None => Err(PengError::Code(PengErrorCode::TestError)),
-                        }
-                    }
-                }
-            }
-            PengStated::Uninitialized => {
-                Err(PengError::Code(PengErrorCode::TestError))
-            }
-        }
-    }
-
-    fn pop_stack(
-        env: &mut PengEnv,
-        thread_ptr: PengHeapPtr,
-    ) -> Result<PengBindedStatedCell, PengError> {
-        match env.get_heap_mut(thread_ptr) {
-            Some(coloured) => {
-                match &mut coloured.value {
-                    PengBinded::Mutable(PengStated::Initialized(PengValue::Thread(thread))) => {
-                        match thread.stack.pop() {
-                            Some(value) => Ok(value),
-                            None => Err(PengError::Code(PengErrorCode::TestError)),
-                        }
-                    }
-                    _ => Err(PengError::Code(PengErrorCode::TestError)),
-                }
-            }
-            None => Err(PengError::Code(PengErrorCode::TestError)),
-        }
-    }
-
-    fn push_stack(
-        env: &mut PengEnv,
-        thread_ptr: PengHeapPtr,
-        value: PengBindedStatedCell,
-    ) -> Result<(), PengError> {
-        match env.get_heap_mut(thread_ptr) {
-            Some(coloured) => {
-                match &mut coloured.value {
-                    PengBinded::Mutable(PengStated::Initialized(PengValue::Thread(thread))) => {
-                        thread.stack.push(value);
-                        Ok(())
-                    }
-                    _ => Err(PengError::Code(PengErrorCode::TestError)),
-                }
-            }
-            None => Err(PengError::Code(PengErrorCode::TestError)),
-        }
-    }
-
-    fn get_local(
-        env: &mut PengEnv,
-        thread_ptr: PengHeapPtr,
-        frame_base: usize,
-        local: usize,
-    ) -> Result<PengBindedStatedCell, PengError> {
-        match env.get_heap(thread_ptr) {
-            Some(coloured) => {
-                match coloured.value.value() {
-                    PengStated::Initialized(PengValue::Thread(thread)) => {
-                        match thread.stack.get(frame_base + local) {
-                            Some(value) => Ok(value.clone()),
-                            None => Err(PengError::Code(PengErrorCode::TestError)),
-                        }
-                    }
-                    _ => Err(PengError::Code(PengErrorCode::TestError)),
-                }
-            }
-            None => Err(PengError::Code(PengErrorCode::TestError)),
-        }
-    }
-
-    fn set_local(
-        env: &mut PengEnv,
-        thread_ptr: PengHeapPtr,
-        frame_base: usize,
-        local: usize,
-        value: PengBindedStatedCell,
-    ) -> Result<(), PengError> {
-        match env.get_heap_mut(thread_ptr) {
-            Some(coloured) => {
-                match &mut coloured.value {
-                    PengBinded::Mutable(PengStated::Initialized(PengValue::Thread(thread))) => {
-                        let index = frame_base + local;
-
-                        while thread.stack.len() < index {
-                            thread.stack.push(nil_cell());
-                        }
-
-                        if thread.stack.len() == index {
-                            thread.stack.push(value);
-                        } else {
-                            thread.stack[index] = value;
-                        }
-
-                        Ok(())
-                    }
-                    _ => Err(PengError::Code(PengErrorCode::TestError)),
-                }
-            }
-            None => Err(PengError::Code(PengErrorCode::TestError)),
-        }
-    }
-
-    fn reference_ptr_from_cell(
-        cell: &PengBindedStatedCell,
-    ) -> Result<PengHeapPtr, PengError> {
-        match cell.value() {
-            PengStated::Initialized(PengCell::Reference(ptr)) => Ok(*ptr),
-            _ => Err(PengError::Code(PengErrorCode::TestError)),
-        }
-    }
-
-    fn bool_from_cell(
-        cell: &PengBindedStatedCell,
-        env: &PengEnv,
-    ) -> Result<bool, PengError> {
-        let value = match cell_to_value(cell, env) {
-            Ok(value) => value,
-            Err(e) => return Err(e),
-        };
-
-        match value {
-            PengValue::Bool(v) => Ok(v),
-            PengValue::Nil => Ok(false),
-            _ => Ok(true),
-        }
-    }
-
-    fn set_program_counter(
-        env: &mut PengEnv,
-        thread_ptr: PengHeapPtr,
-        target: usize,
-    ) -> Result<(), PengError> {
-        match env.get_heap_mut(thread_ptr) {
-            Some(coloured) => {
-                match &mut coloured.value {
-                    PengBinded::Mutable(PengStated::Initialized(PengValue::Thread(thread))) => {
-                        match thread.frames.last_mut() {
-                            Some(frame) => {
-                                if target == 0 {
-                                    frame.program_counter = 0;
-                                } else {
-                                    frame.program_counter = target - 1;
-                                }
-
-                                Ok(())
-                            }
-                            None => Err(PengError::Code(PengErrorCode::TestError)),
-                        }
-                    }
-                    _ => Err(PengError::Code(PengErrorCode::TestError)),
-                }
-            }
-            None => Err(PengError::Code(PengErrorCode::TestError)),
-        }
-    }
-
+    println!("Executando: {:?}", instruction);
     match instruction {
         PengInstruction::PushConst(_) => {
-            let cell = value_to_cell(constant, env);
-            match push_stack(env, actual_thread_ptr, cell) {
-                Ok(()) => Ok(None),
-                Err(e) => Err(e),
+            if constant.is_heap() {
+                let ptr = env.create_binded_stated_heap(PengBinded::Mutable(
+                    PengStated::Initialized(constant),
+                ));
+                let cell = PengCell::Reference(ptr);
+                match env.push_thread_binded_stated_cell(
+                    thread_ptr,
+                    PengBinded::Mutable(PengStated::Initialized(cell)),
+                ) {
+                    Ok(()) => {}
+                    Err(e) => return Err(e),
+                }
+            } else {
+                match constant.to_cell() {
+                    Ok(cell) => {
+                        match env.push_thread_binded_stated_cell(
+                            thread_ptr,
+                            PengBinded::Mutable(PengStated::Initialized(cell)),
+                        ) {
+                            Ok(()) => {}
+                            Err(e) => return Err(e),
+                        }
+                    }
+                    Err(e) => return Err(e),
+                }
             }
         }
 
-        PengInstruction::PushLocal(local) => {
-            let value = match get_local(env, actual_thread_ptr, frame_base, local) {
-                Ok(value) => value,
+        PengInstruction::PushLocal(local) => match env.get_thread_local(thread_ptr, local).cloned()
+        {
+            Ok(cell) => match env.push_thread_binded_stated_cell(thread_ptr, cell.clone()) {
+                Ok(()) => {}
                 Err(e) => return Err(e),
-            };
-
-            match push_stack(env, actual_thread_ptr, value) {
-                Ok(()) => Ok(None),
-                Err(e) => Err(e),
-            }
-        }
+            },
+            Err(e) => return Err(e),
+        },
 
         PengInstruction::StoreLocal(local) => {
-            let value = match pop_stack(env, actual_thread_ptr) {
-                Ok(value) => value,
+            match env
+                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .cloned()
+            {
+                Ok(lst) => match env.set_thread_local(thread_ptr, local, lst.clone()) {
+                    Ok(()) => {}
+                    Err(e) => return Err(e),
+                },
                 Err(e) => return Err(e),
-            };
-
-            match set_local(env, actual_thread_ptr, frame_base, local, value) {
-                Ok(()) => Ok(None),
-                Err(e) => Err(e),
             }
         }
 
         PengInstruction::PushHeap(ptr) => {
             let value = match env.get_heap(ptr) {
-                Some(coloured) => {
-                    match coloured.value.value() {
-                        PengStated::Initialized(value) => value.clone(),
-                        PengStated::Uninitialized => {
-                            return Err(PengError::Code(PengErrorCode::TestError));
-                        }
+                Some(coloured) => match coloured.value.value() {
+                    PengStated::Initialized(value) => value.clone(),
+                    PengStated::Uninitialized => {
+                        return Err(PengError::Code(PengErrorCode::TestError));
                     }
-                }
+                },
                 None => return Err(PengError::Code(PengErrorCode::TestError)),
             };
 
-            let cell = value_to_cell(value, env);
-
-            match push_stack(env, actual_thread_ptr, cell) {
-                Ok(()) => Ok(None),
-                Err(e) => Err(e),
+            match value.to_cell() {
+                Ok(c) => {
+                    match env.push_thread_binded_stated_cell(
+                        thread_ptr,
+                        PengBinded::Mutable(PengStated::Initialized(c)),
+                    ) {
+                        Ok(()) => {}
+                        Err(e) => return Err(e),
+                    }
+                }
+                Err(_) => {
+                    let ptr = env.create_binded_stated_heap(PengBinded::Mutable(
+                        PengStated::Initialized(value),
+                    ));
+                    match env.push_thread_binded_stated_cell(
+                        thread_ptr,
+                        PengBinded::Mutable(PengStated::Initialized(PengCell::Reference(ptr))),
+                    ) {
+                        Ok(()) => {}
+                        Err(e) => return Err(e),
+                    }
+                }
             }
         }
 
         PengInstruction::PushHeapRef(ptr) => {
-            let cell = initialized_cell(PengCell::Reference(ptr));
-
-            match push_stack(env, actual_thread_ptr, cell) {
-                Ok(()) => Ok(None),
-                Err(e) => Err(e),
+            match env.push_thread_binded_stated_cell(
+                thread_ptr,
+                PengBinded::Mutable(PengStated::Initialized(PengCell::Reference(ptr))),
+            ) {
+                Ok(()) => {}
+                Err(e) => return Err(e),
             }
         }
 
         PengInstruction::StoreHeap => {
-            let value_cell = match pop_stack(env, actual_thread_ptr) {
-                Ok(value) => value,
-                Err(e) => return Err(e),
-            };
+            match env
+                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .cloned()
+            {
+                Ok(value_cell) => match env
+                    .get_thread_latest_binded_stated_cell(thread_ptr, 1)
+                    .cloned()
+                {
+                    Ok(ref_cell) => {
+                        let ptr: PengHeapPtr = match ref_cell.value() {
+                            PengStated::Initialized(PengCell::Reference(ptr)) => *ptr,
+                            _ => return Err(PengError::Code(PengErrorCode::TestError)),
+                        };
 
-            let ref_cell = match pop_stack(env, actual_thread_ptr) {
-                Ok(value) => value,
-                Err(e) => return Err(e),
-            };
+                        let value = match value_cell.value() {
+                            PengStated::Initialized(cell) => {
+                                match env.get_value_from_cell(cell.clone()) {
+                                    Ok(value) => value,
+                                    Err(e) => return Err(e),
+                                }
+                            }
+                            PengStated::Uninitialized => {
+                                return Err(PengError::Code(PengErrorCode::TestError));
+                            }
+                        };
 
-            let ptr = match reference_ptr_from_cell(&ref_cell) {
-                Ok(ptr) => ptr,
+                        match env.pop_thread_stack_n_times(thread_ptr, 2) {
+                            Ok(()) => match env.assign_heap(ptr, value) {
+                                Ok(()) => {}
+                                Err(e) => return Err(e),
+                            },
+                            Err(e) => return Err(e),
+                        }
+                    }
+                    Err(e) => return Err(e),
+                },
                 Err(e) => return Err(e),
-            };
-
-            let value = match cell_to_value(&value_cell, env) {
-                Ok(value) => value,
-                Err(e) => return Err(e),
-            };
-
-            match env.assign_heap(ptr, value) {
-                Ok(()) => Ok(None),
-                Err(e) => Err(e),
             }
         }
 
         PengInstruction::CreateEmptyObject => {
-            let value = PengValue::Object(PengObject {
-                fields: HashMap::new(),
-            });
+            let heap_ptr = env.create_binded_stated_heap(PengBinded::Mutable(
+                PengStated::Initialized(PengValue::Object(PengObject::new_empty())),
+            ));
 
-            let cell = value_to_cell(value, env);
-
-            match push_stack(env, actual_thread_ptr, cell) {
-                Ok(()) => Ok(None),
-                Err(e) => Err(e),
+            match env.push_thread_binded_stated_cell(
+                thread_ptr,
+                PengBinded::Mutable(PengStated::Initialized(PengCell::Reference(heap_ptr))),
+            ) {
+                Ok(()) => {}
+                Err(e) => return Err(e),
             }
         }
 
         PengInstruction::CreateEmptyModule => {
-            let value = PengValue::Module(PengModule {
-                members: HashMap::new(),
-            });
+            let heap_ptr = env.create_binded_stated_heap(PengBinded::Mutable(
+                PengStated::Initialized(PengValue::Module(PengModule::new_empty())),
+            ));
 
-            let cell = value_to_cell(value, env);
-
-            match push_stack(env, actual_thread_ptr, cell) {
-                Ok(()) => Ok(None),
-                Err(e) => Err(e),
+            match env.push_thread_binded_stated_cell(
+                thread_ptr,
+                PengBinded::Mutable(PengStated::Initialized(PengCell::Reference(heap_ptr))),
+            ) {
+                Ok(()) => {}
+                Err(e) => return Err(e),
             }
         }
 
-        PengInstruction::CreateVector(count) => {
-            let mut values = Vec::new();
-            let mut index = 0usize;
+        PengInstruction::CreateVector(size) => {
+            match env.get_thread_latest_n_binded_stated_cells_cloned(thread_ptr, size) {
+                Ok(cells) => match env.pop_thread_stack_n_times(thread_ptr, size) {
+                    Ok(()) => {
+                        let heap_ptr = env.create_binded_stated_heap(PengBinded::Mutable(
+                            PengStated::Initialized(PengValue::Vector(PengVector::new(cells))),
+                        ));
 
-            while index < count {
-                let value = match pop_stack(env, actual_thread_ptr) {
-                    Ok(value) => value,
-                    Err(e) => return Err(e),
-                };
-
-                values.push(value);
-                index += 1;
-            }
-
-            values.reverse();
-
-            let value = PengValue::Vector(PengVector {
-                values,
-            });
-
-            let cell = value_to_cell(value, env);
-
-            match push_stack(env, actual_thread_ptr, cell) {
-                Ok(()) => Ok(None),
-                Err(e) => Err(e),
-            }
-        }
-
-        PengInstruction::CreateSuperType(count) => {
-            let mut fields = HashMap::new();
-            let mut index = 0usize;
-
-            while index < count {
-                let super_cell = match pop_stack(env, actual_thread_ptr) {
-                    Ok(value) => value,
-                    Err(e) => return Err(e),
-                };
-
-                let super_value = match cell_to_value(&super_cell, env) {
-                    Ok(value) => value,
-                    Err(e) => return Err(e),
-                };
-
-                match super_value {
-                    PengValue::Type(PengType::Custom(custom)) => {
-                        for (name, field) in custom.fields {
-                            fields.insert(name, field);
+                        match env.push_thread_binded_stated_cell(
+                            thread_ptr,
+                            PengBinded::Mutable(PengStated::Initialized(PengCell::Reference(
+                                heap_ptr,
+                            ))),
+                        ) {
+                            Ok(()) => {}
+                            Err(e) => return Err(e),
                         }
                     }
-                    _ => return Err(PengError::Code(PengErrorCode::TestError)),
+
+                    Err(e) => return Err(e),
+                },
+
+                Err(e) => return Err(e),
+            }
+        }
+
+        PengInstruction::CreateSuperType(types_count) => {
+            match env.get_thread_latest_n_binded_stated_cells_cloned(thread_ptr, types_count) {
+                Ok(cells) => {
+                    let mut custom_types = Vec::new();
+
+                    for cell in cells {
+                        match cell.value() {
+                            PengStated::Initialized(cell) => {
+                                match env.get_value_from_cell(cell.clone()) {
+                                    Ok(value) => match value {
+                                        PengValue::Type(PengType::Custom(custom_type)) => {
+                                            custom_types.push(custom_type);
+                                        }
+
+                                        _ => {
+                                            return Err(PengError::Code(PengErrorCode::TestError));
+                                        }
+                                    },
+
+                                    Err(e) => return Err(e),
+                                }
+                            }
+
+                            PengStated::Uninitialized => {
+                                return Err(PengError::Code(PengErrorCode::TestError));
+                            }
+                        }
+                    }
+
+                    match env.pop_thread_stack_n_times(thread_ptr, types_count) {
+                        Ok(()) => {
+                            let heap_ptr = env.create_binded_stated_heap(PengBinded::Mutable(
+                                PengStated::Initialized(PengValue::Type(PengType::Custom(
+                                    PengCustomType::new_super_type(custom_types),
+                                ))),
+                            ));
+
+                            match env.push_thread_binded_stated_cell(
+                                thread_ptr,
+                                PengBinded::Mutable(PengStated::Initialized(PengCell::Reference(
+                                    heap_ptr,
+                                ))),
+                            ) {
+                                Ok(()) => {}
+                                Err(e) => return Err(e),
+                            }
+                        }
+
+                        Err(e) => return Err(e),
+                    }
                 }
 
-                index += 1;
-            }
-
-            let value = PengValue::Type(PengType::Custom(PengCustomType {
-                fields,
-            }));
-
-            let cell = value_to_cell(value, env);
-
-            match push_stack(env, actual_thread_ptr, cell) {
-                Ok(()) => Ok(None),
-                Err(e) => Err(e),
+                Err(e) => return Err(e),
             }
         }
 
         PengInstruction::CreateTypedObject => {
-            let type_cell = match pop_stack(env, actual_thread_ptr) {
-                Ok(value) => value,
-                Err(e) => return Err(e),
-            };
+            match env
+                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .cloned()
+            {
+                Ok(cell) => {
+                    let custom_type = match cell.value() {
+                        PengStated::Initialized(cell) => {
+                            match env.get_value_from_cell(cell.clone()) {
+                                Ok(PengValue::Type(PengType::Custom(custom_type))) => custom_type,
 
-            let type_value = match cell_to_value(&type_cell, env) {
-                Ok(value) => value,
-                Err(e) => return Err(e),
-            };
+                                Ok(_) => {
+                                    return Err(PengError::Code(PengErrorCode::TestError));
+                                }
 
-            let mut fields = HashMap::new();
+                                Err(e) => return Err(e),
+                            }
+                        }
 
-            match type_value {
-                PengValue::Type(PengType::Custom(custom)) => {
-                    for (name, field) in custom.fields {
-                        fields.insert(name, field);
+                        PengStated::Uninitialized => {
+                            return Err(PengError::Code(PengErrorCode::TestError));
+                        }
+                    };
+
+                    match env.pop_thread_stack_n_times(thread_ptr, 1) {
+                        Ok(()) => {
+                            let heap_ptr = env.create_binded_stated_heap(PengBinded::Mutable(
+                                PengStated::Initialized(PengValue::Object(PengObject::new(
+                                    custom_type.fields,
+                                ))),
+                            ));
+
+                            match env.push_thread_binded_stated_cell(
+                                thread_ptr,
+                                PengBinded::Mutable(PengStated::Initialized(PengCell::Reference(
+                                    heap_ptr,
+                                ))),
+                            ) {
+                                Ok(()) => {}
+                                Err(e) => return Err(e),
+                            }
+                        }
+
+                        Err(e) => return Err(e),
                     }
                 }
-                _ => return Err(PengError::Code(PengErrorCode::TestError)),
-            }
 
-            let value = PengValue::Object(PengObject {
-                fields,
-            });
-
-            let cell = value_to_cell(value, env);
-
-            match push_stack(env, actual_thread_ptr, cell) {
-                Ok(()) => Ok(None),
-                Err(e) => Err(e),
+                Err(e) => return Err(e),
             }
         }
 
         PengInstruction::Duplicate => {
-            let value = match pop_stack(env, actual_thread_ptr) {
-                Ok(value) => value,
-                Err(e) => return Err(e),
-            };
+            match env
+                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .cloned()
+            {
+                Ok(cell) => match env.push_thread_binded_stated_cell(thread_ptr, cell.clone()) {
+                    Ok(()) => {}
+                    Err(e) => return Err(e),
+                },
 
-            match push_stack(env, actual_thread_ptr, value.clone()) {
-                Ok(()) => {}
                 Err(e) => return Err(e),
-            }
-
-            match push_stack(env, actual_thread_ptr, value) {
-                Ok(()) => Ok(None),
-                Err(e) => Err(e),
             }
         }
 
-        PengInstruction::Pop => {
-            match pop_stack(env, actual_thread_ptr) {
-                Ok(_) => Ok(None),
-                Err(e) => Err(e),
-            }
-        }
+        PengInstruction::Pop => match env.pop_thread_stack_n_times(thread_ptr, 1) {
+            Ok(()) => {}
+            Err(e) => return Err(e),
+        },
 
-        PengInstruction::SetConstAttribute(name) => {
-            let value = match pop_stack(env, actual_thread_ptr) {
-                Ok(value) => value,
-                Err(e) => return Err(e),
-            };
+        PengInstruction::SetConstAttribute(name_ptr) => {
+            match env
+                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .cloned()
+            {
+                Ok(value_cell) => match env.get_thread_latest_binded_stated_cell(thread_ptr, 1) {
+                    Ok(object_cell) => {
+                        let object_ptr = match object_cell.value() {
+                            PengStated::Initialized(PengCell::Reference(ptr)) => *ptr,
+                            _ => return Err(PengError::Code(PengErrorCode::TestError)),
+                        };
 
-            let object = match pop_stack(env, actual_thread_ptr) {
-                Ok(value) => value,
-                Err(e) => return Err(e),
-            };
+                        let value = value_cell.clone();
 
-            let ptr = match reference_ptr_from_cell(&object) {
-                Ok(ptr) => ptr,
-                Err(e) => return Err(e),
-            };
+                        match env.get_heap_mut(object_ptr) {
+                            Some(coloured) => match &mut coloured.value {
+                                PengBinded::Mutable(PengStated::Initialized(
+                                    PengValue::Object(object),
+                                )) => {
+                                    object.fields.insert(name_ptr, value);
+                                }
 
-            match env.get_heap_mut(ptr) {
-                Some(coloured) => {
-                    match &mut coloured.value {
-                        PengBinded::Mutable(PengStated::Initialized(PengValue::Object(object))) => {
-                            object.fields.insert(name, value);
-                            Ok(None)
+                                _ => {
+                                    return Err(PengError::Code(PengErrorCode::TestError));
+                                }
+                            },
+
+                            None => {
+                                return Err(PengError::Code(PengErrorCode::TestError));
+                            }
                         }
-                        PengBinded::Mutable(PengStated::Initialized(PengValue::Type(PengType::Custom(custom)))) => {
-                            custom.fields.insert(name, value);
-                            Ok(None)
+
+                        match env.pop_thread_stack_n_times(thread_ptr, 2) {
+                            Ok(()) => {}
+                            Err(e) => return Err(e),
                         }
-                        _ => Err(PengError::Code(PengErrorCode::TestError)),
                     }
-                }
-                None => Err(PengError::Code(PengErrorCode::TestError)),
+
+                    Err(e) => return Err(e),
+                },
+
+                Err(e) => return Err(e),
             }
         }
 
-        PengInstruction::GetConstAttribute(name) => {
-            let object = match pop_stack(env, actual_thread_ptr) {
-                Ok(value) => value,
-                Err(e) => return Err(e),
-            };
-
-            let ptr = match reference_ptr_from_cell(&object) {
-                Ok(ptr) => ptr,
-                Err(e) => return Err(e),
-            };
-
-            let field = match env.get_heap(ptr) {
-                Some(coloured) => {
-                    match coloured.value.value() {
-                        PengStated::Initialized(PengValue::Object(object)) => {
-                            match object.fields.get(&name) {
-                                Some(value) => value.clone(),
-                                None => return Err(PengError::Code(PengErrorCode::TestError)),
-                            }
-                        }
-                        PengStated::Initialized(PengValue::Type(PengType::Custom(custom))) => {
-                            match custom.fields.get(&name) {
-                                Some(value) => value.clone(),
-                                None => return Err(PengError::Code(PengErrorCode::TestError)),
-                            }
-                        }
+        PengInstruction::GetConstAttribute(name_ptr) => {
+            match env
+                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .cloned()
+            {
+                Ok(object_cell) => {
+                    let object_ptr = match object_cell.value() {
+                        PengStated::Initialized(PengCell::Reference(ptr)) => *ptr,
                         _ => return Err(PengError::Code(PengErrorCode::TestError)),
+                    };
+
+                    let value = match env.get_heap(object_ptr) {
+                        Some(coloured) => match &coloured.value {
+                            PengBinded::Mutable(PengStated::Initialized(PengValue::Object(
+                                object,
+                            ))) => match object.fields.get(&name_ptr) {
+                                Some(value) => value.clone(),
+                                None => {
+                                    return Err(PengError::Code(PengErrorCode::TestError));
+                                }
+                            },
+
+                            _ => {
+                                return Err(PengError::Code(PengErrorCode::TestError));
+                            }
+                        },
+
+                        None => {
+                            return Err(PengError::Code(PengErrorCode::TestError));
+                        }
+                    };
+
+                    match env.pop_thread_stack_n_times(thread_ptr, 1) {
+                        Ok(()) => match env.push_thread_binded_stated_cell(thread_ptr, value) {
+                            Ok(()) => {}
+                            Err(e) => return Err(e),
+                        },
+
+                        Err(e) => return Err(e),
                     }
                 }
-                None => return Err(PengError::Code(PengErrorCode::TestError)),
-            };
 
-            match push_stack(env, actual_thread_ptr, field) {
-                Ok(()) => Ok(None),
-                Err(e) => Err(e),
+                Err(e) => return Err(e),
             }
         }
 
         PengInstruction::SetConstMember(name_ptr) => {
-            let value = match pop_stack(env, actual_thread_ptr) {
-                Ok(value) => value,
-                Err(e) => return Err(e),
-            };
+            match env
+                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .cloned()
+            {
+                Ok(value_cell) => match env.get_thread_latest_binded_stated_cell(thread_ptr, 1) {
+                    Ok(module_cell) => {
+                        let module_ptr = match module_cell.value() {
+                            PengStated::Initialized(PengCell::Reference(ptr)) => *ptr,
+                            _ => return Err(PengError::Code(PengErrorCode::TestError)),
+                        };
 
-            let module = match pop_stack(env, actual_thread_ptr) {
-                Ok(value) => value,
-                Err(e) => return Err(e),
-            };
+                        let value = value_cell.clone();
 
-            let ptr = match reference_ptr_from_cell(&module) {
-                Ok(ptr) => ptr,
-                Err(e) => return Err(e),
-            };
+                        match env.get_heap_mut(module_ptr) {
+                            Some(coloured) => match &mut coloured.value {
+                                PengBinded::Mutable(PengStated::Initialized(
+                                    PengValue::Module(module),
+                                )) => {
+                                    module.members.insert(name_ptr, value);
+                                }
 
-            match env.get_heap_mut(ptr) {
-                Some(coloured) => {
-                    match &mut coloured.value {
-                        PengBinded::Mutable(PengStated::Initialized(PengValue::Module(module))) => {
-                            module.members.insert(name_ptr, value);
-                            Ok(None)
+                                _ => {
+                                    return Err(PengError::Code(PengErrorCode::TestError));
+                                }
+                            },
+
+                            None => {
+                                return Err(PengError::Code(PengErrorCode::TestError));
+                            }
                         }
-                        _ => Err(PengError::new_message(
-                            "expected module".to_string(),
-                        )),
+
+                        match env.pop_thread_stack_n_times(thread_ptr, 2) {
+                            Ok(()) => {}
+                            Err(e) => return Err(e),
+                        }
                     }
-                }
-                None => Err(PengError::new_message(
-                    "module not found".to_string(),
-                )),
+
+                    Err(e) => return Err(e),
+                },
+
+                Err(e) => return Err(e),
             }
         }
 
         PengInstruction::GetConstMember(name_ptr) => {
-            let module = match pop_stack(env, actual_thread_ptr) {
-                Ok(value) => value,
-                Err(e) => return Err(e),
-            };
+            match env
+                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .cloned()
+            {
+                Ok(module_cell) => {
+                    let module_ptr = match module_cell.value() {
+                        PengStated::Initialized(PengCell::Reference(ptr)) => *ptr,
+                        _ => return Err(PengError::Code(PengErrorCode::TestError)),
+                    };
 
-            let ptr = match reference_ptr_from_cell(&module) {
-                Ok(ptr) => ptr,
-                Err(e) => return Err(e),
-            };
-
-            let member = match env.get_heap(ptr) {
-                Some(coloured) => {
-                    match &coloured.value {
-                        PengBinded::Mutable(PengStated::Initialized(PengValue::Module(module)))
-                        | PengBinded::Immutable(PengStated::Initialized(PengValue::Module(module))) => {
-                            match module.members.get(&name_ptr) {
+                    let value = match env.get_heap(module_ptr) {
+                        Some(coloured) => match &coloured.value {
+                            PengBinded::Mutable(PengStated::Initialized(PengValue::Module(
+                                module,
+                            ))) => match module.members.get(&name_ptr) {
                                 Some(value) => value.clone(),
                                 None => {
-                                    return Err(PengError::new_message(
-                                        "module member not found".to_string(),
-                                    ));
+                                    return Err(PengError::Code(PengErrorCode::TestError));
+                                }
+                            },
+
+                            _ => {
+                                return Err(PengError::Code(PengErrorCode::TestError));
+                            }
+                        },
+
+                        None => {
+                            return Err(PengError::Code(PengErrorCode::TestError));
+                        }
+                    };
+
+                    match env.pop_thread_stack_n_times(thread_ptr, 1) {
+                        Ok(()) => match env.push_thread_binded_stated_cell(thread_ptr, value) {
+                            Ok(()) => {}
+                            Err(e) => return Err(e),
+                        },
+
+                        Err(e) => return Err(e),
+                    }
+                }
+
+                Err(e) => return Err(e),
+            }
+        }
+
+        PengInstruction::Jump(target) => match env.set_thread_program_counter(thread_ptr, target) {
+            Ok(()) => {}
+            Err(e) => return Err(e),
+        },
+
+        PengInstruction::JumpIfTrue(address) => {
+            match env
+                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .cloned()
+            {
+                Ok(condition_cell) => {
+                    let condition = match condition_cell.value() {
+                        PengStated::Initialized(PengCell::Bool(value)) => *value,
+                        _ => return Err(PengError::Code(PengErrorCode::TestError)),
+                    };
+
+                    match env.pop_thread_stack_n_times(thread_ptr, 1) {
+                        Ok(()) => {
+                            if condition {
+                                match env.set_thread_program_counter(thread_ptr, address) {
+                                    Ok(()) => {}
+                                    Err(e) => return Err(e),
                                 }
                             }
                         }
-                        _ => {
-                            return Err(PengError::new_message(
-                                "expected module".to_string(),
-                            ));
-                        }
+
+                        Err(e) => return Err(e),
                     }
                 }
-                None => {
-                    return Err(PengError::new_message(
-                        "module not found".to_string(),
-                    ));
-                }
-            };
 
-            match push_stack(env, actual_thread_ptr, member) {
-                Ok(()) => Ok(None),
-                Err(e) => Err(e),
+                Err(e) => return Err(e),
+            }
+        }
+
+        PengInstruction::JumpIfFalse(address) => {
+            match env
+                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .cloned()
+            {
+                Ok(condition_cell) => {
+                    let condition = match condition_cell.value() {
+                        PengStated::Initialized(PengCell::Bool(value)) => *value,
+                        _ => return Err(PengError::Code(PengErrorCode::TestError)),
+                    };
+
+                    match env.pop_thread_stack_n_times(thread_ptr, 1) {
+                        Ok(()) => {
+                            if !condition {
+                                match env.set_thread_program_counter(thread_ptr, address) {
+                                    Ok(()) => {}
+                                    Err(e) => return Err(e),
+                                }
+                            }
+                        }
+
+                        Err(e) => return Err(e),
+                    }
+                }
+
+                Err(e) => return Err(e),
             }
         }
 
         PengInstruction::Return => {
-            let value = match pop_stack(env, actual_thread_ptr) {
-                Ok(value) => value,
-                Err(e) => return Err(e),
-            };
-
-            Ok(Some(value))
-        }
-
-        PengInstruction::Jump(target) => {
-            match set_program_counter(env, actual_thread_ptr, target) {
-                Ok(()) => Ok(None),
-                Err(e) => Err(e),
-            }
-        }
-
-        PengInstruction::JumpIfTrue(target) => {
-            let condition = match pop_stack(env, actual_thread_ptr) {
-                Ok(value) => value,
-                Err(e) => return Err(e),
-            };
-
-            let should_jump = match bool_from_cell(&condition, env) {
-                Ok(value) => value,
-                Err(e) => return Err(e),
-            };
-
-            if should_jump {
-                match set_program_counter(env, actual_thread_ptr, target) {
-                    Ok(()) => Ok(None),
-                    Err(e) => Err(e),
+            match env
+                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .cloned()
+            {
+                Ok(value) => {
+                    return Ok(Some(value));
                 }
-            } else {
-                Ok(None)
+
+                Err(e) => return Err(e),
             }
         }
 
-        PengInstruction::JumpIfFalse(target) => {
-            let condition = match pop_stack(env, actual_thread_ptr) {
-                Ok(value) => value,
-                Err(e) => return Err(e),
-            };
-
-            let should_jump = match bool_from_cell(&condition, env) {
-                Ok(value) => !value,
-                Err(e) => return Err(e),
-            };
-
-            if should_jump {
-                match set_program_counter(env, actual_thread_ptr, target) {
-                    Ok(()) => Ok(None),
-                    Err(e) => Err(e),
+        PengInstruction::FunctionCall(args_count) => match env.get_thread_stack_len(thread_ptr) {
+            Ok(stack_len) => {
+                if stack_len < args_count + 1 {
+                    return Err(PengError::Code(PengErrorCode::TestError));
                 }
-            } else {
-                Ok(None)
+
+                let function_index = stack_len - args_count - 1;
+
+                match env.get_thread_latest_binded_stated_cell(thread_ptr, args_count) {
+                    Ok(function_cell) => {
+                        let function_ptr = match function_cell.value() {
+                            PengStated::Initialized(PengCell::Reference(ptr)) => *ptr,
+                            _ => return Err(PengError::Code(PengErrorCode::TestError)),
+                        };
+
+                        match env.pop_thread_stack_at(thread_ptr, args_count) {
+                            Ok(_) => {
+                                match env.push_thread_frame(
+                                    thread_ptr,
+                                    PengFrame::new(function_ptr, function_index, args_count),
+                                ) {
+                                    Ok(()) => return Ok(None),
+                                    Err(e) => return Err(e),
+                                }
+                            }
+
+                            Err(e) => return Err(e),
+                        }
+                    }
+
+                    Err(e) => return Err(e),
+                }
+            }
+
+            Err(e) => return Err(e),
+        },
+
+        PengInstruction::PushString(name_ptr) => {
+            let heap_ptr = env.create_binded_stated_heap(PengBinded::Immutable(
+                PengStated::Initialized(PengValue::String(match env.get_pooled_name(name_ptr) {
+                    Some(name) => name.clone(),
+                    None => {
+                        return Err(PengError::Code(PengErrorCode::TestError));
+                    }
+                })),
+            ));
+
+            match env.push_thread_binded_stated_cell(
+                thread_ptr,
+                PengBinded::Immutable(PengStated::Initialized(PengCell::Reference(heap_ptr))),
+            ) {
+                Ok(()) => {}
+                Err(e) => return Err(e),
             }
         }
 
-        _ => Err(PengError::Code(PengErrorCode::TestError)),
+        PengInstruction::CreateUnion(count) => {
+            match env.get_thread_latest_n_binded_stated_cells_cloned(thread_ptr, count) {
+                Ok(cells) => {
+                    let mut values = Vec::new();
+
+                    for cell in cells {
+                        match cell.value() {
+                            PengStated::Initialized(cell) => {
+                                match env.get_value_from_cell(cell.clone()) {
+                                    Ok(value) => match value {
+                                        PengValue::Type(value) => {
+                                            values.push(value);
+                                        }
+
+                                        _ => {
+                                            return Err(PengError::Code(PengErrorCode::TestError));
+                                        }
+                                    },
+
+                                    Err(e) => return Err(e),
+                                }
+                            }
+
+                            PengStated::Uninitialized => {
+                                return Err(PengError::Code(PengErrorCode::TestError));
+                            }
+                        }
+                    }
+
+                    match env.pop_thread_stack_n_times(thread_ptr, count) {
+                        Ok(()) => {
+                            let heap_ptr = env.create_binded_stated_heap(PengBinded::Mutable(
+                                PengStated::Initialized(PengValue::Union(PengUnion {
+                                    unions: values,
+                                })),
+                            ));
+
+                            match env.push_thread_binded_stated_cell(
+                                thread_ptr,
+                                PengBinded::Mutable(PengStated::Initialized(PengCell::Reference(
+                                    heap_ptr,
+                                ))),
+                            ) {
+                                Ok(()) => {}
+                                Err(e) => return Err(e),
+                            }
+                        }
+
+                        Err(e) => return Err(e),
+                    }
+                }
+
+                Err(e) => return Err(e),
+            }
+        }
+
+        PengInstruction::Convert => {
+            match env
+                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .cloned()
+            {
+                Ok(target_cell) => {
+                    match env
+                        .get_thread_latest_binded_stated_cell(thread_ptr, 1)
+                        .cloned()
+                    {
+                        Ok(value_cell) => {
+                            let target_value = match target_cell.value() {
+                                PengStated::Initialized(cell) => {
+                                    match env.get_value_from_cell(cell.clone()) {
+                                        Ok(value) => value,
+                                        Err(e) => return Err(e),
+                                    }
+                                }
+
+                                PengStated::Uninitialized => {
+                                    return Err(PengError::Code(PengErrorCode::TestError));
+                                }
+                            };
+
+                            let value = match value_cell.value() {
+                                PengStated::Initialized(cell) => {
+                                    match env.get_value_from_cell(cell.clone()) {
+                                        Ok(value) => value,
+                                        Err(e) => return Err(e),
+                                    }
+                                }
+
+                                PengStated::Uninitialized => {
+                                    return Err(PengError::Code(PengErrorCode::TestError));
+                                }
+                            };
+
+                            let target_type = match target_value {
+                                PengValue::Type(value) => value,
+                                _ => return Err(PengError::Code(PengErrorCode::TestError)),
+                            };
+
+                            let converted = match value.convert(target_type) {
+                                Ok(value) => value,
+                                Err(e) => return Err(e),
+                            };
+
+                            let cell = env.get_cell_from_value(converted);
+
+                            match env.pop_thread_stack_n_times(thread_ptr, 2) {
+                                Ok(()) => {
+                                    match env.push_thread_binded_stated_cell(
+                                        thread_ptr,
+                                        PengBinded::Mutable(PengStated::Initialized(cell)),
+                                    ) {
+                                        Ok(()) => {}
+                                        Err(e) => return Err(e),
+                                    }
+                                }
+
+                                Err(e) => return Err(e),
+                            }
+                        }
+
+                        Err(e) => return Err(e),
+                    }
+                }
+
+                Err(e) => return Err(e),
+            }
+        }
+
+        PengInstruction::Add => {
+            match env.get_thread_2_latests_binded_stated_cell_cloned(thread_ptr) {
+                Ok((a, b)) => {
+                    let res: PengCell = match (a.value(), b.value()) {
+                        (PengStated::Initialized(aa), PengStated::Initialized(bb)) => {
+                            match (aa, bb) {
+                                (PengCell::Int(aaa), PengCell::Int(bbb)) => {
+                                    match aaa.checked_add(*bbb) {
+                                        Some(v) => PengCell::Int(v),
+                                        None => {
+                                            return Err(PengError::Code(PengErrorCode::TestError));
+                                        }
+                                    }
+                                }
+                                (PengCell::Uint(aaa), PengCell::Uint(bbb)) => {
+                                    match aaa.checked_add(*bbb) {
+                                        Some(v) => PengCell::Uint(v),
+                                        None => {
+                                            return Err(PengError::Code(PengErrorCode::TestError));
+                                        }
+                                    }
+                                }
+                                (PengCell::Byte(aaa), PengCell::Byte(bbb)) => {
+                                    match aaa.checked_add(*bbb) {
+                                        Some(v) => PengCell::Byte(v),
+                                        None => {
+                                            return Err(PengError::Code(PengErrorCode::TestError));
+                                        }
+                                    }
+                                }
+                                (PengCell::Float32(aaa), PengCell::Float32(bbb)) => {
+                                    PengCell::Float32(aaa + bbb)
+                                }
+                                (PengCell::Float64(aaa), PengCell::Float64(bbb)) => {
+                                    PengCell::Float64(aaa + bbb)
+                                }
+                                _ => return Err(PengError::Code(PengErrorCode::TestError)),
+                            }
+                        }
+                        _ => return Err(PengError::Code(PengErrorCode::TestError)),
+                    };
+                    match env.pop_thread_stack_n_times(thread_ptr, 2) {
+                        Ok(()) => {
+                            match env.push_thread_binded_stated_cell(
+                                thread_ptr,
+                                PengBinded::Mutable(PengStated::Initialized(res)),
+                            ) {
+                                Ok(()) => {}
+                                Err(e) => return Err(e),
+                            }
+                        }
+                        Err(e) => return Err(e),
+                    }
+                }
+                Err(e) => return Err(e),
+            }
+        }
+
+        PengInstruction::Subtract => {
+            match env.get_thread_2_latests_binded_stated_cell_cloned(thread_ptr) {
+                Ok((a, b)) => {
+                    let res: PengCell = match (a.value(), b.value()) {
+                        (PengStated::Initialized(aa), PengStated::Initialized(bb)) => {
+                            match (aa, bb) {
+                                (PengCell::Int(aaa), PengCell::Int(bbb)) => {
+                                    match aaa.checked_sub(*bbb) {
+                                        Some(v) => PengCell::Int(v),
+                                        None => {
+                                            return Err(PengError::Code(PengErrorCode::TestError));
+                                        }
+                                    }
+                                }
+                                (PengCell::Uint(aaa), PengCell::Uint(bbb)) => {
+                                    match aaa.checked_sub(*bbb) {
+                                        Some(v) => PengCell::Uint(v),
+                                        None => {
+                                            return Err(PengError::Code(PengErrorCode::TestError));
+                                        }
+                                    }
+                                }
+                                (PengCell::Byte(aaa), PengCell::Byte(bbb)) => {
+                                    match aaa.checked_sub(*bbb) {
+                                        Some(v) => PengCell::Byte(v),
+                                        None => {
+                                            return Err(PengError::Code(PengErrorCode::TestError));
+                                        }
+                                    }
+                                }
+                                (PengCell::Float32(aaa), PengCell::Float32(bbb)) => {
+                                    PengCell::Float32(aaa - bbb)
+                                }
+                                (PengCell::Float64(aaa), PengCell::Float64(bbb)) => {
+                                    PengCell::Float64(aaa - bbb)
+                                }
+                                _ => return Err(PengError::Code(PengErrorCode::TestError)),
+                            }
+                        }
+                        _ => return Err(PengError::Code(PengErrorCode::TestError)),
+                    };
+                    match env.pop_thread_stack_n_times(thread_ptr, 2) {
+                        Ok(()) => {
+                            match env.push_thread_binded_stated_cell(
+                                thread_ptr,
+                                PengBinded::Mutable(PengStated::Initialized(res)),
+                            ) {
+                                Ok(()) => {}
+                                Err(e) => return Err(e),
+                            }
+                        }
+                        Err(e) => return Err(e),
+                    }
+                }
+                Err(e) => return Err(e),
+            }
+        }
+
+        PengInstruction::Multiply => {
+            match env.get_thread_2_latests_binded_stated_cell_cloned(thread_ptr) {
+                Ok((a, b)) => {
+                    let res: PengCell = match (a.value(), b.value()) {
+                        (PengStated::Initialized(aa), PengStated::Initialized(bb)) => {
+                            match (aa, bb) {
+                                (PengCell::Int(aaa), PengCell::Int(bbb)) => {
+                                    match aaa.checked_mul(*bbb) {
+                                        Some(v) => PengCell::Int(v),
+                                        None => {
+                                            return Err(PengError::Code(PengErrorCode::TestError));
+                                        }
+                                    }
+                                }
+                                (PengCell::Uint(aaa), PengCell::Uint(bbb)) => {
+                                    match aaa.checked_mul(*bbb) {
+                                        Some(v) => PengCell::Uint(v),
+                                        None => {
+                                            return Err(PengError::Code(PengErrorCode::TestError));
+                                        }
+                                    }
+                                }
+                                (PengCell::Byte(aaa), PengCell::Byte(bbb)) => {
+                                    match aaa.checked_mul(*bbb) {
+                                        Some(v) => PengCell::Byte(v),
+                                        None => {
+                                            return Err(PengError::Code(PengErrorCode::TestError));
+                                        }
+                                    }
+                                }
+                                (PengCell::Float32(aaa), PengCell::Float32(bbb)) => {
+                                    PengCell::Float32(aaa * bbb)
+                                }
+                                (PengCell::Float64(aaa), PengCell::Float64(bbb)) => {
+                                    PengCell::Float64(aaa * bbb)
+                                }
+                                _ => return Err(PengError::Code(PengErrorCode::TestError)),
+                            }
+                        }
+                        _ => return Err(PengError::Code(PengErrorCode::TestError)),
+                    };
+                    match env.pop_thread_stack_n_times(thread_ptr, 2) {
+                        Ok(()) => {
+                            match env.push_thread_binded_stated_cell(
+                                thread_ptr,
+                                PengBinded::Mutable(PengStated::Initialized(res)),
+                            ) {
+                                Ok(()) => {}
+                                Err(e) => return Err(e),
+                            }
+                        }
+                        Err(e) => return Err(e),
+                    }
+                }
+                Err(e) => return Err(e),
+            }
+        }
+
+        PengInstruction::Divide => {
+            match env.get_thread_2_latests_binded_stated_cell_cloned(thread_ptr) {
+                Ok((a, b)) => {
+                    let res: PengCell = match (a.value(), b.value()) {
+                        (PengStated::Initialized(aa), PengStated::Initialized(bb)) => {
+                            match (aa, bb) {
+                                (PengCell::Int(aaa), PengCell::Int(bbb)) => {
+                                    match aaa.checked_div(*bbb) {
+                                        Some(v) => PengCell::Int(v),
+                                        None => {
+                                            return Err(PengError::Code(PengErrorCode::TestError));
+                                        }
+                                    }
+                                }
+                                (PengCell::Uint(aaa), PengCell::Uint(bbb)) => {
+                                    match aaa.checked_div(*bbb) {
+                                        Some(v) => PengCell::Uint(v),
+                                        None => {
+                                            return Err(PengError::Code(PengErrorCode::TestError));
+                                        }
+                                    }
+                                }
+                                (PengCell::Byte(aaa), PengCell::Byte(bbb)) => {
+                                    if *bbb == 0 {
+                                        return Err(PengError::Code(PengErrorCode::TestError));
+                                    }
+
+                                    PengCell::Byte(*aaa / *bbb)
+                                }
+                                (PengCell::Float32(aaa), PengCell::Float32(bbb)) => {
+                                    PengCell::Float32(aaa / bbb)
+                                }
+                                (PengCell::Float64(aaa), PengCell::Float64(bbb)) => {
+                                    PengCell::Float64(aaa / bbb)
+                                }
+                                _ => return Err(PengError::Code(PengErrorCode::TestError)),
+                            }
+                        }
+                        _ => return Err(PengError::Code(PengErrorCode::TestError)),
+                    };
+                    match env.pop_thread_stack_n_times(thread_ptr, 2) {
+                        Ok(()) => {
+                            match env.push_thread_binded_stated_cell(
+                                thread_ptr,
+                                PengBinded::Mutable(PengStated::Initialized(res)),
+                            ) {
+                                Ok(()) => {}
+                                Err(e) => return Err(e),
+                            }
+                        }
+                        Err(e) => return Err(e),
+                    }
+                }
+                Err(e) => return Err(e),
+            }
+        }
+
+        PengInstruction::Power => {
+            match env.get_thread_2_latests_binded_stated_cell_cloned(thread_ptr) {
+                Ok((a, b)) => {
+                    let res: PengCell = match (a.value(), b.value()) {
+                        (PengStated::Initialized(aa), PengStated::Initialized(bb)) => {
+                            match (aa, bb) {
+                                (PengCell::Int(aaa), PengCell::Int(bbb)) => {
+                                    if *bbb < 0 {
+                                        PengCell::Float64((*aaa as f64).powf(*bbb as f64))
+                                    } else {
+                                        PengCell::Int(aaa.pow(*bbb as u32))
+                                    }
+                                }
+
+                                (PengCell::Uint(aaa), PengCell::Uint(bbb)) => {
+                                    PengCell::Uint(aaa.pow(*bbb as u32))
+                                }
+
+                                (PengCell::Byte(aaa), PengCell::Byte(bbb)) => {
+                                    match aaa.checked_pow(*bbb as u32) {
+                                        Some(v) => PengCell::Byte(v),
+                                        None => {
+                                            return Err(PengError::Code(PengErrorCode::TestError));
+                                        }
+                                    }
+                                }
+
+                                (PengCell::Float32(aaa), PengCell::Float32(bbb)) => {
+                                    PengCell::Float32(aaa.powf(*bbb))
+                                }
+
+                                (PengCell::Float64(aaa), PengCell::Float64(bbb)) => {
+                                    PengCell::Float64(aaa.powf(*bbb))
+                                }
+
+                                _ => return Err(PengError::Code(PengErrorCode::TestError)),
+                            }
+                        }
+                        _ => return Err(PengError::Code(PengErrorCode::TestError)),
+                    };
+                    match env.pop_thread_stack_n_times(thread_ptr, 2) {
+                        Ok(()) => {
+                            match env.push_thread_binded_stated_cell(
+                                thread_ptr,
+                                PengBinded::Mutable(PengStated::Initialized(res)),
+                            ) {
+                                Ok(()) => {}
+                                Err(e) => return Err(e),
+                            }
+                        }
+                        Err(e) => return Err(e),
+                    }
+                }
+                Err(e) => return Err(e),
+            }
+        }
+
+        PengInstruction::Remainder => {
+            match env.get_thread_2_latests_binded_stated_cell_cloned(thread_ptr) {
+                Ok((a, b)) => {
+                    let res: PengCell = match (a.value(), b.value()) {
+                        (PengStated::Initialized(aa), PengStated::Initialized(bb)) => {
+                            match (aa, bb) {
+                                (PengCell::Int(aaa), PengCell::Int(bbb)) => {
+                                    match aaa.checked_rem(*bbb) {
+                                        Some(v) => PengCell::Int(v),
+                                        None => {
+                                            return Err(PengError::Code(PengErrorCode::TestError));
+                                        }
+                                    }
+                                }
+                                (PengCell::Uint(aaa), PengCell::Uint(bbb)) => {
+                                    match aaa.checked_rem(*bbb) {
+                                        Some(v) => PengCell::Uint(v),
+                                        None => {
+                                            return Err(PengError::Code(PengErrorCode::TestError));
+                                        }
+                                    }
+                                }
+                                (PengCell::Byte(aaa), PengCell::Byte(bbb)) => {
+                                    if *bbb == 0 {
+                                        return Err(PengError::Code(PengErrorCode::TestError));
+                                    }
+
+                                    PengCell::Byte(*aaa % *bbb)
+                                }
+                                (PengCell::Float32(aaa), PengCell::Float32(bbb)) => {
+                                    PengCell::Float32(aaa % bbb)
+                                }
+                                (PengCell::Float64(aaa), PengCell::Float64(bbb)) => {
+                                    PengCell::Float64(aaa % bbb)
+                                }
+                                _ => return Err(PengError::Code(PengErrorCode::TestError)),
+                            }
+                        }
+                        _ => return Err(PengError::Code(PengErrorCode::TestError)),
+                    };
+                    match env.pop_thread_stack_n_times(thread_ptr, 2) {
+                        Ok(()) => {
+                            match env.push_thread_binded_stated_cell(
+                                thread_ptr,
+                                PengBinded::Mutable(PengStated::Initialized(res)),
+                            ) {
+                                Ok(()) => {}
+                                Err(e) => return Err(e),
+                            }
+                        }
+                        Err(e) => return Err(e),
+                    }
+                }
+                Err(e) => return Err(e),
+            }
+        }
+        PengInstruction::Negate => {
+            match env
+                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .cloned()
+            {
+                Ok(cell) => {
+                    let value = match cell.value() {
+                        PengStated::Initialized(cell) => {
+                            match env.get_value_from_cell(cell.clone()) {
+                                Ok(value) => value,
+                                Err(e) => return Err(e),
+                            }
+                        }
+
+                        PengStated::Uninitialized => {
+                            return Err(PengError::Code(PengErrorCode::TestError));
+                        }
+                    };
+
+                    let value = match value {
+                        PengValue::Int(v) => PengValue::Int(-v),
+                        PengValue::Float32(v) => PengValue::Float32(-v),
+                        PengValue::Float64(v) => PengValue::Float64(-v),
+                        _ => return Err(PengError::Code(PengErrorCode::TestError)),
+                    };
+
+                    let cell = env.get_cell_from_value(value);
+
+                    match env.pop_thread_stack_n_times(thread_ptr, 1) {
+                        Ok(()) => {
+                            match env.push_thread_binded_stated_cell(
+                                thread_ptr,
+                                PengBinded::Mutable(PengStated::Initialized(cell)),
+                            ) {
+                                Ok(()) => {}
+                                Err(e) => return Err(e),
+                            }
+                        }
+
+                        Err(e) => return Err(e),
+                    }
+                }
+
+                Err(e) => return Err(e),
+            }
+        }
+
+        PengInstruction::Concat => {
+            match env
+                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .cloned()
+            {
+                Ok(right_cell) => {
+                    match env
+                        .get_thread_latest_binded_stated_cell(thread_ptr, 1)
+                        .cloned()
+                    {
+                        Ok(left_cell) => {
+                            let right = match right_cell.value() {
+                                PengStated::Initialized(cell) => {
+                                    match env.get_value_from_cell(cell.clone()) {
+                                        Ok(value) => value,
+                                        Err(e) => return Err(e),
+                                    }
+                                }
+
+                                PengStated::Uninitialized => {
+                                    return Err(PengError::Code(PengErrorCode::TestError));
+                                }
+                            };
+
+                            let left = match left_cell.value() {
+                                PengStated::Initialized(cell) => {
+                                    match env.get_value_from_cell(cell.clone()) {
+                                        Ok(value) => value,
+                                        Err(e) => return Err(e),
+                                    }
+                                }
+
+                                PengStated::Uninitialized => {
+                                    return Err(PengError::Code(PengErrorCode::TestError));
+                                }
+                            };
+
+                            let value = match (left, right) {
+                                (PengValue::String(a), PengValue::String(b)) => {
+                                    PengValue::String(format!("{}{}", a, b))
+                                }
+
+                                _ => return Err(PengError::Code(PengErrorCode::TestError)),
+                            };
+
+                            let cell = env.get_cell_from_value(value);
+
+                            match env.pop_thread_stack_n_times(thread_ptr, 2) {
+                                Ok(()) => {
+                                    match env.push_thread_binded_stated_cell(
+                                        thread_ptr,
+                                        PengBinded::Mutable(PengStated::Initialized(cell)),
+                                    ) {
+                                        Ok(()) => {}
+                                        Err(e) => return Err(e),
+                                    }
+                                }
+
+                                Err(e) => return Err(e),
+                            }
+                        }
+
+                        Err(e) => return Err(e),
+                    }
+                }
+
+                Err(e) => return Err(e),
+            }
+        }
+
+        PengInstruction::And => {
+            match env
+                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .cloned()
+            {
+                Ok(right_cell) => {
+                    match env
+                        .get_thread_latest_binded_stated_cell(thread_ptr, 1)
+                        .cloned()
+                    {
+                        Ok(left_cell) => {
+                            let right = match right_cell.value() {
+                                PengStated::Initialized(PengCell::Bool(value)) => *value,
+                                _ => return Err(PengError::Code(PengErrorCode::TestError)),
+                            };
+
+                            let left = match left_cell.value() {
+                                PengStated::Initialized(PengCell::Bool(value)) => *value,
+                                _ => return Err(PengError::Code(PengErrorCode::TestError)),
+                            };
+
+                            match env.pop_thread_stack_n_times(thread_ptr, 2) {
+                                Ok(()) => {
+                                    match env.push_thread_binded_stated_cell(
+                                        thread_ptr,
+                                        PengBinded::Mutable(PengStated::Initialized(
+                                            PengCell::Bool(left && right),
+                                        )),
+                                    ) {
+                                        Ok(()) => {}
+                                        Err(e) => return Err(e),
+                                    }
+                                }
+
+                                Err(e) => return Err(e),
+                            }
+                        }
+
+                        Err(e) => return Err(e),
+                    }
+                }
+
+                Err(e) => return Err(e),
+            }
+        }
+
+        PengInstruction::Or => {
+            match env
+                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .cloned()
+            {
+                Ok(right_cell) => {
+                    match env
+                        .get_thread_latest_binded_stated_cell(thread_ptr, 1)
+                        .cloned()
+                    {
+                        Ok(left_cell) => {
+                            let right = match right_cell.value() {
+                                PengStated::Initialized(PengCell::Bool(value)) => *value,
+                                _ => return Err(PengError::Code(PengErrorCode::TestError)),
+                            };
+
+                            let left = match left_cell.value() {
+                                PengStated::Initialized(PengCell::Bool(value)) => *value,
+                                _ => return Err(PengError::Code(PengErrorCode::TestError)),
+                            };
+
+                            match env.pop_thread_stack_n_times(thread_ptr, 2) {
+                                Ok(()) => {
+                                    match env.push_thread_binded_stated_cell(
+                                        thread_ptr,
+                                        PengBinded::Mutable(PengStated::Initialized(
+                                            PengCell::Bool(left || right),
+                                        )),
+                                    ) {
+                                        Ok(()) => {}
+                                        Err(e) => return Err(e),
+                                    }
+                                }
+
+                                Err(e) => return Err(e),
+                            }
+                        }
+
+                        Err(e) => return Err(e),
+                    }
+                }
+
+                Err(e) => return Err(e),
+            }
+        }
+
+        PengInstruction::Not => {
+            match env
+                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .cloned()
+            {
+                Ok(cell) => {
+                    let value = match cell.value() {
+                        PengStated::Initialized(PengCell::Bool(value)) => *value,
+                        _ => return Err(PengError::Code(PengErrorCode::TestError)),
+                    };
+
+                    match env.pop_thread_stack_n_times(thread_ptr, 1) {
+                        Ok(()) => {
+                            match env.push_thread_binded_stated_cell(
+                                thread_ptr,
+                                PengBinded::Mutable(PengStated::Initialized(PengCell::Bool(
+                                    !value,
+                                ))),
+                            ) {
+                                Ok(()) => {}
+                                Err(e) => return Err(e),
+                            }
+                        }
+
+                        Err(e) => return Err(e),
+                    }
+                }
+
+                Err(e) => return Err(e),
+            }
+        }
+
+        PengInstruction::Equals => {
+            match env
+                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .cloned()
+            {
+                Ok(right_cell) => {
+                    match env
+                        .get_thread_latest_binded_stated_cell(thread_ptr, 1)
+                        .cloned()
+                    {
+                        Ok(left_cell) => {
+                            let right = match right_cell.value() {
+                                PengStated::Initialized(cell) => {
+                                    match env.get_value_from_cell(cell.clone()) {
+                                        Ok(value) => value,
+                                        Err(e) => return Err(e),
+                                    }
+                                }
+
+                                PengStated::Uninitialized => {
+                                    return Err(PengError::Code(PengErrorCode::TestError));
+                                }
+                            };
+
+                            let left = match left_cell.value() {
+                                PengStated::Initialized(cell) => {
+                                    match env.get_value_from_cell(cell.clone()) {
+                                        Ok(value) => value,
+                                        Err(e) => return Err(e),
+                                    }
+                                }
+
+                                PengStated::Uninitialized => {
+                                    return Err(PengError::Code(PengErrorCode::TestError));
+                                }
+                            };
+
+                            match env.pop_thread_stack_n_times(thread_ptr, 2) {
+                                Ok(()) => {
+                                    match env.push_thread_binded_stated_cell(
+                                        thread_ptr,
+                                        PengBinded::Mutable(PengStated::Initialized(
+                                            PengCell::Bool(left.equals(&right)),
+                                        )),
+                                    ) {
+                                        Ok(()) => {}
+                                        Err(e) => return Err(e),
+                                    }
+                                }
+
+                                Err(e) => return Err(e),
+                            }
+                        }
+
+                        Err(e) => return Err(e),
+                    }
+                }
+
+                Err(e) => return Err(e),
+            }
+        }
+
+        PengInstruction::NotEquals => {
+            match env
+                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .cloned()
+            {
+                Ok(right_cell) => {
+                    match env
+                        .get_thread_latest_binded_stated_cell(thread_ptr, 1)
+                        .cloned()
+                    {
+                        Ok(left_cell) => {
+                            let right = match right_cell.value() {
+                                PengStated::Initialized(cell) => {
+                                    match env.get_value_from_cell(cell.clone()) {
+                                        Ok(value) => value,
+                                        Err(e) => return Err(e),
+                                    }
+                                }
+
+                                PengStated::Uninitialized => {
+                                    return Err(PengError::Code(PengErrorCode::TestError));
+                                }
+                            };
+
+                            let left = match left_cell.value() {
+                                PengStated::Initialized(cell) => {
+                                    match env.get_value_from_cell(cell.clone()) {
+                                        Ok(value) => value,
+                                        Err(e) => return Err(e),
+                                    }
+                                }
+
+                                PengStated::Uninitialized => {
+                                    return Err(PengError::Code(PengErrorCode::TestError));
+                                }
+                            };
+
+                            match env.pop_thread_stack_n_times(thread_ptr, 2) {
+                                Ok(()) => {
+                                    match env.push_thread_binded_stated_cell(
+                                        thread_ptr,
+                                        PengBinded::Mutable(PengStated::Initialized(
+                                            PengCell::Bool(!left.equals(&right)),
+                                        )),
+                                    ) {
+                                        Ok(()) => {}
+                                        Err(e) => return Err(e),
+                                    }
+                                }
+
+                                Err(e) => return Err(e),
+                            }
+                        }
+
+                        Err(e) => return Err(e),
+                    }
+                }
+
+                Err(e) => return Err(e),
+            }
+        }
+
+        PengInstruction::TryFunctionCall(args_count) => {
+            match env.execute_try_function_call(thread_ptr, args_count) {
+                Ok(()) => return Ok(None),
+                Err(e) => return Err(e),
+            }
+        }
+
+        PengInstruction::GreaterThan => {
+            match env
+                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .cloned()
+            {
+                Ok(right_cell) => {
+                    match env
+                        .get_thread_latest_binded_stated_cell(thread_ptr, 1)
+                        .cloned()
+                    {
+                        Ok(left_cell) => {
+                            let right = match right_cell.value() {
+                                PengStated::Initialized(cell) => {
+                                    match env.get_value_from_cell(cell.clone()) {
+                                        Ok(value) => value,
+                                        Err(e) => return Err(e),
+                                    }
+                                }
+
+                                PengStated::Uninitialized => {
+                                    return Err(PengError::Code(PengErrorCode::TestError));
+                                }
+                            };
+
+                            let left = match left_cell.value() {
+                                PengStated::Initialized(cell) => {
+                                    match env.get_value_from_cell(cell.clone()) {
+                                        Ok(value) => value,
+                                        Err(e) => return Err(e),
+                                    }
+                                }
+
+                                PengStated::Uninitialized => {
+                                    return Err(PengError::Code(PengErrorCode::TestError));
+                                }
+                            };
+
+                            let result = match left.greater_than(&right) {
+                                Ok(result) => result,
+                                Err(e) => return Err(e),
+                            };
+
+                            match env.pop_thread_stack_n_times(thread_ptr, 2) {
+                                Ok(()) => {
+                                    match env.push_thread_binded_stated_cell(
+                                        thread_ptr,
+                                        PengBinded::Mutable(PengStated::Initialized(
+                                            PengCell::Bool(result),
+                                        )),
+                                    ) {
+                                        Ok(()) => {}
+                                        Err(e) => return Err(e),
+                                    }
+                                }
+
+                                Err(e) => return Err(e),
+                            }
+                        }
+
+                        Err(e) => return Err(e),
+                    }
+                }
+
+                Err(e) => return Err(e),
+            }
+        }
+
+        PengInstruction::GreaterEqualsThan => {
+            match env
+                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .cloned()
+            {
+                Ok(right_cell) => {
+                    match env
+                        .get_thread_latest_binded_stated_cell(thread_ptr, 1)
+                        .cloned()
+                    {
+                        Ok(left_cell) => {
+                            let right = match right_cell.value() {
+                                PengStated::Initialized(cell) => {
+                                    match env.get_value_from_cell(cell.clone()) {
+                                        Ok(value) => value,
+                                        Err(e) => return Err(e),
+                                    }
+                                }
+
+                                PengStated::Uninitialized => {
+                                    return Err(PengError::Code(PengErrorCode::TestError));
+                                }
+                            };
+
+                            let left = match left_cell.value() {
+                                PengStated::Initialized(cell) => {
+                                    match env.get_value_from_cell(cell.clone()) {
+                                        Ok(value) => value,
+                                        Err(e) => return Err(e),
+                                    }
+                                }
+
+                                PengStated::Uninitialized => {
+                                    return Err(PengError::Code(PengErrorCode::TestError));
+                                }
+                            };
+
+                            let result = match left.greater_equals_than(&right) {
+                                Ok(result) => result,
+                                Err(e) => return Err(e),
+                            };
+
+                            match env.pop_thread_stack_n_times(thread_ptr, 2) {
+                                Ok(()) => {
+                                    match env.push_thread_binded_stated_cell(
+                                        thread_ptr,
+                                        PengBinded::Mutable(PengStated::Initialized(
+                                            PengCell::Bool(result),
+                                        )),
+                                    ) {
+                                        Ok(()) => {}
+                                        Err(e) => return Err(e),
+                                    }
+                                }
+
+                                Err(e) => return Err(e),
+                            }
+                        }
+
+                        Err(e) => return Err(e),
+                    }
+                }
+
+                Err(e) => return Err(e),
+            }
+        }
+
+        PengInstruction::LessThan => {
+            match env
+                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .cloned()
+            {
+                Ok(right_cell) => {
+                    match env
+                        .get_thread_latest_binded_stated_cell(thread_ptr, 1)
+                        .cloned()
+                    {
+                        Ok(left_cell) => {
+                            let right = match right_cell.value() {
+                                PengStated::Initialized(cell) => {
+                                    match env.get_value_from_cell(cell.clone()) {
+                                        Ok(value) => value,
+                                        Err(e) => return Err(e),
+                                    }
+                                }
+
+                                PengStated::Uninitialized => {
+                                    return Err(PengError::Code(PengErrorCode::TestError));
+                                }
+                            };
+
+                            let left = match left_cell.value() {
+                                PengStated::Initialized(cell) => {
+                                    match env.get_value_from_cell(cell.clone()) {
+                                        Ok(value) => value,
+                                        Err(e) => return Err(e),
+                                    }
+                                }
+
+                                PengStated::Uninitialized => {
+                                    return Err(PengError::Code(PengErrorCode::TestError));
+                                }
+                            };
+
+                            let result = match left.less_than(&right) {
+                                Ok(result) => result,
+                                Err(e) => return Err(e),
+                            };
+
+                            match env.pop_thread_stack_n_times(thread_ptr, 2) {
+                                Ok(()) => {
+                                    match env.push_thread_binded_stated_cell(
+                                        thread_ptr,
+                                        PengBinded::Mutable(PengStated::Initialized(
+                                            PengCell::Bool(result),
+                                        )),
+                                    ) {
+                                        Ok(()) => {}
+                                        Err(e) => return Err(e),
+                                    }
+                                }
+
+                                Err(e) => return Err(e),
+                            }
+                        }
+
+                        Err(e) => return Err(e),
+                    }
+                }
+
+                Err(e) => return Err(e),
+            }
+        }
+
+        PengInstruction::LessEqualsThan => {
+            match env
+                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .cloned()
+            {
+                Ok(right_cell) => {
+                    match env
+                        .get_thread_latest_binded_stated_cell(thread_ptr, 1)
+                        .cloned()
+                    {
+                        Ok(left_cell) => {
+                            let right = match right_cell.value() {
+                                PengStated::Initialized(cell) => {
+                                    match env.get_value_from_cell(cell.clone()) {
+                                        Ok(value) => value,
+                                        Err(e) => return Err(e),
+                                    }
+                                }
+
+                                PengStated::Uninitialized => {
+                                    return Err(PengError::Code(PengErrorCode::TestError));
+                                }
+                            };
+
+                            let left = match left_cell.value() {
+                                PengStated::Initialized(cell) => {
+                                    match env.get_value_from_cell(cell.clone()) {
+                                        Ok(value) => value,
+                                        Err(e) => return Err(e),
+                                    }
+                                }
+
+                                PengStated::Uninitialized => {
+                                    return Err(PengError::Code(PengErrorCode::TestError));
+                                }
+                            };
+
+                            let result = match left.less_equals_than(&right) {
+                                Ok(result) => result,
+                                Err(e) => return Err(e),
+                            };
+
+                            match env.pop_thread_stack_n_times(thread_ptr, 2) {
+                                Ok(()) => {
+                                    match env.push_thread_binded_stated_cell(
+                                        thread_ptr,
+                                        PengBinded::Mutable(PengStated::Initialized(
+                                            PengCell::Bool(result),
+                                        )),
+                                    ) {
+                                        Ok(()) => {}
+                                        Err(e) => return Err(e),
+                                    }
+                                }
+
+                                Err(e) => return Err(e),
+                            }
+                        }
+
+                        Err(e) => return Err(e),
+                    }
+                }
+
+                Err(e) => return Err(e),
+            }
+        }
+
+        PengInstruction::OperationCall => {
+            match env
+                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .cloned()
+            {
+                Ok(right_cell) => {
+                    match env
+                        .get_thread_latest_binded_stated_cell(thread_ptr, 1)
+                        .cloned()
+                    {
+                        Ok(left_cell) => {
+                            match env
+                                .get_thread_latest_binded_stated_cell(thread_ptr, 2)
+                                .cloned()
+                            {
+                                Ok(operation_cell) => {
+                                    let operation_ptr = match operation_cell.value() {
+                                        PengStated::Initialized(PengCell::Reference(ptr)) => *ptr,
+                                        _ => return Err(PengError::Code(PengErrorCode::TestError)),
+                                    };
+
+                                    match env.pop_thread_stack_n_times(thread_ptr, 3) {
+                                        Ok(()) => match env.get_thread_stack_len(thread_ptr) {
+                                            Ok(base) => {
+                                                match env.push_thread_binded_stated_cell(
+                                                    thread_ptr, left_cell,
+                                                ) {
+                                                    Ok(()) => {
+                                                        match env.push_thread_binded_stated_cell(
+                                                            thread_ptr, right_cell,
+                                                        ) {
+                                                            Ok(()) => {
+                                                                match env.push_thread_frame(
+                                                                    thread_ptr,
+                                                                    PengFrame::new(
+                                                                        operation_ptr,
+                                                                        base,
+                                                                        2,
+                                                                    ),
+                                                                ) {
+                                                                    Ok(()) => return Ok(None),
+                                                                    Err(e) => return Err(e),
+                                                                }
+                                                            }
+
+                                                            Err(e) => return Err(e),
+                                                        }
+                                                    }
+
+                                                    Err(e) => return Err(e),
+                                                }
+                                            }
+
+                                            Err(e) => return Err(e),
+                                        },
+
+                                        Err(e) => return Err(e),
+                                    }
+                                }
+
+                                Err(e) => return Err(e),
+                            }
+                        }
+
+                        Err(e) => return Err(e),
+                    }
+                }
+
+                Err(e) => return Err(e),
+            }
+        }
+
+        PengInstruction::GetIndex => {
+            match env
+                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .cloned()
+            {
+                Ok(index_cell) => {
+                    match env
+                        .get_thread_latest_binded_stated_cell(thread_ptr, 1)
+                        .cloned()
+                    {
+                        Ok(object_cell) => {
+                            let index_value = match index_cell.value() {
+                                PengStated::Initialized(cell) => {
+                                    match env.get_value_from_cell(cell.clone()) {
+                                        Ok(value) => value,
+                                        Err(e) => return Err(e),
+                                    }
+                                }
+
+                                PengStated::Uninitialized => {
+                                    return Err(PengError::Code(PengErrorCode::TestError));
+                                }
+                            };
+
+                            let index = match index_value {
+                                PengValue::Int(v) => {
+                                    if v < 0 {
+                                        return Err(PengError::Code(PengErrorCode::TestError));
+                                    }
+
+                                    v as usize
+                                }
+
+                                PengValue::Uint(v) => v,
+
+                                _ => return Err(PengError::Code(PengErrorCode::TestError)),
+                            };
+
+                            let object_ptr = match object_cell.value() {
+                                PengStated::Initialized(PengCell::Reference(ptr)) => *ptr,
+                                _ => return Err(PengError::Code(PengErrorCode::TestError)),
+                            };
+
+                            let value = match env.get_heap(object_ptr) {
+                                Some(coloured) => match coloured.value.value() {
+                                    PengStated::Initialized(PengValue::Vector(vector)) => {
+                                        match vector.values.get(index) {
+                                            Some(value) => value.clone(),
+                                            None => {
+                                                return Err(PengError::Code(
+                                                    PengErrorCode::TestError,
+                                                ));
+                                            }
+                                        }
+                                    }
+
+                                    _ => {
+                                        return Err(PengError::Code(PengErrorCode::TestError));
+                                    }
+                                },
+
+                                None => {
+                                    return Err(PengError::Code(PengErrorCode::TestError));
+                                }
+                            };
+
+                            match env.pop_thread_stack_n_times(thread_ptr, 2) {
+                                Ok(()) => {
+                                    match env.push_thread_binded_stated_cell(thread_ptr, value) {
+                                        Ok(()) => {}
+                                        Err(e) => return Err(e),
+                                    }
+                                }
+
+                                Err(e) => return Err(e),
+                            }
+                        }
+
+                        Err(e) => return Err(e),
+                    }
+                }
+
+                Err(e) => return Err(e),
+            }
+        }
+
+        PengInstruction::SetIndex => {
+            match env
+                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .cloned()
+            {
+                Ok(value_cell) => {
+                    match env
+                        .get_thread_latest_binded_stated_cell(thread_ptr, 1)
+                        .cloned()
+                    {
+                        Ok(index_cell) => {
+                            match env
+                                .get_thread_latest_binded_stated_cell(thread_ptr, 2)
+                                .cloned()
+                            {
+                                Ok(object_cell) => {
+                                    let index_value = match index_cell.value() {
+                                        PengStated::Initialized(cell) => {
+                                            match env.get_value_from_cell(cell.clone()) {
+                                                Ok(value) => value,
+                                                Err(e) => return Err(e),
+                                            }
+                                        }
+
+                                        PengStated::Uninitialized => {
+                                            return Err(PengError::Code(PengErrorCode::TestError));
+                                        }
+                                    };
+
+                                    let index = match index_value {
+                                        PengValue::Int(v) => {
+                                            if v < 0 {
+                                                return Err(PengError::Code(
+                                                    PengErrorCode::TestError,
+                                                ));
+                                            }
+
+                                            v as usize
+                                        }
+
+                                        PengValue::Uint(v) => v,
+
+                                        _ => return Err(PengError::Code(PengErrorCode::TestError)),
+                                    };
+
+                                    let object_ptr = match object_cell.value() {
+                                        PengStated::Initialized(PengCell::Reference(ptr)) => *ptr,
+                                        _ => return Err(PengError::Code(PengErrorCode::TestError)),
+                                    };
+
+                                    match env.get_heap_mut(object_ptr) {
+                                        Some(coloured) => match &mut coloured.value {
+                                            PengBinded::Mutable(PengStated::Initialized(
+                                                PengValue::Vector(vector),
+                                            )) => {
+                                                if index >= vector.values.len() {
+                                                    return Err(PengError::Code(
+                                                        PengErrorCode::TestError,
+                                                    ));
+                                                }
+
+                                                vector.values[index] = value_cell;
+                                            }
+
+                                            _ => {
+                                                return Err(PengError::Code(
+                                                    PengErrorCode::TestError,
+                                                ));
+                                            }
+                                        },
+
+                                        None => {
+                                            return Err(PengError::Code(PengErrorCode::TestError));
+                                        }
+                                    }
+
+                                    match env.pop_thread_stack_n_times(thread_ptr, 3) {
+                                        Ok(()) => {}
+                                        Err(e) => return Err(e),
+                                    }
+                                }
+
+                                Err(e) => return Err(e),
+                            }
+                        }
+
+                        Err(e) => return Err(e),
+                    }
+                }
+
+                Err(e) => return Err(e),
+            }
+        }
     }
+    Ok(None)
 }

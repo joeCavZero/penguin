@@ -13,9 +13,7 @@ pub fn create_anonymous_bytecode_function(
     env.create_binded_stated_heap(PengBinded::Mutable(PengStated::Initialized(function)))
 }
 
-pub fn create_bytecode_function_value(
-    mut context: PengGeneratorContext,
-) -> PengValue {
+pub fn create_bytecode_function_value(mut context: PengGeneratorContext) -> PengValue {
     context.push_const_and_const_instruction(PengValue::Nil);
     context.bytecode.push(PengInstruction::Return);
 
@@ -90,15 +88,39 @@ pub fn generate_local_function_declaration(
     context: &mut PengGeneratorContext,
     declaration: &PengPositionedFunctionDeclaration,
 ) -> Result<(), PengError> {
-    let value = match generate_function_declaration_value(env, globals, declaration) {
-        Ok(value) => value,
-        Err(e) => return Err(e),
-    };
+    let global = get_allocated_global(env, globals, &declaration.value.name.value);
 
-    context.push_const_and_const_instruction(value);
+    match global {
+        Some(value_ptr) => {
+            let value = match generate_function_declaration_value(env, globals, declaration) {
+                Ok(value) => value,
+                Err(e) => return Err(e),
+            };
 
-    let local = context.create_local(declaration.value.name.value.clone());
-    context.bytecode.push(PengInstruction::StoreLocal(local));
+            context
+                .bytecode
+                .push(PengInstruction::PushHeapRef(value_ptr));
 
-    Ok(())
+            context.push_const_and_const_instruction(value);
+
+            context.bytecode.push(PengInstruction::StoreHeap);
+
+            Ok(())
+        }
+
+        None => {
+            let value = match generate_function_declaration_value(env, globals, declaration) {
+                Ok(value) => value,
+                Err(e) => return Err(e),
+            };
+
+            context.push_const_and_const_instruction(value);
+
+            let local = context.create_local(declaration.value.name.value.clone());
+
+            context.bytecode.push(PengInstruction::StoreLocal(local));
+
+            Ok(())
+        }
+    }
 }

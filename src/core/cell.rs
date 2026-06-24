@@ -1,6 +1,7 @@
-use crate::utils::*;
+use crate::error::*;
 use crate::binding::*;
 use crate::state::*;
+use crate::utils::*;
 
 pub type PengStatedCell = PengStated<PengCell>;
 pub type PengBindedStatedCell = PengBinded<PengStatedCell>;
@@ -29,6 +30,54 @@ impl PengCell {
             (Self::Bool(left), Self::Bool(right)) => left == right,
             (Self::Reference(left), Self::Reference(right)) => left == right,
             _ => false,
+        }
+    }
+
+    pub fn greater_than(&self, rhs: &Self) -> Result<bool, PengError> {
+        match (self, rhs) {
+            (Self::Int(left), Self::Int(right)) => Ok(left > right),
+            (Self::Uint(left), Self::Uint(right)) => Ok(left > right),
+            (Self::Float32(left), Self::Float32(right)) => Ok(left > right),
+            (Self::Float64(left), Self::Float64(right)) => Ok(left > right),
+            (Self::Byte(left), Self::Byte(right)) => Ok(left > right),
+
+            _ => Err(PengError::Code(PengErrorCode::TestError)),
+        }
+    }
+
+    pub fn greater_equals_than(&self, rhs: &Self) -> Result<bool, PengError> {
+        match (self, rhs) {
+            (Self::Int(left), Self::Int(right)) => Ok(left >= right),
+            (Self::Uint(left), Self::Uint(right)) => Ok(left >= right),
+            (Self::Float32(left), Self::Float32(right)) => Ok(left >= right),
+            (Self::Float64(left), Self::Float64(right)) => Ok(left >= right),
+            (Self::Byte(left), Self::Byte(right)) => Ok(left >= right),
+
+            _ => Err(PengError::Code(PengErrorCode::TestError)),
+        }
+    }
+
+    pub fn less_than(&self, rhs: &Self) -> Result<bool, PengError> {
+        match (self, rhs) {
+            (Self::Int(left), Self::Int(right)) => Ok(left < right),
+            (Self::Uint(left), Self::Uint(right)) => Ok(left < right),
+            (Self::Float32(left), Self::Float32(right)) => Ok(left < right),
+            (Self::Float64(left), Self::Float64(right)) => Ok(left < right),
+            (Self::Byte(left), Self::Byte(right)) => Ok(left < right),
+
+            _ => Err(PengError::Code(PengErrorCode::TestError)),
+        }
+    }
+
+    pub fn less_equals_than(&self, rhs: &Self) -> Result<bool, PengError> {
+        match (self, rhs) {
+            (Self::Int(left), Self::Int(right)) => Ok(left <= right),
+            (Self::Uint(left), Self::Uint(right)) => Ok(left <= right),
+            (Self::Float32(left), Self::Float32(right)) => Ok(left <= right),
+            (Self::Float64(left), Self::Float64(right)) => Ok(left <= right),
+            (Self::Byte(left), Self::Byte(right)) => Ok(left <= right),
+
+            _ => Err(PengError::Code(PengErrorCode::TestError)),
         }
     }
 }

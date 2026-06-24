@@ -20,10 +20,7 @@ pub enum PengInstruction {
     CreateUnion(usize), // creates a new union based on usize types (on stack)
     CreateTypedObject,
 
-    
-
     Convert,
-    CheckType,
 
     Duplicate, // duplicate
     Pop, // pop

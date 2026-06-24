@@ -6,7 +6,10 @@ pub struct PengVector {
 }
 
 impl PengVector {
-    pub fn new() -> Self {
+    pub fn new(values: Vec<PengBindedStatedCell>) -> Self {
+        Self { values }
+    }
+    pub fn new_empty() -> Self {
         Self {
             values: Vec::new(),
         }

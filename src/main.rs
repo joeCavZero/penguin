@@ -24,10 +24,10 @@ fn main() {
                                                 for i in init_btc.bytecode {
                                                     println!("{:?}", i);
                                                 }
-                                                println!("----- env.values:\n{:#?}", env.heap);
+                                                println!("----- env.values antes de rodar o init:\n{:#?}", env.heap);
                                                 println!("- - - - - - globals - - - - ");
                                                 for (gn, gvp) in globals {
-                                                    println!("{} - {:?}", env.get_name(gn).cloned().unwrap(), env.heap.get(&gvp));
+                                                    println!("{} - {:?}", env.get_pooled_name(gn).cloned().unwrap(), env.heap.get(&gvp));
                                                 }
                                                 
                                             }
@@ -49,9 +49,17 @@ fn main() {
                                     }
                                     Err(e) => {
                                         println!("ERRO::::: {:?}", e);
+                                        println!("----- env.values depois de rodar o init e dar erro:\n{:#?}", env.heap);
+
                                         return;
                                     }
                                 }
+                                if let penguin::PengStated::Initialized(t) = env.get_heap(thread_ptr).unwrap().value.value() {
+                                    if let penguin::PengValue::Thread(tt) = t {
+                                        println!("stack nesse momento: \n {:?}\n-------------", tt.stack)
+                                    }
+                                }
+                                
                             }
                         }
                         Err(e) => {

@@ -8,6 +8,11 @@ pub struct PengModule {
 }
 
 impl PengModule {
+    pub fn new_empty() -> Self {
+        Self {
+            members: HashMap::new(),
+        }
+    }
     pub fn equals(&self, rhs: &Self) -> bool {
         self.members.len() == rhs.members.len()
             && self.members.iter().all(|(name, value)| {

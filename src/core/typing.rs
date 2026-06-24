@@ -61,6 +61,20 @@ impl PengType {
 }
 
 impl PengCustomType {
+    pub fn new_super_type(custom_types: Vec<PengCustomType>) -> PengCustomType {
+        let mut fields = HashMap::new();
+
+        for custom_type in custom_types {
+            for (name, value) in custom_type.fields {
+                fields.insert(name, value);
+            }
+        }
+
+        PengCustomType {
+            fields,
+        }
+    }
+
     pub fn equals(&self, rhs: &Self) -> bool {
         self.fields.len() == rhs.fields.len()
             && self.fields.iter().all(|(name, value)| {

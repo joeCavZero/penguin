@@ -8,6 +8,14 @@ pub struct PengObject {
 }
 
 impl PengObject {
+    pub fn new(fields: HashMap<PengNamePoolPtr, PengBindedStatedCell>) -> Self {
+        Self { fields }
+    }
+    pub fn new_empty() -> Self {
+        Self {
+            fields: HashMap::new()
+        }
+    }
     pub fn equals(&self, rhs: &Self) -> bool {
         self.fields.len() == rhs.fields.len()
             && self
