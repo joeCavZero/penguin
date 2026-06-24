@@ -1,3 +1,4 @@
+pub mod generate;
 pub mod generate_program;
 pub mod generate_script;
 pub mod generator_utils;
@@ -8,6 +9,7 @@ pub mod generate_operation;
 pub mod generate_statement;
 pub mod generate_loops;
 
+pub use generate::*;
 pub use generate_program::*;
 pub use generate_script::*;
 pub use generator_utils::*;

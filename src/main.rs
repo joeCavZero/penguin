@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 fn main() {
     match penguin::lex_file("main.p".to_string(), 0) {
         Ok(tkns) => {
@@ -5,12 +7,12 @@ fn main() {
                 println!("{}", tk.token_display())
             }
             println!("============================");
-            match penguin::parse_program(tkns) {
+            match penguin::parse_script(tkns) {
                 Ok(ast) => {
                     println!("============================");
                     let mut env = penguin::PengEnv::new();
                     env.ensure_mutable_uninitialized_global("g".to_string());
-                    match penguin::generate_program(&mut env, &ast) {
+                    match penguin::generate_ast(&mut env, &ast, &HashMap::new()) {
                         Ok((globals, init_ptr)) => {
                             if let Some(cbinit) = env.get_heap(init_ptr).cloned() {
                                 if let penguin::PengBinded::Mutable(stated_init) = cbinit.value {
@@ -27,8 +29,27 @@ fn main() {
                                                 for (gn, gvp) in globals {
                                                     println!("{} - {:?}", env.get_name(gn).cloned().unwrap(), env.heap.get(&gvp));
                                                 }
+                                                
                                             }
                                         }
+                                    }
+                                }
+                            }
+                            let thread_ptr = env.create_thread(init_ptr, 0, Vec::new());
+                            loop {
+                                match penguin::step_thread(&mut env, thread_ptr) {
+                                    Ok(possible_result) => {
+                                        match possible_result {
+                                            Some(value) => {
+                                                println!(" O RESULTADO É...\n   {:?}", value);
+                                                return;
+                                            }
+                                            None => {},
+                                        }
+                                    }
+                                    Err(e) => {
+                                        println!("ERRO::::: {:?}", e);
+                                        return;
                                     }
                                 }
                             }

@@ -6,27 +6,21 @@ use crate::parser::*;
 
 pub fn generate_program(
     env: &mut PengEnv,
-    ast: &PengAST,
+    declarations: &Vec<PengBinded<PengDeclaration>>,
+    globals: &HashMap<usize, usize>,
 ) -> Result<(HashMap<PengNamePoolPtr, PengHeapPtr>, PengHeapPtr), PengError> {
-    let declarations = match ast {
-        PengAST::Program(declarations) => declarations,
-        PengAST::Script(_) => {
-            return Err(PengError::new_message(
-                "expected program AST".to_string(),
-            ));
-        }
-    };
-
-    let mut globals = match allocate_program_globals(env, declarations) {
+    let local_globals = match allocate_program_globals(env, declarations) {
         Ok(v) => v,
         Err(e) => return Err(e),
     };
+    let mut full_globals = globals.clone();
+    full_globals.extend(local_globals);
 
     let mut context = PengGeneratorContext::new();
 
     match generate_program_initialization(
         env,
-        &mut globals,
+        &mut full_globals,
         declarations,
         &mut context,
     ) {
@@ -36,7 +30,7 @@ pub fn generate_program(
 
     let program_init = create_anonymous_bytecode_function(env, context);
 
-    Ok((globals, program_init))
+    Ok((full_globals, program_init))
 }
 
 fn allocate_program_globals(
@@ -69,6 +63,47 @@ fn allocate_program_globals(
     }
 
     Ok(globals)
+}
+
+pub fn allocate_script_globals(
+    env: &mut PengEnv,
+    statements: &Vec<PengPositioned<PengStatement>>,
+    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
+) -> Result<(), PengError> {
+    for statement in statements {
+        match &statement.value {
+            PengStatement::Declaration(declaration) => {
+                let name = declaration_name(declaration);
+                let name_ptr = env.ensure_pooled_name_ptr(name);
+
+                if globals.contains_key(&name_ptr) {
+                    return Err(PengError::new_message(
+                        "duplicated global declaration".to_string(),
+                    ));
+                }
+
+                let value_ptr = match declaration {
+                    PengBinded::Mutable(_) => {
+                        env.create_binded_stated_heap(PengBinded::Mutable(
+                            PengStated::Initialized(PengValue::Nil),
+                        ))
+                    }
+
+                    PengBinded::Immutable(_) => {
+                        env.create_binded_stated_heap(PengBinded::Immutable(
+                            PengStated::Uninitialized,
+                        ))
+                    }
+                };
+
+                globals.insert(name_ptr, value_ptr);
+            }
+
+            _ => {}
+        }
+    }
+
+    Ok(())
 }
 
 pub fn get_allocated_global(

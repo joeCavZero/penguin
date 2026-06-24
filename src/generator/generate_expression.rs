@@ -198,18 +198,21 @@ pub fn generate_try_expression(
     let call = match &value.value {
         PengExpression::FuncCall(call) => call,
         _ => {
-            todo!();
+            return Err(PengError::new_positioned_message(
+                "expected function call after try".to_string(),
+                value.position.clone(),
+            ));
         }
     };
 
     match generate_expression(env, globals, context, &call.function) {
-        Ok(()) => {},
+        Ok(()) => {}
         Err(e) => return Err(e),
     };
-    
+
     for arg in &call.args {
         match generate_expression(env, globals, context, arg) {
-            Ok(()) => {},
+            Ok(()) => {}
             Err(e) => return Err(e),
         };
     }
@@ -222,25 +225,25 @@ pub fn generate_try_expression(
     context
         .bytecode
         .push(PengInstruction::JumpIfTrue(usize::MAX));
+
     context.bytecode.push(PengInstruction::Pop);
 
     match elsing {
-        Some(PengPositioned {
-            value: PengExpression::Try { value, .. },
-            ..
-        }) => match generate_expression(env, globals, context, value) {
-            Ok(()) => {},
-            Err(e) => return Err(e),
-        },
-        Some(elsing) => match generate_expression(env, globals, context, elsing) {
-            Ok(()) => {},
-            Err(e) => return Err(e),
-        },
-        None => context.push_const_and_const_instruction(PengValue::Nil),
+        Some(elsing) => {
+            match generate_expression(env, globals, context, elsing) {
+                Ok(()) => {}
+                Err(e) => return Err(e),
+            }
+        }
+
+        None => {
+            context.push_const_and_const_instruction(PengValue::Nil);
+        }
     }
 
     let end = context.bytecode.len();
     context.bytecode[success_jump] = PengInstruction::JumpIfTrue(end);
+
     Ok(())
 }
 
@@ -282,23 +285,36 @@ pub fn generate_type_expression(
             context
                 .bytecode
                 .push(PengInstruction::CreateUnion(types.len()));
+
             Ok(())
         }
-        PengTypeExpression::Custom(expression) => generate_expression(env, globals, context, expression),
+
+        PengTypeExpression::Custom(expression) => {
+            generate_expression(env, globals, context, expression)
+        }
+
         PengTypeExpression::Vector(inner) => {
             let inner_type = match static_type_from_expression(inner) {
                 Some(inner_type) => inner_type,
                 None => {
-                    todo!();
+                    return Err(PengError::new_positioned_message(
+                        "expected static vector inner type".to_string(),
+                        inner.position.clone(),
+                    ));
                 }
             };
 
             context.push_const_and_const_instruction(PengValue::Type(PengType::Vector(Box::new(
                 inner_type,
             ))));
+
             Ok(())
         }
-        PengTypeExpression::TypeLiteral(literal) => generate_type_literal(env, globals, context, literal),
+
+        PengTypeExpression::TypeLiteral(literal) => {
+            generate_type_literal(env, globals, context, literal)
+        }
+
         _ => {
             let typ = match static_type_from_expression(type_expression) {
                 Some(typ) => typ,
@@ -311,6 +327,7 @@ pub fn generate_type_expression(
             };
 
             context.push_const_and_const_instruction(PengValue::Type(typ));
+
             Ok(())
         }
     }

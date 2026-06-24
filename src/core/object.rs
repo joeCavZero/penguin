@@ -4,18 +4,18 @@ use crate::cell::*;
 
 #[derive(Debug, Clone)]
 pub struct PengObject {
-    values: HashMap<PengNamePoolPtr, PengBindedStatedCell>
+    pub fields: HashMap<PengNamePoolPtr, PengBindedStatedCell>
 }
 
 impl PengObject {
     pub fn equals(&self, rhs: &Self) -> bool {
-        self.values.len() == rhs.values.len()
+        self.fields.len() == rhs.fields.len()
             && self
-                .values
+                .fields
                 .iter()
                 .all(
                     |(name, value)| {
-                        match rhs.values.get(name) {
+                        match rhs.fields.get(name) {
                             Some(rhs_value) => value.equals(rhs_value),
                             None => false,
                         } 

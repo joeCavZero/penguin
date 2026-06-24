@@ -1,9 +1,8 @@
-use crate::utils::*;
 use crate::cell::*;
 
 #[derive(Debug, Clone)]
 pub struct PengVector {
-    values: Vec<PengBindedStatedCell>
+    pub values: Vec<PengBindedStatedCell>
 }
 
 impl PengVector {

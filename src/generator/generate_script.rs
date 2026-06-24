@@ -6,23 +6,20 @@ use crate::generator::*;
 
 pub fn generate_script(
     env: &mut PengEnv,
-    ast: &PengAST,
+    statements: &Vec<PengPositioned<PengStatement>>,
+    global: &HashMap<usize, usize>,
 ) -> Result<PengHeapPtr, PengError> {
-    let statements = match ast {
-        PengAST::Script(statements) => statements,
-        PengAST::Program(_) => {
-            return Err(PengError::new_message(
-                "expected script AST".to_string(),
-            ));
-        }
-    };
-
-    let mut globals = HashMap::new();
+    let mut local_globals = global.clone();
     let mut context = PengGeneratorContext::new();
+
+    match allocate_script_globals(env, statements, &mut local_globals) {
+        Ok(()) => {}
+        Err(e) => return Err(e),
+    }
 
     match generate_statements(
         env,
-        &mut globals,
+        &mut local_globals,
         &mut context,
         statements,
     ) {
@@ -30,10 +27,7 @@ pub fn generate_script(
         Err(e) => return Err(e),
     }
 
-    let script_function = create_anonymous_bytecode_function(
-        env,
-        context,
-    );
+    let script_function = create_anonymous_bytecode_function(env, context);
 
     Ok(script_function)
 }

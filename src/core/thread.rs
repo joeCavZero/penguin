@@ -1,3 +1,4 @@
+use crate::utils::*;
 use crate::cell::*;
 use crate::frame::*;
 
@@ -8,6 +9,28 @@ pub struct PengThread {
 }
 
 impl PengThread {
+    pub fn new(function_ptr: PengHeapPtr, base: usize, params: Vec<PengBindedStatedCell>) -> Self {
+        
+        let mut frames = Vec::new();
+
+        frames.push(
+            PengFrame::new(function_ptr, base, params.len())
+        );
+        
+        let mut thread = PengThread {
+            stack: Vec::new(),
+            frames,
+        };
+
+        for p in &params {
+            thread.stack.push(p.clone());
+        }
+        
+        
+        
+        thread
+    }
+
     pub fn equals(&self, rhs: &Self) -> bool {
         self.stack.len() == rhs.stack.len()
             && self

@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::thread::*;
 use crate::colour::*;
 use crate::state::*;
 use crate::binding::*;
@@ -237,5 +238,11 @@ impl PengEnv {
                 )
             ),
         }
+    }
+
+    pub fn create_thread(&mut self, function_ptr: PengHeapPtr, base: usize, params: Vec<PengBindedStatedCell>) -> PengHeapPtr {
+        let thread = PengThread::new(function_ptr, base, params);
+        let t = PengBinded::Mutable(PengStated::Initialized(PengValue::Thread(thread)));
+        self.create_binded_stated_heap(t)
     }
 }
