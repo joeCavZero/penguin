@@ -56,25 +56,9 @@ impl PengAST {
     }
 
     fn print_position(position: &PengPosition) {
-        match position {
-            PengPosition::File {
-                file_id,
-                line,
-                column,
-            } => {
-                print!(" [file:{}, line:{}]", file_id, line);
-                match column {
-                    Some(c) => print!(", column:{}", c),
-                    None => print!(", column:?"),
-                }
-            }
-            PengPosition::Source { line, column } => {
-                print!(" @ line:{}", line);
-                match column {
-                    Some(c) => print!(", column:{}", c),
-                    None => print!(", column:?"),
-                }
-            }
+        match position.column {
+            Some(c) => print!(", column:{}", c),
+            None => print!(", column:?"),
         }
     }
 

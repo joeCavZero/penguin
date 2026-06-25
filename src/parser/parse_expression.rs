@@ -895,29 +895,7 @@ fn is_type_value_expression(expression: &PengExpression) -> bool {
 }
 
 fn positions_share_line(left: &PengPosition, right: &PengPosition) -> bool {
-    match (left, right) {
-        (
-            PengPosition::File {
-                file_id: left_file,
-                line: left_line,
-                ..
-            },
-            PengPosition::File {
-                file_id: right_file,
-                line: right_line,
-                ..
-            },
-        ) => left_file == right_file && left_line == right_line,
-        (
-            PengPosition::Source {
-                line: left_line, ..
-            },
-            PengPosition::Source {
-                line: right_line, ..
-            },
-        ) => left_line == right_line,
-        _ => false,
-    }
+    left.line == right.line
 }
 
 fn token_after_current<'a>(

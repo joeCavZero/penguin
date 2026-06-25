@@ -9,7 +9,6 @@ pub enum LexerCallbackResponse {
 
 pub fn lex_file(
     file_path: String,
-    file_id: usize,
 ) -> Result<Vec<PengPositionedToken>, PengError> {
 
     let source = match std::fs::read_to_string(file_path) {
@@ -24,8 +23,7 @@ pub fn lex_file(
     lex_source_fn(
         source,
         |res, line, column| {
-            let pos = PengPosition::new_file(
-                file_id,
+            let pos = PengPosition::new(
                 line,
                 column,
             );
@@ -65,7 +63,7 @@ pub fn lex_source(
     lex_source_fn(
         source,
         |res, line, column| {
-            let pos = PengPosition::new_source(
+            let pos = PengPosition::new(
                 line,
                 column,
             );

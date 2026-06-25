@@ -61,7 +61,7 @@ fn peng_len(
 }
 
 fn main() {
-    match penguin::lex_file("main.p".to_string(), 0) {
+    match penguin::lex_file("main.p".to_string()) {
         Ok(tkns) => {
             match penguin::parse_script(tkns) {
                 Ok(ast) => {
