@@ -8,8 +8,9 @@ use crate::frame::*;
 use crate::state::*;
 use crate::thread::*;
 use crate::utils::*;
-use crate::value::*;
+use crate::heap_value::*;
 use crate::vector::*;
+use crate::value::*;
 
 pub struct PengEnv {
     globals: HashMap<PengNamePoolPtr, PengBindedStatedCell>,
@@ -479,6 +480,42 @@ impl PengEnv {
         match self.get_heap_mut(thread_ptr) {
             Some(PengHeapValue::Thread(thread)) => Ok(thread),
             _ => Err(PengError::Code(PengErrorCode::TestError)),
+        }
+    }
+
+
+    pub fn get_value_from_cell(&self, cell: PengCell) -> Result<PengValue, PengError> {
+        match cell {
+            PengCell::Reference(ptr) => match self.get_heap(ptr) {
+                Some(value) => Ok(PengValue::Heap(value.clone())),
+                None => Err(PengError::Code(PengErrorCode::TestError)),
+            },
+
+            _ => Ok(PengValue::Cell(cell)),
+        }
+    }
+
+    pub fn get_heap_value_from_cell(
+        &self,
+        cell: PengCell,
+    ) -> Result<PengHeapValue, PengError> {
+        match cell {
+            PengCell::Reference(ptr) => match self.get_heap(ptr) {
+                Some(value) => Ok(value.clone()),
+                None => Err(PengError::Code(PengErrorCode::TestError)),
+            },
+
+            _ => Err(PengError::Code(PengErrorCode::TestError)),
+        }
+    }
+
+    pub fn get_cell_from_value(&mut self, value: PengValue) -> Result<PengCell, PengError> {
+        match value {
+            PengValue::Cell(cell) => Ok(cell),
+            PengValue::Heap(value) => {
+                let ptr = self.create_heap_value(value);
+                Ok(PengCell::Reference(ptr))
+            }
         }
     }
 }

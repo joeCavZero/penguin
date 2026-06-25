@@ -1,4 +1,4 @@
-use crate::value::*;
+use crate::heap_value::*;
 use crate::utils::*;
 use crate::instruction::*;
 use crate::context::*;

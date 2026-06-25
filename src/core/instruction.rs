@@ -50,7 +50,7 @@ pub enum PengInstruction {
 
     FunctionCall(usize),  // ...|func|p0..pn| ---> ...|ret?|
 
-    TryFunctionCall(usize),  // ...|func|p0..pn| ---> ...|value|bool ok|
+    TryFunctionCall(usize),  // ...|func|p0..pn| ---> ...|return|bool ok|
 
     GetIndex,
     SetIndex,
