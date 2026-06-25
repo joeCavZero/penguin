@@ -70,14 +70,12 @@ pub fn generate_statement(
 
         PengStatement::Return(value) => {
             match value {
-                Some(value) => {
-                    match generate_expression(env, globals, context, value) {
-                        Ok(()) => {}
-                        Err(e) => return Err(e),
-                    }
-                }
+                Some(value) => match generate_expression(env, globals, context, value) {
+                    Ok(()) => {}
+                    Err(e) => return Err(e),
+                },
                 None => {
-                    context.push_const_and_const_instruction(PengHeapValue::Nil);
+                    context.push_const_and_const_instruction(PengValue::Cell(PengCell::Nil));
                 }
             }
 
@@ -85,9 +83,7 @@ pub fn generate_statement(
             Ok(())
         }
 
-        PengStatement::Assign(assignment) => {
-            generate_assignment(env, globals, context, assignment)
-        }
+        PengStatement::Assign(assignment) => generate_assignment(env, globals, context, assignment),
 
         PengStatement::Expression(expression) => {
             match generate_expression(env, globals, context, expression) {
@@ -115,9 +111,7 @@ pub fn generate_statement(
             generate_for_statement(env, globals, context, for_statement)
         }
 
-        PengStatement::Loop(body) => {
-            generate_loop_statement(env, globals, context, body)
-        }
+        PengStatement::Loop(body) => generate_loop_statement(env, globals, context, body),
 
         PengStatement::Break => {
             if context.emit_break() {
@@ -214,12 +208,16 @@ pub fn generate_match_statement(
     }
 
     let matched_local = context.create_temporary_local();
-    context.bytecode.push(PengInstruction::StoreLocal(matched_local));
+    context
+        .bytecode
+        .push(PengInstruction::StoreLocal(matched_local));
 
     let mut end_jumps = Vec::new();
 
     for arm in &statement.arms {
-        context.bytecode.push(PengInstruction::PushLocal(matched_local));
+        context
+            .bytecode
+            .push(PengInstruction::PushLocal(matched_local));
 
         match generate_expression(env, globals, context, &arm.pattern) {
             Ok(()) => {}
@@ -243,12 +241,10 @@ pub fn generate_match_statement(
     }
 
     match &statement.elsing {
-        Some(body) => {
-            match generate_scoped_statements(env, globals, context, body) {
-                Ok(()) => {}
-                Err(e) => return Err(e),
-            }
-        }
+        Some(body) => match generate_scoped_statements(env, globals, context, body) {
+            Ok(()) => {}
+            Err(e) => return Err(e),
+        },
         None => {}
     }
 

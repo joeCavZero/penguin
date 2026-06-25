@@ -1,12 +1,8 @@
-use crate::binding::*;
-use crate::cell::*;
 use crate::colour::*;
-use crate::error::*;
 use crate::function::*;
 use crate::module::*;
 use crate::object::*;
 use crate::operation::*;
-use crate::state::*;
 use crate::thread::*;
 use crate::typing::*;
 use crate::unioning::*;

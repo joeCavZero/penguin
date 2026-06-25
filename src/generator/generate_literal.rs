@@ -27,18 +27,18 @@ pub fn generate_literal(
     }
 
     let value = match &literal.value {
-        PengLiteral::Nil => PengHeapValue::Nil,
-        PengLiteral::Int(value) => PengHeapValue::Int(*value),
-        PengLiteral::Uint(value) => PengHeapValue::Uint(*value),
-        PengLiteral::Byte(value) => PengHeapValue::Byte(*value),
-        PengLiteral::Float32(value) => PengHeapValue::Float32(*value),
-        PengLiteral::Float64(value) => PengHeapValue::Float64(*value),
-        PengLiteral::Bool(value) => PengHeapValue::Bool(*value),
-        PengLiteral::String(value) => PengHeapValue::String(value.clone()),
+        PengLiteral::Nil => PengValue::Cell(PengCell::Nil),
+        PengLiteral::Int(value) => PengValue::Cell(PengCell::Int(*value)),
+        PengLiteral::Uint(value) => PengValue::Cell(PengCell::Uint(*value)),
+        PengLiteral::Byte(value) => PengValue::Cell(PengCell::Byte(*value)),
+        PengLiteral::Float32(value) => PengValue::Cell(PengCell::Float32(*value)),
+        PengLiteral::Float64(value) => PengValue::Cell(PengCell::Float64(*value)),
+        PengLiteral::Bool(value) => PengValue::Cell(PengCell::Bool(*value)),
+        PengLiteral::String(value) => PengValue::Heap(PengHeapValue::String(value.clone())),
         PengLiteral::Type(_) => unreachable!(),
         PengLiteral::Function(function) => {
             match generate_function_value(env, globals, &function.params, &function.body) {
-                Ok(value) => value,
+                Ok(value) => PengValue::Heap(value),
                 Err(e) => return Err(e),
             }
         }
@@ -46,7 +46,7 @@ pub fn generate_literal(
         PengLiteral::Vector(_) => unreachable!(),
         PengLiteral::Operation(operation) => {
             match generate_operation_value(env, globals, &operation.params, &operation.body) {
-                Ok(value) => value,
+                Ok(value) => PengValue::Heap(value),
                 Err(e) => return Err(e),
             }
         }
@@ -121,7 +121,7 @@ pub fn generate_type_literal_after_base(
                 Ok(()) => {}
                 Err(e) => return Err(e),
             },
-            None => context.push_const_and_const_instruction(PengHeapValue::Nil),
+            None => context.push_const_and_const_instruction(PengValue::Cell(PengCell::Nil)),
         }
 
         context
@@ -139,7 +139,7 @@ pub fn generate_type_literal_after_base(
             Err(e) => return Err(e),
         };
 
-        context.push_const_and_const_instruction(value);
+        context.push_const_and_const_instruction(PengValue::Heap(value));
 
         context
             .bytecode
@@ -201,7 +201,7 @@ pub fn generate_module_literal(
                     Ok(()) => {}
                     Err(e) => return Err(e),
                 },
-                None => context.push_const_and_const_instruction(PengHeapValue::Nil),
+                None => context.push_const_and_const_instruction(PengValue::Cell(PengCell::Nil)),
             },
 
             PengDeclaration::As(declaration) => {
@@ -216,7 +216,7 @@ pub fn generate_module_literal(
                     Ok(v) => v,
                     Err(e) => return Err(e),
                 };
-                context.push_const_and_const_instruction(value);
+                context.push_const_and_const_instruction(PengValue::Heap(value));
             }
 
             PengDeclaration::Type(declaration) => match &declaration.value.value {
@@ -250,7 +250,7 @@ pub fn generate_module_literal(
                     Ok(v) => v,
                     Err(e) => return Err(e),
                 };
-                context.push_const_and_const_instruction(value);
+                context.push_const_and_const_instruction(PengValue::Heap(value));
             }
         }
 

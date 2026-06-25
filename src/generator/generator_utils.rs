@@ -6,7 +6,7 @@ use crate::parser::*;
 
 pub struct PengGeneratorContext {
     pub bytecode: Vec<PengInstruction>,
-    pub consts: Vec<PengHeapValue>,
+    pub consts: Vec<PengValue>,
     scopes: Vec<HashMap<String, usize>>,
     next_local: usize,
     loops: Vec<PengLoopContext>,
@@ -29,7 +29,7 @@ impl PengGeneratorContext {
         }
     }
 
-    pub fn push_const_and_const_instruction(&mut self, value: PengHeapValue) {
+    pub fn push_const_and_const_instruction(&mut self, value: PengValue) {
         let mut const_index = None;
         let mut index = 0usize;
 
@@ -244,7 +244,7 @@ pub fn generate_local_variable(
             Err(e) => return Err(e),
         },
         None => {
-            context.push_const_and_const_instruction(PengHeapValue::Nil);
+            context.push_const_and_const_instruction(PengValue::Cell(PengCell::Nil));
         }
     }
 
@@ -738,7 +738,7 @@ pub fn generate_local_module_declaration(
                     };
                 }
                 None => {
-                    context.push_const_and_const_instruction(PengHeapValue::Nil);
+                    context.push_const_and_const_instruction(PengValue::Cell(PengCell::Nil));
                 }
             },
 
@@ -754,7 +754,7 @@ pub fn generate_local_module_declaration(
                     Ok(v) => v,
                     Err(e) => return Err(e),
                 };
-                context.push_const_and_const_instruction(value);
+                context.push_const_and_const_instruction(PengValue::Heap(value));
             }
 
             PengDeclaration::Operation(declaration) => {
@@ -762,7 +762,7 @@ pub fn generate_local_module_declaration(
                     Ok(v) => v,
                     Err(e) => return Err(e),
                 };
-                context.push_const_and_const_instruction(value);
+                context.push_const_and_const_instruction(PengValue::Heap(value));
             }
 
             PengDeclaration::Type(declaration) => match &declaration.value.value {
@@ -834,10 +834,10 @@ pub fn generate_module_declaration_value(
         match declaration_value {
             PengDeclaration::Var(declaration) => match &declaration.value.value {
                 Some(value) => match generate_expression(env, globals, context, value) {
-                    Ok(()) => {},
+                    Ok(()) => {}
                     Err(e) => return Err(e),
                 },
-                None => context.push_const_and_const_instruction(PengHeapValue::Nil),
+                None => context.push_const_and_const_instruction(PengValue::Cell(PengCell::Nil)),
             },
 
             PengDeclaration::As(declaration) => {
@@ -852,7 +852,7 @@ pub fn generate_module_declaration_value(
                     Ok(v) => v,
                     Err(e) => return Err(e),
                 };
-                context.push_const_and_const_instruction(value);
+                context.push_const_and_const_instruction(PengValue::Heap(value));
             }
 
             PengDeclaration::Operation(declaration) => {
@@ -860,12 +860,12 @@ pub fn generate_module_declaration_value(
                     Ok(v) => v,
                     Err(e) => return Err(e),
                 };
-                context.push_const_and_const_instruction(value);
+                context.push_const_and_const_instruction(PengValue::Heap(value));
             }
 
             PengDeclaration::Type(declaration) => match &declaration.value.value {
-                Some(value) => match generate_type_expression(env, globals, context, value)  {
-                    Ok(()) => {},
+                Some(value) => match generate_type_expression(env, globals, context, value) {
+                    Ok(()) => {}
                     Err(e) => return Err(e),
                 },
                 None => {

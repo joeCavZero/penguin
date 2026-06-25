@@ -10,11 +10,11 @@ pub fn create_anonymous_bytecode_function(
 ) -> PengHeapPtr {
     let function = create_bytecode_function_value(context);
 
-    env.create_heap_value(PengBinded::Mutable(PengStated::Initialized(function)))
+    env.create_heap_value(function)
 }
 
 pub fn create_bytecode_function_value(mut context: PengGeneratorContext) -> PengHeapValue {
-    context.push_const_and_const_instruction(PengHeapValue::Nil);
+    context.push_const_and_const_instruction(PengValue::Cell(PengCell::Nil));
     context.bytecode.push(PengInstruction::Return);
 
     PengHeapValue::Function(PengFunction::Bytecode(PengBytecodeFunction {
@@ -101,7 +101,7 @@ pub fn generate_local_function_declaration(
                 .bytecode
                 .push(PengInstruction::PushHeapRef(value_ptr));
 
-            context.push_const_and_const_instruction(value);
+            context.push_const_and_const_instruction(PengValue::Heap(value));
 
             context.bytecode.push(PengInstruction::StoreHeap);
 
@@ -114,7 +114,7 @@ pub fn generate_local_function_declaration(
                 Err(e) => return Err(e),
             };
 
-            context.push_const_and_const_instruction(value);
+            context.push_const_and_const_instruction(PengValue::Heap(value));
 
             let local = context.create_local(declaration.value.name.value.clone());
 

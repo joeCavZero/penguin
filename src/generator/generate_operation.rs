@@ -9,7 +9,12 @@ pub fn generate_operation_declaration_value(
     globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     declaration: &PengPositionedOperationDeclaration,
 ) -> Result<PengHeapValue, PengError> {
-    generate_operation_value(env, globals, &declaration.value.params, &declaration.value.body)
+    generate_operation_value(
+        env,
+        globals,
+        &declaration.value.params,
+        &declaration.value.body,
+    )
 }
 
 pub fn generate_operation_value(
@@ -29,7 +34,7 @@ pub fn generate_operation_value(
         Err(e) => return Err(e),
     }
 
-    context.push_const_and_const_instruction(PengHeapValue::Nil);
+    context.push_const_and_const_instruction(PengValue::Cell(PengCell::Nil));
     context.bytecode.push(PengInstruction::Return);
 
     Ok(PengHeapValue::Operation(PengOperation::Bytecode(
@@ -80,7 +85,7 @@ pub fn generate_local_operation_declaration(
         Err(e) => return Err(e),
     };
 
-    context.push_const_and_const_instruction(value);
+    context.push_const_and_const_instruction(PengValue::Heap(value));
 
     let local = context.create_local(declaration.value.name.value.clone());
     context.bytecode.push(PengInstruction::StoreLocal(local));

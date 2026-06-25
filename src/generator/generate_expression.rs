@@ -12,7 +12,9 @@ pub fn generate_expression(
 ) -> Result<(), PengError> {
     match &expression.value {
         PengExpression::Literal(literal) => generate_literal(env, globals, context, literal),
-        PengExpression::Identifier(identifier) => generate_identifier(env, globals, context, identifier),
+        PengExpression::Identifier(identifier) => {
+            generate_identifier(env, globals, context, identifier)
+        }
         PengExpression::Unary { operator, value } => {
             match generate_expression(env, globals, context, value) {
                 Ok(()) => {}
@@ -56,7 +58,7 @@ pub fn generate_expression(
                     context.bytecode.push(PengInstruction::Pop);
 
                     match generate_expression(env, globals, context, right) {
-                        Ok(()) => {},
+                        Ok(()) => {}
                         Err(e) => return Err(e),
                     };
 
@@ -69,7 +71,7 @@ pub fn generate_expression(
                 }
                 _ => {
                     match generate_expression(env, globals, context, right) {
-                        Ok(()) => {},
+                        Ok(()) => {}
                         Err(e) => return Err(e),
                     };
                     generate_binary_operator(context, operator);
@@ -85,7 +87,7 @@ pub fn generate_expression(
         PengExpression::MethodCall(call) => generate_method_call(env, globals, context, call),
         PengExpression::AttributeAccess(attribute) => {
             match generate_expression(env, globals, context, &attribute.object) {
-                Ok(()) => {},
+                Ok(()) => {}
                 Err(e) => return Err(e),
             };
             let name = env.ensure_pooled_name_ptr(attribute.name.value.clone());
@@ -96,7 +98,7 @@ pub fn generate_expression(
         }
         PengExpression::MemberAccess(member) => {
             match generate_expression(env, globals, context, &member.object) {
-                Ok(()) => {},
+                Ok(()) => {}
                 Err(e) => return Err(e),
             };
             let name = env.ensure_pooled_name_ptr(member.name.value.clone());
@@ -125,7 +127,7 @@ pub fn generate_method_call(
     call: &PengMethodCallExpression,
 ) -> Result<(), PengError> {
     match generate_expression(env, globals, context, &call.object) {
-        Ok(()) => {},
+        Ok(()) => {}
         Err(e) => return Err(e),
     };
     let object_local = context.create_temporary_local();
@@ -182,7 +184,9 @@ pub fn generate_object_construction(
             Err(e) => return Err(e),
         }
 
-        context.bytecode.push(PengInstruction::SetConstAttribute(name));
+        context
+            .bytecode
+            .push(PengInstruction::SetConstAttribute(name));
     }
 
     Ok(())
@@ -229,15 +233,13 @@ pub fn generate_try_expression(
     context.bytecode.push(PengInstruction::Pop);
 
     match elsing {
-        Some(elsing) => {
-            match generate_expression(env, globals, context, elsing) {
-                Ok(()) => {}
-                Err(e) => return Err(e),
-            }
-        }
+        Some(elsing) => match generate_expression(env, globals, context, elsing) {
+            Ok(()) => {}
+            Err(e) => return Err(e),
+        },
 
         None => {
-            context.push_const_and_const_instruction(PengHeapValue::Nil);
+            context.push_const_and_const_instruction(PengValue::Cell(PengCell::Nil));
         }
     }
 
@@ -304,9 +306,9 @@ pub fn generate_type_expression(
                 }
             };
 
-            context.push_const_and_const_instruction(PengHeapValue::Type(PengType::Vector(Box::new(
-                inner_type,
-            ))));
+            context.push_const_and_const_instruction(PengValue::Heap(PengHeapValue::Type(
+                PengType::Vector(Box::new(inner_type)),
+            )));
 
             Ok(())
         }
@@ -326,7 +328,7 @@ pub fn generate_type_expression(
                 }
             };
 
-            context.push_const_and_const_instruction(PengHeapValue::Type(typ));
+            context.push_const_and_const_instruction(PengValue::Heap(PengHeapValue::Type(typ)));
 
             Ok(())
         }

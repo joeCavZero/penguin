@@ -18,13 +18,8 @@ pub fn generate_program(
 
     let mut context = PengGeneratorContext::new();
 
-    match generate_program_initialization(
-        env,
-        &mut full_globals,
-        declarations,
-        &mut context,
-    ) {
-        Ok(()) => {},
+    match generate_program_initialization(env, &mut full_globals, declarations, &mut context) {
+        Ok(()) => {}
         Err(e) => return Err(e),
     };
 
@@ -51,11 +46,11 @@ fn allocate_program_globals(
 
         let value_ptr = match declaration {
             PengBinded::Mutable(_) => {
-                env.create_heap_value(PengBinded::Mutable(PengStated::Initialized(PengHeapValue::Nil)))
+                env.create_heap_value(PengHeapValue::Object(PengObject::new_empty()))
             }
 
             PengBinded::Immutable(_) => {
-                env.create_heap_value(PengBinded::Immutable(PengStated::Uninitialized))
+                env.create_heap_value(PengHeapValue::Object(PengObject::new_empty()))
             }
         };
 
@@ -84,15 +79,11 @@ pub fn allocate_script_globals(
 
                 let value_ptr = match declaration {
                     PengBinded::Mutable(_) => {
-                        env.create_heap_value(PengBinded::Mutable(
-                            PengStated::Initialized(PengHeapValue::Nil),
-                        ))
+                        env.create_heap_value(PengHeapValue::Object(PengObject::new_empty()))
                     }
 
                     PengBinded::Immutable(_) => {
-                        env.create_heap_value(PengBinded::Immutable(
-                            PengStated::Uninitialized,
-                        ))
+                        env.create_heap_value(PengHeapValue::Object(PengObject::new_empty()))
                     }
                 };
 
@@ -117,7 +108,13 @@ pub fn get_allocated_global(
         return Some(*value_ptr);
     }
 
-    env.get_global_by_name_str(name)
+    match env.get_global_by_name_str(name) {
+        Some(cell) => match cell.value() {
+            PengStated::Initialized(PengCell::Reference(ptr)) => Some(*ptr),
+            _ => None,
+        },
+        None => None,
+    }
 }
 
 fn declaration_name(declaration: &PengBindedDeclaration) -> String {
@@ -151,7 +148,7 @@ fn generate_program_initialization(
         match declaration {
             PengDeclaration::Function(function) => {
                 match generate_global_function(env, globals, context, function) {
-                    Ok(()) => {},
+                    Ok(()) => {}
                     Err(e) => return Err(e),
                 }
             }
@@ -242,7 +239,7 @@ fn generate_global_operation(
     context
         .bytecode
         .push(PengInstruction::PushHeapRef(value_ptr));
-    context.push_const_and_const_instruction(value);
+    context.push_const_and_const_instruction(PengValue::Heap(value));
     context.bytecode.push(PengInstruction::StoreHeap);
 
     Ok(())
@@ -272,7 +269,7 @@ fn generate_global_function(
     context
         .bytecode
         .push(PengInstruction::PushHeapRef(value_ptr));
-    context.push_const_and_const_instruction(value);
+    context.push_const_and_const_instruction(PengValue::Heap(value));
     context.bytecode.push(PengInstruction::StoreHeap);
 
     Ok(())
