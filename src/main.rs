@@ -1,76 +1,71 @@
 use std::collections::HashMap;
 
+fn peng_print(
+    args: Vec<penguin::PengBindedCell>,
+    env: &mut penguin::PengEnv,
+) -> Result<penguin::PengBindedCell, penguin::PengError> {
+    for arg in args {
+        match arg.value() {
+            penguin::PengCell::Bool(v) => print!("{}", v),
+            penguin::PengCell::Byte(v) => print!("{}", v),
+            penguin::PengCell::Float32(v) => print!("{}", v),
+            penguin::PengCell::Float64(v) => print!("{}", v),
+            penguin::PengCell::Int(v) => print!("{}", v),
+            penguin::PengCell::Nil => print!("nil"),
+            penguin::PengCell::Uint(v) => print!("{}", v),
+            penguin::PengCell::Reference(ptr) => {
+                if let Some(h) = env.get_heap(*ptr) {
+                    match h {
+                        penguin::PengHeapValue::Function(_) => print!("<function>"),
+                        penguin::PengHeapValue::Module(_) => print!("<module>"),
+                        penguin::PengHeapValue::Object(_) => print!("<object>"),
+                        penguin::PengHeapValue::Operation(_) => print!("<operation>"),
+                        penguin::PengHeapValue::String(s) => print!("{}", s),
+                        penguin::PengHeapValue::Thread(_) => print!("<thread>"),
+                        penguin::PengHeapValue::Type(_) => print!("<type>"),
+                        penguin::PengHeapValue::Vector(_) => print!("<vector>"),
+                        penguin::PengHeapValue::Union(_) => print!("<union>"),
+                    }
+                }
+            }
+        }
+    }
+    println!();
+    return Ok(penguin::PengBindedCell::Mutable(penguin::PengCell::Nil))
+}
+
 fn main() {
     match penguin::lex_file("main.p".to_string(), 0) {
         Ok(tkns) => {
-            for tk in &tkns {
-                //println!("{}", tk.token_display())
-            }
-            //println!("============================");
             match penguin::parse_script(tkns) {
                 Ok(ast) => {
-                    ////println!("============================");
                     let mut env = penguin::PengEnv::new();
+                    let f = penguin::PengCell::Reference(env.create_heap_value(penguin::PengHeapValue::Function(penguin::PengFunction::new_native(peng_print))));
+                    let ff = penguin::PengBinded::Immutable(penguin::PengStated::Initialized(f));
+                    env.set_global("print".to_string(), ff);
                     match penguin::generate_ast(&mut env, &ast, &HashMap::new()) {
-                        Ok((globals, init_ptr)) => {
-                            if let Some(cbinit) = env.get_heap(init_ptr).cloned() {
-                                if let penguin::PengHeapValue::Function(init_f) = cbinit {
-                                    if let penguin::PengFunction::Bytecode(init_btc) = init_f {
-                                        ////println!("----- conts do init:\n{:#?}", init_btc.consts);
-                                        ////println!("- - - - - - init.bytecode - - - - ");
-                                        for i in init_btc.bytecode {
-                                            ////println!("{:?}", i);
-                                        }
-                                        ////println!(
-                                        //    "----- env.values antes de rodar o init:\n{:#?}",
-                                        //    env.heap
-                                        //);
-                                        ////println!("- - - - - - globals - - - - ");
-                                        for (gn, gvp) in globals {
-                                            match env.get_pooled_name(gn).cloned() {
-                                                Some(name) => {
-                                                    //println!("{} - {:?}", name, env.heap.get(&gvp));
-                                                }
-                                                None => {}
-                                            }
-                                        }
-                                    }
-                                }
-                            }
+                        Ok((_, init_ptr)) => {
                             let thread_ptr = env.create_thread(init_ptr, 0, Vec::new());
                             loop {
                                 match penguin::step_thread(&mut env, thread_ptr) {
                                     Ok(possible_result) => match possible_result {
-                                        Some(value) => {
-                                            println!(" O RESULTADO É...\n   {:?}", value);
+                                        Some(_) => {
                                             return;
                                         }
                                         None => {}
                                     },
                                     Err(e) => {
-                                        println!("ERRO::::: {:?}", e);
-                                        //println!("----- env.values depois de rodar o init e dar erro:\n{:#?}", env.heap);
+                                        println!("ERROR:\n{:#?}", e);
                                         return;
                                     }
                                 }
-                                match env.get_heap(thread_ptr) {
-                                    Some(penguin::PengHeapValue::Thread(tt)) => {
-                                        //println!(
-                                        //    "stack nesse momento: \n {:?}\n-------------",
-                                        //    tt.stack
-                                        //);
-                                    }
-                                    _ => {}
-                                }
                             }
                         }
-                        Err(e) => {
-                            //println!("{:?}", e);
+                        Err(_) => {
                         }
                     }
                 }
-                Err(e) => {
-                    //println!("{:?}", e);
+                Err(_) => {
                 }
             }
         }

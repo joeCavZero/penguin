@@ -5,6 +5,7 @@ use crate::utils::*;
 
 pub type PengStatedCell = PengStated<PengCell>;
 pub type PengBindedStatedCell = PengBinded<PengStatedCell>;
+pub type PengBindedCell = PengBinded<PengCell>;
 
 #[derive(Debug, Clone)]
 pub enum PengCell {
