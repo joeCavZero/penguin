@@ -241,7 +241,11 @@ pub fn generate_local_variable(
     match &variable.value.value {
         Some(value) => match generate_expression(env, globals, context, value) {
             Ok(()) => {}
-            Err(e) => return Err(e),
+            Err(e) => {
+                return Err(e.push(PengError::InvalidState(
+                    "failed while generating generator_utils".to_string(),
+                )));
+            }
         },
         None => {
             context.push_const_and_const_instruction(PengValue::Cell(PengCell::Nil));
@@ -262,7 +266,11 @@ pub fn generate_local_as_declaration(
 ) -> Result<(), PengError> {
     match generate_expression(env, globals, context, &declaration.value.value) {
         Ok(()) => {}
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::InvalidState(
+                "failed while generating generator_utils".to_string(),
+            )));
+        }
     }
 
     let local = context.create_local(declaration.value.name.value.clone());
@@ -286,7 +294,11 @@ pub fn generate_local_type_declaration(
 
     match generate_type_expression(env, globals, context, value) {
         Ok(()) => {}
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::InvalidState(
+                "failed while generating generator_utils".to_string(),
+            )));
+        }
     }
 
     let local = context.create_local(declaration.value.name.value.clone());
@@ -309,7 +321,11 @@ pub fn generate_structured_local_type_declaration(
 
     match generate_type_literal(env, globals, context, &literal) {
         Ok(()) => {}
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::InvalidState(
+                "failed while generating generator_utils".to_string(),
+            )));
+        }
     };
     let local = context.create_local(declaration.value.name.value.clone());
     context.bytecode.push(PengInstruction::StoreLocal(local));
@@ -443,14 +459,22 @@ pub fn generate_assignment_value(
 
             match generate_expression(env, globals, context, value) {
                 Ok(()) => {}
-                Err(e) => return Err(e),
+                Err(e) => {
+                    return Err(e.push(PengError::InvalidState(
+                        "failed while generating generator_utils".to_string(),
+                    )));
+                }
             }
 
             context.bytecode.push(operation);
         }
         None => match generate_expression(env, globals, context, value) {
             Ok(()) => {}
-            Err(e) => return Err(e),
+            Err(e) => {
+                return Err(e.push(PengError::InvalidState(
+                    "failed while generating generator_utils".to_string(),
+                )));
+            }
         },
     }
 
@@ -483,17 +507,29 @@ pub fn generate_index_assignment(
     if operation.is_none() {
         match generate_expression(env, globals, context, &index.object) {
             Ok(()) => {}
-            Err(e) => return Err(e),
+            Err(e) => {
+                return Err(e.push(PengError::InvalidState(
+                    "failed while generating generator_utils".to_string(),
+                )));
+            }
         }
 
         match generate_expression(env, globals, context, &index.index) {
             Ok(()) => {}
-            Err(e) => return Err(e),
+            Err(e) => {
+                return Err(e.push(PengError::InvalidState(
+                    "failed while generating generator_utils".to_string(),
+                )));
+            }
         }
 
         match generate_expression(env, globals, context, value) {
             Ok(()) => {}
-            Err(e) => return Err(e),
+            Err(e) => {
+                return Err(e.push(PengError::InvalidState(
+                    "failed while generating generator_utils".to_string(),
+                )));
+            }
         }
 
         context.bytecode.push(PengInstruction::SetIndex);
@@ -502,7 +538,11 @@ pub fn generate_index_assignment(
 
     match generate_expression(env, globals, context, &index.object) {
         Ok(()) => {}
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::InvalidState(
+                "failed while generating generator_utils".to_string(),
+            )));
+        }
     }
 
     let object_local = context.create_temporary_local();
@@ -512,7 +552,11 @@ pub fn generate_index_assignment(
 
     match generate_expression(env, globals, context, &index.index) {
         Ok(()) => {}
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::InvalidState(
+                "failed while generating generator_utils".to_string(),
+            )));
+        }
     }
 
     let index_local = context.create_temporary_local();
@@ -539,7 +583,11 @@ pub fn generate_index_assignment(
 
             match generate_expression(env, globals, context, value) {
                 Ok(()) => {}
-                Err(e) => return Err(e),
+                Err(e) => {
+                    return Err(e.push(PengError::InvalidState(
+                        "failed while generating generator_utils".to_string(),
+                    )));
+                }
             }
 
             context.bytecode.push(operation);
@@ -564,12 +612,20 @@ pub fn generate_attribute_assignment(
     if operation.is_none() {
         match generate_expression(env, globals, context, &attribute.object) {
             Ok(()) => {}
-            Err(e) => return Err(e),
+            Err(e) => {
+                return Err(e.push(PengError::InvalidState(
+                    "failed while generating generator_utils".to_string(),
+                )));
+            }
         }
 
         match generate_expression(env, globals, context, value) {
             Ok(()) => {}
-            Err(e) => return Err(e),
+            Err(e) => {
+                return Err(e.push(PengError::InvalidState(
+                    "failed while generating generator_utils".to_string(),
+                )));
+            }
         }
 
         context
@@ -580,7 +636,11 @@ pub fn generate_attribute_assignment(
 
     match generate_expression(env, globals, context, &attribute.object) {
         Ok(()) => {}
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::InvalidState(
+                "failed while generating generator_utils".to_string(),
+            )));
+        }
     }
 
     let object_local = context.create_temporary_local();
@@ -603,7 +663,11 @@ pub fn generate_attribute_assignment(
 
             match generate_expression(env, globals, context, value) {
                 Ok(()) => {}
-                Err(e) => return Err(e),
+                Err(e) => {
+                    return Err(e.push(PengError::InvalidState(
+                        "failed while generating generator_utils".to_string(),
+                    )));
+                }
             }
 
             context.bytecode.push(operation);
@@ -656,12 +720,20 @@ pub fn generate_member_assignment(
     if operation.is_none() {
         match generate_expression(env, globals, context, &member.object) {
             Ok(()) => {}
-            Err(e) => return Err(e),
+            Err(e) => {
+                return Err(e.push(PengError::InvalidState(
+                    "failed while generating generator_utils".to_string(),
+                )));
+            }
         }
 
         match generate_expression(env, globals, context, value) {
             Ok(()) => {}
-            Err(e) => return Err(e),
+            Err(e) => {
+                return Err(e.push(PengError::InvalidState(
+                    "failed while generating generator_utils".to_string(),
+                )));
+            }
         }
 
         context.bytecode.push(PengInstruction::SetConstMember(name));
@@ -670,7 +742,11 @@ pub fn generate_member_assignment(
 
     match generate_expression(env, globals, context, &member.object) {
         Ok(()) => {}
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::InvalidState(
+                "failed while generating generator_utils".to_string(),
+            )));
+        }
     }
 
     let object_local = context.create_temporary_local();
@@ -691,7 +767,11 @@ pub fn generate_member_assignment(
 
             match generate_expression(env, globals, context, value) {
                 Ok(()) => {}
-                Err(e) => return Err(e),
+                Err(e) => {
+                    return Err(e.push(PengError::InvalidState(
+                        "failed while generating generator_utils".to_string(),
+                    )));
+                }
             }
 
             context.bytecode.push(operation);
@@ -734,7 +814,11 @@ pub fn generate_local_module_declaration(
                 Some(value) => {
                     match generate_expression(env, globals, context, value) {
                         Ok(()) => {}
-                        Err(e) => return Err(e),
+                        Err(e) => {
+                            return Err(e.push(PengError::InvalidState(
+                                "failed while generating generator_utils".to_string(),
+                            )));
+                        }
                     };
                 }
                 None => {
@@ -745,14 +829,22 @@ pub fn generate_local_module_declaration(
             PengDeclaration::As(declaration) => {
                 match generate_expression(env, globals, context, &declaration.value.value) {
                     Ok(()) => {}
-                    Err(e) => return Err(e),
+                    Err(e) => {
+                        return Err(e.push(PengError::InvalidState(
+                            "failed while generating generator_utils".to_string(),
+                        )));
+                    }
                 };
             }
 
             PengDeclaration::Function(declaration) => {
                 let value = match generate_function_declaration_value(env, globals, declaration) {
                     Ok(v) => v,
-                    Err(e) => return Err(e),
+                    Err(e) => {
+                        return Err(e.push(PengError::InvalidState(
+                            "failed while generating generator_utils".to_string(),
+                        )));
+                    }
                 };
                 context.push_const_and_const_instruction(PengValue::Heap(value));
             }
@@ -760,7 +852,11 @@ pub fn generate_local_module_declaration(
             PengDeclaration::Operation(declaration) => {
                 let value = match generate_operation_declaration_value(env, globals, declaration) {
                     Ok(v) => v,
-                    Err(e) => return Err(e),
+                    Err(e) => {
+                        return Err(e.push(PengError::InvalidState(
+                            "failed while generating generator_utils".to_string(),
+                        )));
+                    }
                 };
                 context.push_const_and_const_instruction(PengValue::Heap(value));
             }
@@ -769,7 +865,11 @@ pub fn generate_local_module_declaration(
                 Some(value) => {
                     match generate_type_expression(env, globals, context, value) {
                         Ok(()) => {}
-                        Err(e) => return Err(e),
+                        Err(e) => {
+                            return Err(e.push(PengError::InvalidState(
+                                "failed while generating generator_utils".to_string(),
+                            )));
+                        }
                     };
                 }
                 None => {
@@ -781,7 +881,11 @@ pub fn generate_local_module_declaration(
 
                     match generate_type_literal(env, globals, context, &literal) {
                         Ok(()) => {}
-                        Err(e) => return Err(e),
+                        Err(e) => {
+                            return Err(e.push(PengError::InvalidState(
+                                "failed while generating generator_utils".to_string(),
+                            )));
+                        }
                     };
                 }
             },
@@ -789,7 +893,11 @@ pub fn generate_local_module_declaration(
             PengDeclaration::Module(declaration) => {
                 match generate_module_declaration_value(env, globals, context, declaration) {
                     Ok(()) => {}
-                    Err(e) => return Err(e),
+                    Err(e) => {
+                        return Err(e.push(PengError::InvalidState(
+                            "failed while generating generator_utils".to_string(),
+                        )));
+                    }
                 };
             }
         }
@@ -835,7 +943,11 @@ pub fn generate_module_declaration_value(
             PengDeclaration::Var(declaration) => match &declaration.value.value {
                 Some(value) => match generate_expression(env, globals, context, value) {
                     Ok(()) => {}
-                    Err(e) => return Err(e),
+                    Err(e) => {
+                        return Err(e.push(PengError::InvalidState(
+                            "failed while generating generator_utils".to_string(),
+                        )));
+                    }
                 },
                 None => context.push_const_and_const_instruction(PengValue::Cell(PengCell::Nil)),
             },
@@ -843,14 +955,22 @@ pub fn generate_module_declaration_value(
             PengDeclaration::As(declaration) => {
                 match generate_expression(env, globals, context, &declaration.value.value) {
                     Ok(()) => {}
-                    Err(e) => return Err(e),
+                    Err(e) => {
+                        return Err(e.push(PengError::InvalidState(
+                            "failed while generating generator_utils".to_string(),
+                        )));
+                    }
                 };
             }
 
             PengDeclaration::Function(declaration) => {
                 let value = match generate_function_declaration_value(env, globals, declaration) {
                     Ok(v) => v,
-                    Err(e) => return Err(e),
+                    Err(e) => {
+                        return Err(e.push(PengError::InvalidState(
+                            "failed while generating generator_utils".to_string(),
+                        )));
+                    }
                 };
                 context.push_const_and_const_instruction(PengValue::Heap(value));
             }
@@ -858,7 +978,11 @@ pub fn generate_module_declaration_value(
             PengDeclaration::Operation(declaration) => {
                 let value = match generate_operation_declaration_value(env, globals, declaration) {
                     Ok(v) => v,
-                    Err(e) => return Err(e),
+                    Err(e) => {
+                        return Err(e.push(PengError::InvalidState(
+                            "failed while generating generator_utils".to_string(),
+                        )));
+                    }
                 };
                 context.push_const_and_const_instruction(PengValue::Heap(value));
             }
@@ -866,7 +990,11 @@ pub fn generate_module_declaration_value(
             PengDeclaration::Type(declaration) => match &declaration.value.value {
                 Some(value) => match generate_type_expression(env, globals, context, value) {
                     Ok(()) => {}
-                    Err(e) => return Err(e),
+                    Err(e) => {
+                        return Err(e.push(PengError::InvalidState(
+                            "failed while generating generator_utils".to_string(),
+                        )));
+                    }
                 },
                 None => {
                     let literal = PengTypeLiteral {
@@ -877,7 +1005,11 @@ pub fn generate_module_declaration_value(
 
                     match generate_type_literal(env, globals, context, &literal) {
                         Ok(()) => {}
-                        Err(e) => return Err(e),
+                        Err(e) => {
+                            return Err(e.push(PengError::InvalidState(
+                                "failed while generating generator_utils".to_string(),
+                            )));
+                        }
                     };
                 }
             },
@@ -885,7 +1017,11 @@ pub fn generate_module_declaration_value(
             PengDeclaration::Module(declaration) => {
                 match generate_module_declaration_value(env, globals, context, declaration) {
                     Ok(()) => {}
-                    Err(e) => return Err(e),
+                    Err(e) => {
+                        return Err(e.push(PengError::InvalidState(
+                            "failed while generating generator_utils".to_string(),
+                        )));
+                    }
                 };
             }
         }

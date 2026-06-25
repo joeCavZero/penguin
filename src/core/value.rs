@@ -18,32 +18,51 @@ impl PengValue {
     pub fn greater_than(&self, rhs: &Self) -> Result<bool, PengError> {
         match (self, rhs) {
             (Self::Cell(left), Self::Cell(right)) => left.greater_than(right),
-            _ => Err(PengError::Code(PengErrorCode::TestError)),
+            _ => Err(PengError::InvalidBinaryOperation {
+                operator: ">".to_string(),
+                left: format!("{:?}", self),
+                right: format!("{:?}", rhs),
+            }),
         }
     }
 
     pub fn greater_equals_than(&self, rhs: &Self) -> Result<bool, PengError> {
         match (self, rhs) {
             (Self::Cell(left), Self::Cell(right)) => left.greater_equals_than(right),
-            _ => Err(PengError::Code(PengErrorCode::TestError)),
+            _ => Err(PengError::InvalidBinaryOperation {
+                operator: ">=".to_string(),
+                left: format!("{:?}", self),
+                right: format!("{:?}", rhs),
+            }),
         }
     }
 
     pub fn less_than(&self, rhs: &Self) -> Result<bool, PengError> {
         match (self, rhs) {
             (Self::Cell(left), Self::Cell(right)) => left.less_than(right),
-            _ => Err(PengError::Code(PengErrorCode::TestError)),
+            _ => Err(PengError::InvalidBinaryOperation {
+                operator: "<".to_string(),
+                left: format!("{:?}", self),
+                right: format!("{:?}", rhs),
+            }),
         }
     }
 
     pub fn less_equals_than(&self, rhs: &Self) -> Result<bool, PengError> {
         match (self, rhs) {
             (Self::Cell(left), Self::Cell(right)) => left.less_equals_than(right),
-            _ => Err(PengError::Code(PengErrorCode::TestError)),
+            _ => Err(PengError::InvalidBinaryOperation {
+                operator: "<=".to_string(),
+                left: format!("{:?}", self),
+                right: format!("{:?}", rhs),
+            }),
         }
     }
 
     pub fn convert_value(self, target_type: PengType) -> Result<PengValue, PengError> {
+        let from = format!("{:?}", self);
+        let to = format!("{:?}", target_type);
+
         match (self, target_type) {
             (PengValue::Cell(PengCell::Nil), PengType::Nil) => Ok(PengValue::Cell(PengCell::Nil)),
             (PengValue::Cell(PengCell::Int(value)), PengType::Int) => {
@@ -92,7 +111,7 @@ impl PengValue {
                 Ok(PengValue::Heap(PengHeapValue::Union(value)))
             }
             (value, PengType::Any) => Ok(value),
-            _ => Err(PengError::Code(PengErrorCode::TestError)),
+            _ => Err(PengError::InvalidConversion { from, to }),
         }
     }
 }

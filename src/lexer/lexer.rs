@@ -36,7 +36,7 @@ pub fn lex_file(
                         Ok(ptk) => ptokens.push(ptk),
                         Err(e) => {
                             err_to_return = Some(
-                                PengError::new_positioned_message(
+                                PengError::new_positioned_error(
                                     e,
                                     pos.clone(),
                                 )
@@ -76,7 +76,7 @@ pub fn lex_source(
                         Ok(ptk) => ptokens.push(ptk),
                         Err(e) => {
                             err_to_return = Some(
-                                PengError::new_positioned_message(
+                                PengError::new_positioned_error(
                                     e,
                                     pos.clone(),
                                 )

@@ -45,7 +45,11 @@ pub fn parse_block_statement(
             _ => {
                 let statement = match parse_statement(ptokens) {
                     Ok(statement) => statement,
-                    Err(e) => return Err(e),
+                    Err(e) => {
+                        return Err(e.push(PengError::SyntaxError(
+                            "failed while parsing parse_block_statement".to_string(),
+                        )));
+                    }
                 };
 
                 statements.push(statement);

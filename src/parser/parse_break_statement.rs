@@ -1,7 +1,7 @@
 use crate::core::*;
 use crate::lexer::*;
-use crate::parser::*;
 use crate::parser::parser_utils::consume_optional_semicolon;
+use crate::parser::*;
 
 pub fn parse_break_statement(
     ptokens: &mut PengPeekablePositionedToken,
@@ -9,9 +9,7 @@ pub fn parse_break_statement(
     let token = match ptokens.next() {
         Some(token) => token,
         None => {
-            return Err(PengError::new_message(
-                "expected 'break'".to_string(),
-            ));
+            return Err(PengError::new_message("expected 'break'".to_string()));
         }
     };
 
@@ -27,7 +25,11 @@ pub fn parse_break_statement(
 
     match consume_optional_semicolon(ptokens) {
         Ok(_) => {}
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_break_statement".to_string(),
+            )));
+        }
     }
 
     Ok(PengPositioned {

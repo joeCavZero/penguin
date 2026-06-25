@@ -21,7 +21,11 @@ fn parse_expression_bp(
 ) -> Result<PengPositionedExpression, PengError> {
     let mut left = match parse_prefix_expression(ptokens) {
         Ok(expr) => expr,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_expression".to_string(),
+            )));
+        }
     };
 
     loop {
@@ -44,16 +48,20 @@ fn parse_expression_bp(
 
             let operation = match parse_infix_operation_expression(ptokens) {
                 Ok(operation) => operation,
-                Err(e) => return Err(e),
+                Err(e) => {
+                    return Err(e.push(PengError::SyntaxError(
+                        "failed while parsing parse_expression".to_string(),
+                    )));
+                }
             };
 
-            let right = match parse_expression_bp(
-                ptokens,
-                operation_bp + 1,
-                allow_as,
-            ) {
+            let right = match parse_expression_bp(ptokens, operation_bp + 1, allow_as) {
                 Ok(expression) => expression,
-                Err(e) => return Err(e),
+                Err(e) => {
+                    return Err(e.push(PengError::SyntaxError(
+                        "failed while parsing parse_expression".to_string(),
+                    )));
+                }
             };
 
             let position = left.position.clone();
@@ -97,19 +105,18 @@ fn parse_expression_bp(
 
         ptokens.next();
 
-        let right = match parse_expression_bp(
-            ptokens,
-            right_bp,
-            allow_as,
-        ) {
+        let right = match parse_expression_bp(ptokens, right_bp, allow_as) {
             Ok(expr) => expr,
-            Err(e) => return Err(e),
+            Err(e) => {
+                return Err(e.push(PengError::SyntaxError(
+                    "failed while parsing parse_expression".to_string(),
+                )));
+            }
         };
 
         let is_type_union = match &operator_token.value {
             PengToken::Pipe => {
-                is_type_value_expression(&left.value)
-                    || is_type_value_expression(&right.value)
+                is_type_value_expression(&left.value) || is_type_value_expression(&right.value)
             }
             _ => false,
         };
@@ -152,7 +159,11 @@ fn parse_prefix_expression(
 
             let value = match parse_expression_bp(ptokens, 13, true) {
                 Ok(expr) => expr,
-                Err(e) => return Err(e),
+                Err(e) => {
+                    return Err(e.push(PengError::SyntaxError(
+                        "failed while parsing parse_expression".to_string(),
+                    )));
+                }
             };
 
             Ok(PengPositioned {
@@ -169,7 +180,11 @@ fn parse_prefix_expression(
 
             let value = match parse_expression_bp(ptokens, 13, true) {
                 Ok(expr) => expr,
-                Err(e) => return Err(e),
+                Err(e) => {
+                    return Err(e.push(PengError::SyntaxError(
+                        "failed while parsing parse_expression".to_string(),
+                    )));
+                }
             };
 
             Ok(PengPositioned {
@@ -186,7 +201,11 @@ fn parse_prefix_expression(
 
             let value = match parse_expression_bp(ptokens, 0, true) {
                 Ok(expression) => expression,
-                Err(e) => return Err(e),
+                Err(e) => {
+                    return Err(e.push(PengError::SyntaxError(
+                        "failed while parsing parse_expression".to_string(),
+                    )));
+                }
             };
 
             let has_else = match ptokens.peek() {
@@ -202,7 +221,11 @@ fn parse_prefix_expression(
 
                 match parse_expression_bp(ptokens, 0, true) {
                     Ok(expression) => Some(Box::new(expression)),
-                    Err(e) => return Err(e),
+                    Err(e) => {
+                        return Err(e.push(PengError::SyntaxError(
+                            "failed while parsing parse_expression".to_string(),
+                        )));
+                    }
                 }
             } else {
                 None
@@ -226,7 +249,11 @@ fn parse_postfix_expression(
 ) -> Result<PengPositionedExpression, PengError> {
     let mut expr = match parse_primary_expression(ptokens) {
         Ok(expr) => expr,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_expression".to_string(),
+            )));
+        }
     };
 
     loop {
@@ -239,28 +266,44 @@ fn parse_postfix_expression(
             PengToken::LeftParenthesis => {
                 expr = match parse_func_call_expression(ptokens, expr) {
                     Ok(expression) => expression,
-                    Err(e) => return Err(e),
+                    Err(e) => {
+                        return Err(e.push(PengError::SyntaxError(
+                            "failed while parsing parse_expression".to_string(),
+                        )));
+                    }
                 };
             }
 
             PengToken::Dot => {
                 expr = match parse_dot_expression(ptokens, expr) {
                     Ok(expression) => expression,
-                    Err(e) => return Err(e),
+                    Err(e) => {
+                        return Err(e.push(PengError::SyntaxError(
+                            "failed while parsing parse_expression".to_string(),
+                        )));
+                    }
                 };
             }
 
             PengToken::Colon => {
                 expr = match parse_colon_func_call_expression(ptokens, expr) {
                     Ok(expression) => expression,
-                    Err(e) => return Err(e),
+                    Err(e) => {
+                        return Err(e.push(PengError::SyntaxError(
+                            "failed while parsing parse_expression".to_string(),
+                        )));
+                    }
                 };
             }
 
             PengToken::LeftBracket => {
                 expr = match parse_index_expression(ptokens, expr) {
                     Ok(expression) => expression,
-                    Err(e) => return Err(e),
+                    Err(e) => {
+                        return Err(e.push(PengError::SyntaxError(
+                            "failed while parsing parse_expression".to_string(),
+                        )));
+                    }
                 };
             }
 
@@ -306,8 +349,7 @@ fn parse_primary_expression(
         PengToken::Type => {
             let is_literal = match token_after_current(ptokens) {
                 Some(token) => match &token.value {
-                    PengToken::Colon
-                    | PengToken::LeftCurlyBrace => true,
+                    PengToken::Colon | PengToken::LeftCurlyBrace => true,
                     _ => false,
                 },
                 None => false,
@@ -418,7 +460,11 @@ fn parse_primary_expression(
         PengToken::LeftParenthesis => {
             let expr = match parse_expression(ptokens) {
                 Ok(expr) => expr,
-                Err(e) => return Err(e),
+                Err(e) => {
+                    return Err(e.push(PengError::SyntaxError(
+                        "failed while parsing parse_expression".to_string(),
+                    )));
+                }
             };
 
             let close = match ptokens.next() {
@@ -491,10 +537,8 @@ fn binary_operator_from_token(token: &PengToken) -> Option<PengBinaryOperator> {
 
 fn binary_binding_power(op: &PengBinaryOperator) -> (u8, u8) {
     match op {
-        PengBinaryOperator::ShortCircuitOr
-        | PengBinaryOperator::NonShortCircuitOr => (2, 3),
-        PengBinaryOperator::ShortCircuitAnd
-        | PengBinaryOperator::NonShortCircuitAnd => (4, 5),
+        PengBinaryOperator::ShortCircuitOr | PengBinaryOperator::NonShortCircuitOr => (2, 3),
+        PengBinaryOperator::ShortCircuitAnd | PengBinaryOperator::NonShortCircuitAnd => (4, 5),
 
         PengBinaryOperator::Equals
         | PengBinaryOperator::NotEquals
@@ -524,7 +568,11 @@ fn parse_func_call_expression(
     let position = function.position.clone();
     let args = match parse_function_params(ptokens) {
         Ok(args) => args,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_expression".to_string(),
+            )));
+        }
     };
 
     Ok(PengPositioned {
@@ -553,7 +601,11 @@ fn parse_dot_expression(
         dot_token.position.clone(),
     ) {
         Ok(name) => name,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_expression".to_string(),
+            )));
+        }
     };
 
     let position = object.position.clone();
@@ -566,10 +618,13 @@ fn parse_dot_expression(
     };
 
     if has_call {
-
         let args = match parse_function_params(ptokens) {
             Ok(args) => args,
-            Err(e) => return Err(e),
+            Err(e) => {
+                return Err(e.push(PengError::SyntaxError(
+                    "failed while parsing parse_expression".to_string(),
+                )));
+            }
         };
 
         Ok(PengPositioned {
@@ -604,8 +659,7 @@ fn parse_colon_func_call_expression(
 
     let is_object = match ptokens.peek() {
         Some(token) => match &token.value {
-            PengToken::LeftCurlyBrace
-            | PengToken::LessThan => true,
+            PengToken::LeftCurlyBrace | PengToken::LessThan => true,
             _ => false,
         },
         None => false,
@@ -624,7 +678,11 @@ fn parse_colon_func_call_expression(
 
         let fields = match parse_object_fields(ptokens, open_token.position.clone()) {
             Ok(fields) => fields,
-            Err(e) => return Err(e),
+            Err(e) => {
+                return Err(e.push(PengError::SyntaxError(
+                    "failed while parsing parse_expression".to_string(),
+                )));
+            }
         };
 
         let position = module.position.clone();
@@ -644,7 +702,11 @@ fn parse_colon_func_call_expression(
         colon_token.position.clone(),
     ) {
         Ok(name) => name,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_expression".to_string(),
+            )));
+        }
     };
 
     let position = module.position.clone();
@@ -670,7 +732,11 @@ fn parse_colon_func_call_expression(
 
     let args = match parse_function_params(ptokens) {
         Ok(args) => args,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_expression".to_string(),
+            )));
+        }
     };
 
     Ok(PengPositioned {
@@ -695,7 +761,11 @@ fn parse_index_expression(
 
     let index = match parse_expression(ptokens) {
         Ok(expression) => expression,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_expression".to_string(),
+            )));
+        }
     };
 
     let close_token = match ptokens.next() {
@@ -792,18 +862,20 @@ fn parse_infix_operation_expression(
             first_token.position.clone(),
         ) {
             Ok(part) => part,
-            Err(e) => return Err(e),
+            Err(e) => {
+                return Err(e.push(PengError::SyntaxError(
+                    "failed while parsing parse_expression".to_string(),
+                )));
+            }
         };
 
         let position = operation.position.clone();
 
         operation = PengPositioned {
-            value: PengExpression::MemberAccess(
-                PengMemberAccessExpression {
-                    object: Box::new(operation),
-                    name: part,
-                },
-            ),
+            value: PengExpression::MemberAccess(PengMemberAccessExpression {
+                object: Box::new(operation),
+                name: part,
+            }),
             position,
         };
     }

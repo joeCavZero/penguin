@@ -18,7 +18,11 @@ pub fn generate_expression(
         PengExpression::Unary { operator, value } => {
             match generate_expression(env, globals, context, value) {
                 Ok(()) => {}
-                Err(e) => return Err(e),
+                Err(e) => {
+                    return Err(e.push(PengError::InvalidState(
+                        "failed while generating generate_expression".to_string(),
+                    )));
+                }
             }
 
             match operator {
@@ -39,7 +43,11 @@ pub fn generate_expression(
         } => {
             match generate_expression(env, globals, context, left) {
                 Ok(()) => {}
-                Err(e) => return Err(e),
+                Err(e) => {
+                    return Err(e.push(PengError::InvalidState(
+                        "failed while generating generate_expression".to_string(),
+                    )));
+                }
             }
 
             match operator {
@@ -59,7 +67,11 @@ pub fn generate_expression(
 
                     match generate_expression(env, globals, context, right) {
                         Ok(()) => {}
-                        Err(e) => return Err(e),
+                        Err(e) => {
+                            return Err(e.push(PengError::InvalidState(
+                                "failed while generating generate_expression".to_string(),
+                            )));
+                        }
                     };
 
                     let target = context.bytecode.len();
@@ -72,7 +84,11 @@ pub fn generate_expression(
                 _ => {
                     match generate_expression(env, globals, context, right) {
                         Ok(()) => {}
-                        Err(e) => return Err(e),
+                        Err(e) => {
+                            return Err(e.push(PengError::InvalidState(
+                                "failed while generating generate_expression".to_string(),
+                            )));
+                        }
                     };
                     generate_binary_operator(context, operator);
                 }
@@ -88,7 +104,11 @@ pub fn generate_expression(
         PengExpression::AttributeAccess(attribute) => {
             match generate_expression(env, globals, context, &attribute.object) {
                 Ok(()) => {}
-                Err(e) => return Err(e),
+                Err(e) => {
+                    return Err(e.push(PengError::InvalidState(
+                        "failed while generating generate_expression".to_string(),
+                    )));
+                }
             };
             let name = env.ensure_pooled_name_ptr(attribute.name.value.clone());
             context
@@ -99,7 +119,11 @@ pub fn generate_expression(
         PengExpression::MemberAccess(member) => {
             match generate_expression(env, globals, context, &member.object) {
                 Ok(()) => {}
-                Err(e) => return Err(e),
+                Err(e) => {
+                    return Err(e.push(PengError::InvalidState(
+                        "failed while generating generate_expression".to_string(),
+                    )));
+                }
             };
             let name = env.ensure_pooled_name_ptr(member.name.value.clone());
             context.bytecode.push(PengInstruction::GetConstMember(name));
@@ -128,7 +152,11 @@ pub fn generate_method_call(
 ) -> Result<(), PengError> {
     match generate_expression(env, globals, context, &call.object) {
         Ok(()) => {}
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::InvalidState(
+                "failed while generating generate_expression".to_string(),
+            )));
+        }
     };
     let object_local = context.create_temporary_local();
     context
@@ -150,7 +178,11 @@ pub fn generate_method_call(
     for arg in &call.args {
         match generate_expression(env, globals, context, arg) {
             Ok(()) => {}
-            Err(e) => return Err(e),
+            Err(e) => {
+                return Err(e.push(PengError::InvalidState(
+                    "failed while generating generate_expression".to_string(),
+                )));
+            }
         }
     }
 
@@ -169,7 +201,11 @@ pub fn generate_object_construction(
 ) -> Result<(), PengError> {
     match generate_expression(env, globals, context, &construction.object_type) {
         Ok(()) => {}
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::InvalidState(
+                "failed while generating generate_expression".to_string(),
+            )));
+        }
     }
 
     context.bytecode.push(PengInstruction::CreateTypedObject);
@@ -181,7 +217,11 @@ pub fn generate_object_construction(
 
         match generate_expression(env, globals, context, &field.value) {
             Ok(()) => {}
-            Err(e) => return Err(e),
+            Err(e) => {
+                return Err(e.push(PengError::InvalidState(
+                    "failed while generating generate_expression".to_string(),
+                )));
+            }
         }
 
         context
@@ -211,13 +251,21 @@ pub fn generate_try_expression(
 
     match generate_expression(env, globals, context, &call.function) {
         Ok(()) => {}
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::InvalidState(
+                "failed while generating generate_expression".to_string(),
+            )));
+        }
     };
 
     for arg in &call.args {
         match generate_expression(env, globals, context, arg) {
             Ok(()) => {}
-            Err(e) => return Err(e),
+            Err(e) => {
+                return Err(e.push(PengError::InvalidState(
+                    "failed while generating generate_expression".to_string(),
+                )));
+            }
         };
     }
 
@@ -235,7 +283,11 @@ pub fn generate_try_expression(
     match elsing {
         Some(elsing) => match generate_expression(env, globals, context, elsing) {
             Ok(()) => {}
-            Err(e) => return Err(e),
+            Err(e) => {
+                return Err(e.push(PengError::InvalidState(
+                    "failed while generating generate_expression".to_string(),
+                )));
+            }
         },
 
         None => {
@@ -257,12 +309,20 @@ pub fn generate_index_expression(
 ) -> Result<(), PengError> {
     match generate_expression(env, globals, context, &index.object) {
         Ok(()) => {}
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::InvalidState(
+                "failed while generating generate_expression".to_string(),
+            )));
+        }
     }
 
     match generate_expression(env, globals, context, &index.index) {
         Ok(()) => {}
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::InvalidState(
+                "failed while generating generate_expression".to_string(),
+            )));
+        }
     }
 
     context.bytecode.push(PengInstruction::GetIndex);
@@ -280,7 +340,11 @@ pub fn generate_type_expression(
             for typ in types {
                 match generate_type_expression(env, globals, context, typ) {
                     Ok(()) => {}
-                    Err(e) => return Err(e),
+                    Err(e) => {
+                        return Err(e.push(PengError::InvalidState(
+                            "failed while generating generate_expression".to_string(),
+                        )));
+                    }
                 }
             }
 

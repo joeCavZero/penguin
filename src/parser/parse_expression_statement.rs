@@ -15,7 +15,11 @@ pub fn parse_expression_or_assignment_statement(
     let expression_start = ptokens.clone();
     let declaration_value = match parse_expression_before_as(ptokens) {
         Ok(expression) => expression,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_expression_statement".to_string(),
+            )));
+        }
     };
 
     let mut declaration_lookahead = ptokens.clone();
@@ -72,7 +76,11 @@ pub fn parse_expression_or_assignment_statement(
                 as_token.position.clone(),
             ) {
                 Ok(name) => name,
-                Err(e) => return Err(e),
+                Err(e) => {
+                    return Err(e.push(PengError::SyntaxError(
+                        "failed while parsing parse_expression_statement".to_string(),
+                    )));
+                }
             };
 
             let type_hint = match ptokens.peek() {
@@ -82,7 +90,11 @@ pub fn parse_expression_or_assignment_statement(
 
                         match parse_type_expression(ptokens) {
                             Ok(type_expression) => Some(type_expression),
-                            Err(e) => return Err(e),
+                            Err(e) => {
+                                return Err(e.push(PengError::SyntaxError(
+                                    "failed while parsing parse_expression_statement".to_string(),
+                                )));
+                            }
                         }
                     }
                     _ => None,
@@ -93,7 +105,11 @@ pub fn parse_expression_or_assignment_statement(
             if consume_semicolon {
                 match consume_optional_semicolon(ptokens) {
                     Ok(()) => {}
-                    Err(e) => return Err(e),
+                    Err(e) => {
+                        return Err(e.push(PengError::SyntaxError(
+                            "failed while parsing parse_expression_statement".to_string(),
+                        )));
+                    }
                 }
             }
 
@@ -125,7 +141,11 @@ pub fn parse_expression_or_assignment_statement(
     *ptokens = expression_start;
     let expression = match parse_expression(ptokens) {
         Ok(expression) => expression,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_expression_statement".to_string(),
+            )));
+        }
     };
 
     let position = expression.position.clone();
@@ -148,7 +168,11 @@ pub fn parse_expression_or_assignment_statement(
         ptokens.next();
         Some(match parse_expression(ptokens) {
             Ok(value) => value,
-            Err(e) => return Err(e),
+            Err(e) => {
+                return Err(e.push(PengError::SyntaxError(
+                    "failed while parsing parse_expression_statement".to_string(),
+                )));
+            }
         })
     } else {
         None
@@ -157,7 +181,11 @@ pub fn parse_expression_or_assignment_statement(
     if consume_semicolon {
         match consume_optional_semicolon(ptokens) {
             Ok(()) => {}
-            Err(e) => return Err(e),
+            Err(e) => {
+                return Err(e.push(PengError::SyntaxError(
+                    "failed while parsing parse_expression_statement".to_string(),
+                )));
+            }
         }
     }
 

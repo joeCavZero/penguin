@@ -48,11 +48,14 @@ pub fn parse_for_statement(
                 ptokens.next();
                 None
             }
-            PengToken::Const 
-            | PengToken::Var => {
+            PengToken::Const | PengToken::Var => {
                 let statement = match parse_declaration_statement(ptokens) {
                     Ok(statement) => statement,
-                    Err(e) => return Err(e),
+                    Err(e) => {
+                        return Err(e.push(PengError::SyntaxError(
+                            "failed while parsing parse_for_statement".to_string(),
+                        )));
+                    }
                 };
 
                 Some(Box::new(statement))
@@ -60,7 +63,11 @@ pub fn parse_for_statement(
             _ => {
                 let statement = match parse_expression_statement(ptokens) {
                     Ok(statement) => statement,
-                    Err(e) => return Err(e),
+                    Err(e) => {
+                        return Err(e.push(PengError::SyntaxError(
+                            "failed while parsing parse_for_statement".to_string(),
+                        )));
+                    }
                 };
 
                 Some(Box::new(statement))
@@ -83,7 +90,11 @@ pub fn parse_for_statement(
             _ => {
                 let expression = match parse_expression(ptokens) {
                     Ok(expression) => expression,
-                    Err(e) => return Err(e),
+                    Err(e) => {
+                        return Err(e.push(PengError::SyntaxError(
+                            "failed while parsing parse_for_statement".to_string(),
+                        )));
+                    }
                 };
 
                 let semicolon = match ptokens.next() {
@@ -127,7 +138,7 @@ pub fn parse_for_statement(
                         false,
                     ) {
                         Ok(statement) => Some(Box::new(statement)),
-                        Err(e) => return Err(e),
+                        Err(e) => { return Err(e.push(PengError::SyntaxError("failed while parsing parse_for_statement".to_string()))); }
                     }
                 }
             }
@@ -140,10 +151,12 @@ pub fn parse_for_statement(
         }
     };
 
-    if let Some(pptk) = ptokens.peek() { 
+    if let Some(pptk) = ptokens.peek() {
         match pptk.value {
-            PengToken::Semicolon => {ptokens.next();},
-            _ => {},
+            PengToken::Semicolon => {
+                ptokens.next();
+            }
+            _ => {}
         }
     }
 
@@ -169,12 +182,20 @@ pub fn parse_for_statement(
 
     let body_statement = match parse_block_statement(ptokens) {
         Ok(statement) => statement,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_for_statement".to_string(),
+            )));
+        }
     };
 
     let body = match block_statements(body_statement, "expected for body".to_string()) {
         Ok(body) => body,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_for_statement".to_string(),
+            )));
+        }
     };
 
     Ok(PengPositioned {

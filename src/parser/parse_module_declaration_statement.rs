@@ -1,7 +1,7 @@
 use crate::core::*;
 use crate::lexer::*;
-use crate::parser::*;
 use crate::parser::parser_utils::expect_identifier;
+use crate::parser::*;
 
 pub fn parse_module_declaration_statement(
     ptokens: &mut PengPeekablePositionedToken,
@@ -31,28 +31,31 @@ pub fn parse_module_declaration_statement(
         mod_token.position.clone(),
     ) {
         Ok(name) => name,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_module_declaration_statement".to_string(),
+            )));
+        }
     };
 
     let body = match parse_declaration_body(ptokens) {
         Ok(body) => body,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_module_declaration_statement".to_string(),
+            )));
+        }
     };
 
     let declaration = PengPositioned {
-        value: PengModuleDeclaration {
-            name,
-            body,
-        },
+        value: PengModuleDeclaration { name, body },
         position: mod_token.position.clone(),
     };
 
     Ok(PengPositioned {
-        value: PengStatement::Declaration(
-            PengBinded::Mutable(
-                PengDeclaration::Module(declaration)
-            )
-        ),
+        value: PengStatement::Declaration(PengBinded::Mutable(PengDeclaration::Module(
+            declaration,
+        ))),
         position: mod_token.position.clone(),
     })
 }

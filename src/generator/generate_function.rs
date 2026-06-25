@@ -51,7 +51,11 @@ pub fn generate_function_value(
 
     match generate_statements(env, globals, &mut context, body) {
         Ok(()) => {}
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::InvalidState(
+                "failed while generating generate_function".to_string(),
+            )));
+        }
     }
 
     Ok(create_bytecode_function_value(context))
@@ -65,13 +69,21 @@ pub fn generate_function_call(
 ) -> Result<(), PengError> {
     match generate_expression(env, globals, context, &call.function) {
         Ok(()) => {}
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::InvalidState(
+                "failed while generating generate_function".to_string(),
+            )));
+        }
     }
 
     for arg in &call.args {
         match generate_expression(env, globals, context, arg) {
             Ok(()) => {}
-            Err(e) => return Err(e),
+            Err(e) => {
+                return Err(e.push(PengError::InvalidState(
+                    "failed while generating generate_function".to_string(),
+                )));
+            }
         }
     }
 
@@ -94,7 +106,11 @@ pub fn generate_local_function_declaration(
         Some(value_ptr) => {
             let value = match generate_function_declaration_value(env, globals, declaration) {
                 Ok(value) => value,
-                Err(e) => return Err(e),
+                Err(e) => {
+                    return Err(e.push(PengError::InvalidState(
+                        "failed while generating generate_function".to_string(),
+                    )));
+                }
             };
 
             context
@@ -111,7 +127,11 @@ pub fn generate_local_function_declaration(
         None => {
             let value = match generate_function_declaration_value(env, globals, declaration) {
                 Ok(value) => value,
-                Err(e) => return Err(e),
+                Err(e) => {
+                    return Err(e.push(PengError::InvalidState(
+                        "failed while generating generate_function".to_string(),
+                    )));
+                }
             };
 
             context.push_const_and_const_instruction(PengValue::Heap(value));

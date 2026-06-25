@@ -26,7 +26,11 @@ pub fn parse_while_statement(
 
     let condition = match parse_expression(ptokens) {
         Ok(expression) => expression,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_while_statement".to_string(),
+            )));
+        }
     };
 
     match ptokens.peek() {
@@ -49,7 +53,11 @@ pub fn parse_while_statement(
 
     let body_statement = match parse_block_statement(ptokens) {
         Ok(statement) => statement,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_while_statement".to_string(),
+            )));
+        }
     };
 
     let body = match body_statement.value {

@@ -39,7 +39,11 @@ pub fn generate_literal(
         PengLiteral::Function(function) => {
             match generate_function_value(env, globals, &function.params, &function.body) {
                 Ok(value) => PengValue::Heap(value),
-                Err(e) => return Err(e),
+                Err(e) => {
+                    return Err(e.push(PengError::InvalidState(
+                        "failed while generating generate_literal".to_string(),
+                    )));
+                }
             }
         }
         PengLiteral::Module(_) => unreachable!(),
@@ -47,7 +51,11 @@ pub fn generate_literal(
         PengLiteral::Operation(operation) => {
             match generate_operation_value(env, globals, &operation.params, &operation.body) {
                 Ok(value) => PengValue::Heap(value),
-                Err(e) => return Err(e),
+                Err(e) => {
+                    return Err(e.push(PengError::InvalidState(
+                        "failed while generating generate_literal".to_string(),
+                    )));
+                }
             }
         }
         PengLiteral::Object(_) => unreachable!(),
@@ -84,7 +92,11 @@ pub fn generate_object_literal(
 
         match generate_expression(env, globals, context, &field.value) {
             Ok(()) => {}
-            Err(e) => return Err(e),
+            Err(e) => {
+                return Err(e.push(PengError::InvalidState(
+                    "failed while generating generate_literal".to_string(),
+                )));
+            }
         };
         context
             .bytecode
@@ -103,7 +115,11 @@ pub fn generate_type_literal_after_base(
     for super_type in &literal.supers {
         match generate_expression(env, globals, context, super_type) {
             Ok(()) => {}
-            Err(e) => return Err(e),
+            Err(e) => {
+                return Err(e.push(PengError::InvalidState(
+                    "failed while generating generate_literal".to_string(),
+                )));
+            }
         }
     }
 
@@ -119,7 +135,11 @@ pub fn generate_type_literal_after_base(
         match &field.value.value {
             Some(value) => match generate_expression(env, globals, context, value) {
                 Ok(()) => {}
-                Err(e) => return Err(e),
+                Err(e) => {
+                    return Err(e.push(PengError::InvalidState(
+                        "failed while generating generate_literal".to_string(),
+                    )));
+                }
             },
             None => context.push_const_and_const_instruction(PengValue::Cell(PengCell::Nil)),
         }
@@ -136,7 +156,11 @@ pub fn generate_type_literal_after_base(
 
         let value = match generate_function_declaration_value(env, globals, function) {
             Ok(value) => value,
-            Err(e) => return Err(e),
+            Err(e) => {
+                return Err(e.push(PengError::InvalidState(
+                    "failed while generating generate_literal".to_string(),
+                )));
+            }
         };
 
         context.push_const_and_const_instruction(PengValue::Heap(value));
@@ -158,7 +182,11 @@ pub fn generate_vector_literal(
     for value in values {
         match generate_expression(env, globals, context, value) {
             Ok(()) => {}
-            Err(e) => return Err(e),
+            Err(e) => {
+                return Err(e.push(PengError::InvalidState(
+                    "failed while generating generate_literal".to_string(),
+                )));
+            }
         };
     }
 
@@ -199,7 +227,11 @@ pub fn generate_module_literal(
             PengDeclaration::Var(declaration) => match &declaration.value.value {
                 Some(value) => match generate_expression(env, globals, context, value) {
                     Ok(()) => {}
-                    Err(e) => return Err(e),
+                    Err(e) => {
+                        return Err(e.push(PengError::InvalidState(
+                            "failed while generating generate_literal".to_string(),
+                        )));
+                    }
                 },
                 None => context.push_const_and_const_instruction(PengValue::Cell(PengCell::Nil)),
             },
@@ -207,14 +239,22 @@ pub fn generate_module_literal(
             PengDeclaration::As(declaration) => {
                 match generate_expression(env, globals, context, &declaration.value.value) {
                     Ok(()) => {}
-                    Err(e) => return Err(e),
+                    Err(e) => {
+                        return Err(e.push(PengError::InvalidState(
+                            "failed while generating generate_literal".to_string(),
+                        )));
+                    }
                 };
             }
 
             PengDeclaration::Function(declaration) => {
                 let value = match generate_function_declaration_value(env, globals, declaration) {
                     Ok(v) => v,
-                    Err(e) => return Err(e),
+                    Err(e) => {
+                        return Err(e.push(PengError::InvalidState(
+                            "failed while generating generate_literal".to_string(),
+                        )));
+                    }
                 };
                 context.push_const_and_const_instruction(PengValue::Heap(value));
             }
@@ -222,7 +262,11 @@ pub fn generate_module_literal(
             PengDeclaration::Type(declaration) => match &declaration.value.value {
                 Some(value) => match generate_type_expression(env, globals, context, value) {
                     Ok(()) => {}
-                    Err(e) => return Err(e),
+                    Err(e) => {
+                        return Err(e.push(PengError::InvalidState(
+                            "failed while generating generate_literal".to_string(),
+                        )));
+                    }
                 },
                 None => {
                     let literal = PengTypeLiteral {
@@ -233,7 +277,11 @@ pub fn generate_module_literal(
 
                     match generate_type_literal(env, globals, context, &literal) {
                         Ok(()) => {}
-                        Err(e) => return Err(e),
+                        Err(e) => {
+                            return Err(e.push(PengError::InvalidState(
+                                "failed while generating generate_literal".to_string(),
+                            )));
+                        }
                     };
                 }
             },
@@ -241,14 +289,22 @@ pub fn generate_module_literal(
             PengDeclaration::Module(declaration) => {
                 match generate_module_declaration_value(env, globals, context, declaration) {
                     Ok(()) => {}
-                    Err(e) => return Err(e),
+                    Err(e) => {
+                        return Err(e.push(PengError::InvalidState(
+                            "failed while generating generate_literal".to_string(),
+                        )));
+                    }
                 };
             }
 
             PengDeclaration::Operation(declaration) => {
                 let value = match generate_operation_declaration_value(env, globals, declaration) {
                     Ok(v) => v,
-                    Err(e) => return Err(e),
+                    Err(e) => {
+                        return Err(e.push(PengError::InvalidState(
+                            "failed while generating generate_literal".to_string(),
+                        )));
+                    }
                 };
                 context.push_const_and_const_instruction(PengValue::Heap(value));
             }

@@ -13,7 +13,11 @@ pub fn generate_statements(
     for statement in statements {
         match generate_statement(env, globals, context, statement) {
             Ok(()) => {}
-            Err(e) => return Err(e),
+            Err(e) => {
+                return Err(e.push(PengError::InvalidState(
+                    "failed while generating generate_statement".to_string(),
+                )));
+            }
         }
     }
 
@@ -72,7 +76,11 @@ pub fn generate_statement(
             match value {
                 Some(value) => match generate_expression(env, globals, context, value) {
                     Ok(()) => {}
-                    Err(e) => return Err(e),
+                    Err(e) => {
+                        return Err(e.push(PengError::InvalidState(
+                            "failed while generating generate_statement".to_string(),
+                        )));
+                    }
                 },
                 None => {
                     context.push_const_and_const_instruction(PengValue::Cell(PengCell::Nil));
@@ -88,7 +96,11 @@ pub fn generate_statement(
         PengStatement::Expression(expression) => {
             match generate_expression(env, globals, context, expression) {
                 Ok(()) => {}
-                Err(e) => return Err(e),
+                Err(e) => {
+                    return Err(e.push(PengError::InvalidState(
+                        "failed while generating generate_statement".to_string(),
+                    )));
+                }
             }
 
             context.bytecode.push(PengInstruction::Pop);
@@ -163,14 +175,22 @@ pub fn generate_if_statement(
 ) -> Result<(), PengError> {
     match generate_expression(env, globals, context, &statement.condition) {
         Ok(()) => {}
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::InvalidState(
+                "failed while generating generate_statement".to_string(),
+            )));
+        }
     }
 
     let false_jump = context.emit_jump_if_false();
 
     match generate_scoped_statements(env, globals, context, &statement.then_branch) {
         Ok(()) => {}
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::InvalidState(
+                "failed while generating generate_statement".to_string(),
+            )));
+        }
     }
 
     match &statement.else_branch {
@@ -181,7 +201,11 @@ pub fn generate_if_statement(
 
             match generate_scoped_statements(env, globals, context, else_branch) {
                 Ok(()) => {}
-                Err(e) => return Err(e),
+                Err(e) => {
+                    return Err(e.push(PengError::InvalidState(
+                        "failed while generating generate_statement".to_string(),
+                    )));
+                }
             }
 
             let end = context.bytecode.len();
@@ -204,7 +228,11 @@ pub fn generate_match_statement(
 ) -> Result<(), PengError> {
     match generate_expression(env, globals, context, &statement.value) {
         Ok(()) => {}
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::InvalidState(
+                "failed while generating generate_statement".to_string(),
+            )));
+        }
     }
 
     let matched_local = context.create_temporary_local();
@@ -221,7 +249,11 @@ pub fn generate_match_statement(
 
         match generate_expression(env, globals, context, &arm.pattern) {
             Ok(()) => {}
-            Err(e) => return Err(e),
+            Err(e) => {
+                return Err(e.push(PengError::InvalidState(
+                    "failed while generating generate_statement".to_string(),
+                )));
+            }
         }
 
         context.bytecode.push(PengInstruction::Equals);
@@ -230,7 +262,11 @@ pub fn generate_match_statement(
 
         match generate_scoped_statements(env, globals, context, &arm.body) {
             Ok(()) => {}
-            Err(e) => return Err(e),
+            Err(e) => {
+                return Err(e.push(PengError::InvalidState(
+                    "failed while generating generate_statement".to_string(),
+                )));
+            }
         }
 
         let end_jump = context.emit_jump();
@@ -243,7 +279,11 @@ pub fn generate_match_statement(
     match &statement.elsing {
         Some(body) => match generate_scoped_statements(env, globals, context, body) {
             Ok(()) => {}
-            Err(e) => return Err(e),
+            Err(e) => {
+                return Err(e.push(PengError::InvalidState(
+                    "failed while generating generate_statement".to_string(),
+                )));
+            }
         },
         None => {}
     }

@@ -7,7 +7,11 @@ pub fn parse_type_expression(
 ) -> Result<PengPositionedTypeExpression, PengError> {
     let first = match parse_primary_type_expression(ptokens) {
         Ok(type_expression) => type_expression,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_type_expression".to_string(),
+            )));
+        }
     };
 
     let position = first.position.clone();
@@ -30,7 +34,11 @@ pub fn parse_type_expression(
 
         let type_expression = match parse_primary_type_expression(ptokens) {
             Ok(type_expression) => type_expression,
-            Err(e) => return Err(e),
+            Err(e) => {
+                return Err(e.push(PengError::SyntaxError(
+                    "failed while parsing parse_type_expression".to_string(),
+                )));
+            }
         };
 
         types.push(type_expression);
@@ -51,7 +59,6 @@ pub fn parse_type_expression(
         })
     }
 }
-
 
 fn parse_primary_type_expression(
     ptokens: &mut PengPeekablePositionedToken,
@@ -89,12 +96,20 @@ fn parse_primary_type_expression(
         PengToken::Identifier(_) => {
             let expression = match parse_custom_type_expression(ptokens) {
                 Ok(expression) => expression,
-                Err(e) => return Err(e),
+                Err(e) => {
+                    return Err(e.push(PengError::SyntaxError(
+                        "failed while parsing parse_type_expression".to_string(),
+                    )));
+                }
             };
 
             match reject_invalid_custom_type_tail(ptokens) {
                 Ok(_) => {}
-                Err(e) => return Err(e),
+                Err(e) => {
+                    return Err(e.push(PengError::SyntaxError(
+                        "failed while parsing parse_type_expression".to_string(),
+                    )));
+                }
             }
 
             Ok(PengPositioned {
@@ -102,7 +117,7 @@ fn parse_primary_type_expression(
                 position: token.position.clone(),
             })
         }
-        
+
         _ => Err(PengError::new_positioned_message(
             "expected type expression".to_string(),
             token.position.clone(),
@@ -135,9 +150,7 @@ fn parse_custom_type_expression(
     let first_token = match ptokens.next() {
         Some(token) => token,
         None => {
-            return Err(PengError::new_message(
-                "expected custom type".to_string(),
-            ));
+            return Err(PengError::new_message("expected custom type".to_string()));
         }
     };
 
@@ -159,9 +172,13 @@ fn parse_custom_type_expression(
         position: first_token.position.clone(),
     };
 
-    expression = match parse_custom_type_colon_chain(ptokens, expression)  {
+    expression = match parse_custom_type_colon_chain(ptokens, expression) {
         Ok(v) => v,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_type_expression".to_string(),
+            )));
+        }
     };
 
     Ok(expression)
@@ -252,9 +269,7 @@ fn reject_invalid_custom_type_tail(
     }
 }
 
-pub fn type_expression_from_token(
-    token: &PengToken,
-) -> Option<PengTypeExpression> {
+pub fn type_expression_from_token(token: &PengToken) -> Option<PengTypeExpression> {
     match token {
         PengToken::Nil => Some(PengTypeExpression::Nil),
         PengToken::Int => Some(PengTypeExpression::Int),
@@ -280,15 +295,17 @@ fn parse_vector_type_expression(
     let open_token = match ptokens.next() {
         Some(token) => token,
         None => {
-            return Err(PengError::new_message(
-                "expected '['".to_string(),
-            ));
+            return Err(PengError::new_message("expected '['".to_string()));
         }
     };
 
     let inner = match parse_type_expression(ptokens) {
         Ok(type_expression) => type_expression,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_type_expression".to_string(),
+            )));
+        }
     };
 
     let close_token = match ptokens.next() {
@@ -302,12 +319,10 @@ fn parse_vector_type_expression(
     };
 
     match &close_token.value {
-        PengToken::RightBracket => {
-            Ok(PengPositioned {
-                value: PengTypeExpression::Vector(Box::new(inner)),
-                position: open_token.position.clone(),
-            })
-        }
+        PengToken::RightBracket => Ok(PengPositioned {
+            value: PengTypeExpression::Vector(Box::new(inner)),
+            position: open_token.position.clone(),
+        }),
         _ => Err(PengError::new_positioned_message(
             "expected ']'".to_string(),
             close_token.position.clone(),
@@ -321,9 +336,7 @@ fn parse_type_type_expression(
     let type_token = match ptokens.next() {
         Some(token) => token,
         None => {
-            return Err(PengError::new_message(
-                "expected 'type'".to_string(),
-            ));
+            return Err(PengError::new_message("expected 'type'".to_string()));
         }
     };
 
@@ -356,7 +369,11 @@ fn parse_type_type_expression(
 
     let (fields, functions) = match parse_type_members(ptokens) {
         Ok(members) => members,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_type_expression".to_string(),
+            )));
+        }
     };
 
     Ok(PengPositioned {

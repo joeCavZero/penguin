@@ -5,18 +5,12 @@ use crate::parser::*;
 pub fn parse_binded_declaration(
     tokens: &mut PengPeekablePositionedToken,
 ) -> Result<PengBindedDeclaration, PengError> {
-    let is_const = matches!(
-        tokens.peek().map(|t| &t.value),
-        Some(PengToken::Const)
-    );
+    let is_const = matches!(tokens.peek().map(|t| &t.value), Some(PengToken::Const));
 
     if is_const {
         tokens.next();
 
-        if matches!(
-            tokens.peek().map(|t| &t.value),
-            Some(PengToken::Var)
-        ) {
+        if matches!(tokens.peek().map(|t| &t.value), Some(PengToken::Var)) {
             return Err(PengError::new_positioned_message(
                 "use `const name = value`, not `const var name = value`".to_string(),
                 tokens.peek().unwrap().position.clone(),
@@ -27,12 +21,20 @@ pub fn parse_binded_declaration(
     let declaration = if is_const {
         match parse_const_declaration(tokens) {
             Ok(v) => v,
-            Err(e) => return Err(e),
+            Err(e) => {
+                return Err(e.push(PengError::SyntaxError(
+                    "failed while parsing parse_declaration_statement".to_string(),
+                )));
+            }
         }
     } else {
         match parse_mutable_declaration(tokens) {
             Ok(v) => v,
-            Err(e) => return Err(e),
+            Err(e) => {
+                return Err(e.push(PengError::SyntaxError(
+                    "failed while parsing parse_declaration_statement".to_string(),
+                )));
+            }
         }
     };
 
@@ -66,22 +68,18 @@ pub fn parse_variable_declaration_statement(
     }
 
     let name = match ptokens.next() {
-        Some(t) => {
-            match &t.value {
-                PengToken::Identifier(name) => {
-                    PengPositioned {
-                        value: name.clone(),
-                        position: t.position.clone(),
-                    }
-                }
-                _ => {
-                    return Err(PengError::new_positioned_message(
-                        "expected variable name".to_string(),
-                        t.position.clone(),
-                    ));
-                }
+        Some(t) => match &t.value {
+            PengToken::Identifier(name) => PengPositioned {
+                value: name.clone(),
+                position: t.position.clone(),
+            },
+            _ => {
+                return Err(PengError::new_positioned_message(
+                    "expected variable name".to_string(),
+                    t.position.clone(),
+                ));
             }
-        }
+        },
         None => {
             return Err(PengError::new_positioned_message(
                 "expected variable name".to_string(),
@@ -93,12 +91,10 @@ pub fn parse_variable_declaration_statement(
     let mut type_hint = None;
 
     let has_colon = match ptokens.peek() {
-        Some(t) => {
-            match &t.value {
-                PengToken::Colon => true,
-                _ => false,
-            }
-        }
+        Some(t) => match &t.value {
+            PengToken::Colon => true,
+            _ => false,
+        },
         None => false,
     };
 
@@ -109,19 +105,21 @@ pub fn parse_variable_declaration_statement(
             Ok(t) => {
                 type_hint = Some(t);
             }
-            Err(e) => return Err(e),
+            Err(e) => {
+                return Err(e.push(PengError::SyntaxError(
+                    "failed while parsing parse_declaration_statement".to_string(),
+                )));
+            }
         }
     }
 
     let mut value = None;
 
     let has_equals = match ptokens.peek() {
-        Some(t) => {
-            match &t.value {
-                PengToken::Equals => true,
-                _ => false,
-            }
-        }
+        Some(t) => match &t.value {
+            PengToken::Equals => true,
+            _ => false,
+        },
         None => false,
     };
 
@@ -132,13 +130,21 @@ pub fn parse_variable_declaration_statement(
             Ok(expr) => {
                 value = Some(expr);
             }
-            Err(e) => return Err(e),
+            Err(e) => {
+                return Err(e.push(PengError::SyntaxError(
+                    "failed while parsing parse_declaration_statement".to_string(),
+                )));
+            }
         }
     }
 
     match consume_optional_semicolon(ptokens) {
         Ok(()) => {}
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_declaration_statement".to_string(),
+            )));
+        }
     }
 
     let declaration = PengVariableDeclaration {
@@ -152,11 +158,9 @@ pub fn parse_variable_declaration_statement(
         position: var_token.position.clone(),
     };
 
-    let stmt = PengStatement::Declaration(
-        PengBinded::Mutable(
-            PengDeclaration::Var(positioned_declaration)
-        )
-    );
+    let stmt = PengStatement::Declaration(PengBinded::Mutable(PengDeclaration::Var(
+        positioned_declaration,
+    )));
 
     Ok(PengPositioned {
         value: stmt,
@@ -171,31 +175,47 @@ pub fn parse_const_declaration(
         Some(PengToken::Func) => {
             let statement = match parse_function_declaration_statement(tokens) {
                 Ok(v) => v,
-                Err(e) => return Err(e),
+                Err(e) => {
+                    return Err(e.push(PengError::SyntaxError(
+                        "failed while parsing parse_declaration_statement".to_string(),
+                    )));
+                }
             };
             extract_declaration(statement)
         }
 
         Some(PengToken::Type) => {
-            let statement = match parse_type_declaration_statement(tokens){
+            let statement = match parse_type_declaration_statement(tokens) {
                 Ok(v) => v,
-                Err(e) => return Err(e),
+                Err(e) => {
+                    return Err(e.push(PengError::SyntaxError(
+                        "failed while parsing parse_declaration_statement".to_string(),
+                    )));
+                }
             };
             extract_declaration(statement)
         }
 
         Some(PengToken::Mod) => {
-            let statement = match parse_module_declaration_statement(tokens){
+            let statement = match parse_module_declaration_statement(tokens) {
                 Ok(v) => v,
-                Err(e) => return Err(e),
+                Err(e) => {
+                    return Err(e.push(PengError::SyntaxError(
+                        "failed while parsing parse_declaration_statement".to_string(),
+                    )));
+                }
             };
             extract_declaration(statement)
         }
 
         Some(PengToken::Oper) => {
-            let statement = match parse_operation_declaration_statement(tokens){
+            let statement = match parse_operation_declaration_statement(tokens) {
                 Ok(v) => v,
-                Err(e) => return Err(e),
+                Err(e) => {
+                    return Err(e.push(PengError::SyntaxError(
+                        "failed while parsing parse_declaration_statement".to_string(),
+                    )));
+                }
             };
             extract_declaration(statement)
         }
@@ -203,14 +223,17 @@ pub fn parse_const_declaration(
         Some(PengToken::Union) => {
             let statement = match parse_union_declaration_statement(tokens) {
                 Ok(v) => v,
-                Err(e) => return Err(e),
+                Err(e) => {
+                    return Err(e.push(PengError::SyntaxError(
+                        "failed while parsing parse_declaration_statement".to_string(),
+                    )));
+                }
             };
             extract_declaration(statement)
         }
 
         Some(PengToken::Identifier(_)) => {
-            parse_const_variable_declaration(tokens)
-                .map(PengDeclaration::Var)
+            parse_const_variable_declaration(tokens).map(PengDeclaration::Var)
         }
 
         _ => Err(PengError::new_message(
@@ -225,9 +248,7 @@ fn parse_const_variable_declaration(
     let name_token = match tokens.next() {
         Some(t) => t,
         None => {
-            return Err(PengError::new_message(
-                "expected const name".to_string(),
-            ));
+            return Err(PengError::new_message("expected const name".to_string()));
         }
     };
 
@@ -246,16 +267,17 @@ fn parse_const_variable_declaration(
 
     let mut type_hint = None;
 
-    if matches!(
-        tokens.peek().map(|t| &t.value),
-        Some(PengToken::Colon)
-    ) {
+    if matches!(tokens.peek().map(|t| &t.value), Some(PengToken::Colon)) {
         tokens.next();
         match parse_type_expression(tokens) {
             Ok(v) => {
                 type_hint = Some(v);
             }
-            Err(e) => return Err(e),
+            Err(e) => {
+                return Err(e.push(PengError::SyntaxError(
+                    "failed while parsing parse_declaration_statement".to_string(),
+                )));
+            }
         }
     }
 
@@ -281,7 +303,11 @@ fn parse_const_variable_declaration(
 
     let value = match parse_expression(tokens) {
         Ok(v) => v,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_declaration_statement".to_string(),
+            )));
+        }
     };
 
     Ok(PengPositioned {
@@ -294,25 +320,30 @@ fn parse_const_variable_declaration(
     })
 }
 
-
 pub fn parse_declaration_statement(
     tokens: &mut PengPeekablePositionedToken,
 ) -> Result<PengPositionedStatement, PengError> {
-    let position = match tokens
-        .peek()
-        .map(|t| t.position.clone()) {
-            Some(p) => p,
-            None => return Err(PengError::new_message("expected declaration".to_string())),
-        };
+    let position = match tokens.peek().map(|t| t.position.clone()) {
+        Some(p) => p,
+        None => return Err(PengError::new_message("expected declaration".to_string())),
+    };
 
     let declaration = match parse_binded_declaration(tokens) {
         Ok(v) => v,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_declaration_statement".to_string(),
+            )));
+        }
     };
 
     match consume_optional_semicolon(tokens) {
         Ok(()) => {}
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_declaration_statement".to_string(),
+            )));
+        }
     }
 
     Ok(PengPositioned {
@@ -328,7 +359,11 @@ pub fn parse_mutable_declaration(
         Some(PengToken::Var) => {
             let statement = match parse_variable_declaration_statement(tokens) {
                 Ok(v) => v,
-                Err(e) => return Err(e),
+                Err(e) => {
+                    return Err(e.push(PengError::SyntaxError(
+                        "failed while parsing parse_declaration_statement".to_string(),
+                    )));
+                }
             };
             extract_declaration(statement)
         }
@@ -336,7 +371,11 @@ pub fn parse_mutable_declaration(
         Some(PengToken::Func) => {
             let statement = match parse_function_declaration_statement(tokens) {
                 Ok(v) => v,
-                Err(e) => return Err(e),
+                Err(e) => {
+                    return Err(e.push(PengError::SyntaxError(
+                        "failed while parsing parse_declaration_statement".to_string(),
+                    )));
+                }
             };
             extract_declaration(statement)
         }
@@ -344,7 +383,11 @@ pub fn parse_mutable_declaration(
         Some(PengToken::Type) => {
             let statement = match parse_type_declaration_statement(tokens) {
                 Ok(v) => v,
-                Err(e) => return Err(e),
+                Err(e) => {
+                    return Err(e.push(PengError::SyntaxError(
+                        "failed while parsing parse_declaration_statement".to_string(),
+                    )));
+                }
             };
             extract_declaration(statement)
         }
@@ -352,7 +395,11 @@ pub fn parse_mutable_declaration(
         Some(PengToken::Union) => {
             let statement = match parse_union_declaration_statement(tokens) {
                 Ok(v) => v,
-                Err(e) => return Err(e),
+                Err(e) => {
+                    return Err(e.push(PengError::SyntaxError(
+                        "failed while parsing parse_declaration_statement".to_string(),
+                    )));
+                }
             };
             extract_declaration(statement)
         }
@@ -360,7 +407,11 @@ pub fn parse_mutable_declaration(
         Some(PengToken::Mod) => {
             let statement = match parse_module_declaration_statement(tokens) {
                 Ok(v) => v,
-                Err(e) => return Err(e),
+                Err(e) => {
+                    return Err(e.push(PengError::SyntaxError(
+                        "failed while parsing parse_declaration_statement".to_string(),
+                    )));
+                }
             };
             extract_declaration(statement)
         }
@@ -368,7 +419,11 @@ pub fn parse_mutable_declaration(
         Some(PengToken::Oper) => {
             let statement = match parse_operation_declaration_statement(tokens) {
                 Ok(v) => v,
-                Err(e) => return Err(e),
+                Err(e) => {
+                    return Err(e.push(PengError::SyntaxError(
+                        "failed while parsing parse_declaration_statement".to_string(),
+                    )));
+                }
             };
             extract_declaration(statement)
         }
@@ -379,14 +434,10 @@ pub fn parse_mutable_declaration(
     }
 }
 
-fn extract_declaration(
-    statement: PengPositionedStatement,
-) -> Result<PengDeclaration, PengError> {
+fn extract_declaration(statement: PengPositionedStatement) -> Result<PengDeclaration, PengError> {
     match statement.value {
         PengStatement::Declaration(PengBinded::Mutable(declaration))
-        | PengStatement::Declaration(PengBinded::Immutable(declaration)) => {
-            Ok(declaration)
-        }
+        | PengStatement::Declaration(PengBinded::Immutable(declaration)) => Ok(declaration),
 
         _ => Err(PengError::new_positioned_message(
             "expected declaration".to_string(),
@@ -444,7 +495,11 @@ pub fn parse_declaration_body(
             | PengToken::Oper => {
                 let statement = match parse_statement(ptokens) {
                     Ok(statement) => statement,
-                    Err(e) => return Err(e),
+                    Err(e) => {
+                        return Err(e.push(PengError::SyntaxError(
+                            "failed while parsing parse_declaration_statement".to_string(),
+                        )));
+                    }
                 };
 
                 match statement.value {

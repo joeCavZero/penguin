@@ -2,18 +2,18 @@ use crate::core::*;
 use crate::lexer::*;
 use crate::parser::*;
 
-pub fn parse_program(
-    ptokens: Vec<PengPositionedToken>,
-) -> Result<PengAST, PengError> {
+pub fn parse_program(ptokens: Vec<PengPositionedToken>) -> Result<PengAST, PengError> {
     let mut ptokens_iter: PengPeekablePositionedToken = ptokens.iter().peekable();
     let mut declarations = Vec::new();
 
     while ptokens_iter.peek().is_some() {
         let statement = match parse_statement(&mut ptokens_iter) {
-            Ok(stmt) => {
-                stmt
+            Ok(stmt) => stmt,
+            Err(e) => {
+                return Err(e.push(PengError::SyntaxError(
+                    "failed while parsing parse_program".to_string(),
+                )));
             }
-            Err(e) => return Err(e),
         };
 
         match statement.value {

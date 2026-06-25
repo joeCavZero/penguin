@@ -1,7 +1,7 @@
 use crate::core::*;
 use crate::lexer::*;
-use crate::parser::*;
 use crate::parser::parser_utils::expect_identifier;
+use crate::parser::*;
 
 pub fn parse_type_declaration_statement(
     ptokens: &mut PengPeekablePositionedToken,
@@ -31,17 +31,29 @@ pub fn parse_type_declaration_statement(
         type_token.position.clone(),
     ) {
         Ok(name) => name,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_type_declaration_statement".to_string(),
+            )));
+        }
     };
 
     let supers = match parse_type_supers(ptokens) {
         Ok(supers) => supers,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_type_declaration_statement".to_string(),
+            )));
+        }
     };
 
     let (fields, functions) = match parse_type_members(ptokens) {
         Ok(members) => members,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_type_declaration_statement".to_string(),
+            )));
+        }
     };
 
     let declaration = PengPositioned {
@@ -56,11 +68,7 @@ pub fn parse_type_declaration_statement(
     };
 
     Ok(PengPositioned {
-        value: PengStatement::Declaration(
-            PengBinded::Mutable(
-                PengDeclaration::Type(declaration)
-            )
-        ),
+        value: PengStatement::Declaration(PengBinded::Mutable(PengDeclaration::Type(declaration))),
         position: type_token.position.clone(),
     })
 }
@@ -69,12 +77,10 @@ pub fn parse_type_supers(
     ptokens: &mut PengPeekablePositionedToken,
 ) -> Result<Vec<PengPositionedExpression>, PengError> {
     let has_supers = match ptokens.peek() {
-        Some(token) => {
-            match &token.value {
-                PengToken::Colon => true,
-                _ => false,
-            }
-        }
+        Some(token) => match &token.value {
+            PengToken::Colon => true,
+            _ => false,
+        },
         None => false,
     };
 
@@ -88,7 +94,11 @@ pub fn parse_type_supers(
     loop {
         let super_expression = match parse_type_super_expression(ptokens) {
             Ok(expression) => expression,
-            Err(e) => return Err(e),
+            Err(e) => {
+                return Err(e.push(PengError::SyntaxError(
+                    "failed while parsing parse_type_declaration_statement".to_string(),
+                )));
+            }
         };
 
         supers.push(super_expression);
@@ -96,9 +106,7 @@ pub fn parse_type_supers(
         let token = match ptokens.peek() {
             Some(token) => token,
             None => {
-                return Err(PengError::new_message(
-                    "expected type body".to_string(),
-                ));
+                return Err(PengError::new_message("expected type body".to_string()));
             }
         };
 
@@ -173,9 +181,7 @@ fn parse_type_super_expression(
         let position = match ptokens.peek() {
             Some(token) => token.position.clone(),
             None => {
-                return Err(PengError::new_message(
-                    "expected super type".to_string(),
-                ));
+                return Err(PengError::new_message("expected super type".to_string()));
             }
         };
 
@@ -188,7 +194,11 @@ fn parse_type_super_expression(
     let mut super_tokens = tokens.iter().peekable();
     let expression = match parse_expression(&mut super_tokens) {
         Ok(expression) => expression,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_type_declaration_statement".to_string(),
+            )));
+        }
     };
 
     let remaining = match super_tokens.peek() {
@@ -237,9 +247,7 @@ pub fn parse_type_members(
     let open_token = match ptokens.next() {
         Some(token) => token,
         None => {
-            return Err(PengError::new_message(
-                "expected type body".to_string(),
-            ));
+            return Err(PengError::new_message("expected type body".to_string()));
         }
     };
 
@@ -275,11 +283,17 @@ pub fn parse_type_members(
             PengToken::Var => {
                 let statement = match parse_variable_declaration_statement(ptokens) {
                     Ok(statement) => statement,
-                    Err(e) => return Err(e),
+                    Err(e) => {
+                        return Err(e.push(PengError::SyntaxError(
+                            "failed while parsing parse_type_declaration_statement".to_string(),
+                        )));
+                    }
                 };
 
                 match statement.value {
-                    PengStatement::Declaration(PengBinded::Mutable(PengDeclaration::Var(field))) => {
+                    PengStatement::Declaration(PengBinded::Mutable(PengDeclaration::Var(
+                        field,
+                    ))) => {
                         fields.push(field);
                     }
                     _ => {
@@ -293,11 +307,17 @@ pub fn parse_type_members(
             PengToken::Func => {
                 let statement = match parse_function_declaration_statement(ptokens) {
                     Ok(statement) => statement,
-                    Err(e) => return Err(e),
+                    Err(e) => {
+                        return Err(e.push(PengError::SyntaxError(
+                            "failed while parsing parse_type_declaration_statement".to_string(),
+                        )));
+                    }
                 };
 
                 match statement.value {
-                    PengStatement::Declaration(PengBinded::Mutable(PengDeclaration::Function(function))) => {
+                    PengStatement::Declaration(PengBinded::Mutable(PengDeclaration::Function(
+                        function,
+                    ))) => {
                         functions.push(function);
                     }
                     _ => {

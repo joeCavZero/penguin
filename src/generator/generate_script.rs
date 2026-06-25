@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use crate::parser::*;
 use crate::core::*;
 use crate::generator::*;
+use crate::parser::*;
 
 pub fn generate_script(
     env: &mut PengEnv,
@@ -14,17 +14,20 @@ pub fn generate_script(
 
     match allocate_script_globals(env, statements, &mut local_globals) {
         Ok(()) => {}
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::InvalidState(
+                "failed while generating generate_script".to_string(),
+            )));
+        }
     }
 
-    match generate_statements(
-        env,
-        &mut local_globals,
-        &mut context,
-        statements,
-    ) {
+    match generate_statements(env, &mut local_globals, &mut context, statements) {
         Ok(()) => {}
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::InvalidState(
+                "failed while generating generate_script".to_string(),
+            )));
+        }
     }
 
     let script_function = create_anonymous_bytecode_function(env, context);

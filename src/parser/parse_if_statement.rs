@@ -24,7 +24,11 @@ pub fn parse_if_statement(
 
     let condition = match parse_expression(ptokens) {
         Ok(expression) => expression,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_if_statement".to_string(),
+            )));
+        }
     };
 
     match ptokens.peek() {
@@ -47,7 +51,11 @@ pub fn parse_if_statement(
 
     let then_statement = match parse_block_statement(ptokens) {
         Ok(statement) => statement,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_if_statement".to_string(),
+            )));
+        }
     };
 
     let then_branch = match then_statement.value {
@@ -99,7 +107,11 @@ pub fn parse_if_statement(
 
         let else_statement = match parse_block_statement(ptokens) {
             Ok(statement) => statement,
-            Err(e) => return Err(e),
+            Err(e) => {
+                return Err(e.push(PengError::SyntaxError(
+                    "failed while parsing parse_if_statement".to_string(),
+                )));
+            }
         };
 
         match else_statement.value {

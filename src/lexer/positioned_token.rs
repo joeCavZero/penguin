@@ -4,7 +4,7 @@ use crate::lexer::*;
 pub type PengPositionedToken = PengPositioned<PengToken>;
 
 impl PengPositioned<PengToken> {
-    pub fn from_string(source: String, position: PengPosition) -> Result<Self, String> {
+    pub fn from_string(source: String, position: PengPosition) -> Result<Self, PengError> {
         match PengToken::from_string(source) {
             Ok(token) => Ok(Self {
                 value: token,

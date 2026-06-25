@@ -26,12 +26,20 @@ pub fn parse_function_declaration_statement(
 
     let name = match parse_function_name(ptokens, &func_token.position) {
         Ok(name) => name,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_function_declaration_statement".to_string(),
+            )));
+        }
     };
 
     let params = match parse_function_params_declaration(ptokens) {
         Ok(params) => params,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_function_declaration_statement".to_string(),
+            )));
+        }
     };
 
     let has_return_type = match ptokens.peek() {
@@ -47,7 +55,11 @@ pub fn parse_function_declaration_statement(
 
         match parse_type_expression(ptokens) {
             Ok(type_expression) => Some(type_expression),
-            Err(e) => return Err(e),
+            Err(e) => {
+                return Err(e.push(PengError::SyntaxError(
+                    "failed while parsing parse_function_declaration_statement".to_string(),
+                )));
+            }
         }
     } else {
         None
@@ -73,7 +85,11 @@ pub fn parse_function_declaration_statement(
 
     let body_statement = match parse_block_statement(ptokens) {
         Ok(statement) => statement,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_function_declaration_statement".to_string(),
+            )));
+        }
     };
 
     let body = match body_statement.value {
@@ -97,11 +113,9 @@ pub fn parse_function_declaration_statement(
     };
 
     Ok(PengPositioned {
-        value: PengStatement::Declaration(
-            PengBinded::Mutable(
-                PengDeclaration::Function(declaration)
-            )
-        ),
+        value: PengStatement::Declaration(PengBinded::Mutable(PengDeclaration::Function(
+            declaration,
+        ))),
         position: func_token.position.clone(),
     })
 }

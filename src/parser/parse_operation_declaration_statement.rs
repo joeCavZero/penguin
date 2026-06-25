@@ -1,10 +1,7 @@
 use crate::core::*;
 use crate::lexer::*;
+use crate::parser::parser_utils::{block_statements, expect_identifier};
 use crate::parser::*;
-use crate::parser::parser_utils::{
-    block_statements,
-    expect_identifier,
-};
 
 pub fn parse_operation_declaration_statement(
     ptokens: &mut PengPeekablePositionedToken,
@@ -34,12 +31,20 @@ pub fn parse_operation_declaration_statement(
         oper_token.position.clone(),
     ) {
         Ok(name) => name,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_operation_declaration_statement".to_string(),
+            )));
+        }
     };
 
     let params = match parse_function_params_declaration(ptokens) {
         Ok(params) => params,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_operation_declaration_statement".to_string(),
+            )));
+        }
     };
 
     if params.len() != 2 {
@@ -51,32 +56,31 @@ pub fn parse_operation_declaration_statement(
 
     let body_statement = match parse_block_statement(ptokens) {
         Ok(statement) => statement,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_operation_declaration_statement".to_string(),
+            )));
+        }
     };
 
-    let body = match block_statements(
-        body_statement,
-        "expected operation body".to_string(),
-    ) {
+    let body = match block_statements(body_statement, "expected operation body".to_string()) {
         Ok(body) => body,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_operation_declaration_statement".to_string(),
+            )));
+        }
     };
 
     let declaration = PengPositioned {
-        value: PengOperationDeclaration {
-            name,
-            params,
-            body,
-        },
+        value: PengOperationDeclaration { name, params, body },
         position: oper_token.position.clone(),
     };
 
     Ok(PengPositioned {
-        value: PengStatement::Declaration(
-            PengBinded::Mutable(
-                PengDeclaration::Operation(declaration)
-            )
-        ),
+        value: PengStatement::Declaration(PengBinded::Mutable(PengDeclaration::Operation(
+            declaration,
+        ))),
         position: oper_token.position.clone(),
     })
 }

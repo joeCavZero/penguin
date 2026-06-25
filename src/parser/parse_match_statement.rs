@@ -26,7 +26,11 @@ pub fn parse_match_statement(
 
     let value = match parse_expression(ptokens) {
         Ok(value) => value,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_match_statement".to_string(),
+            )));
+        }
     };
 
     let open_token = match ptokens.next() {
@@ -75,15 +79,21 @@ pub fn parse_match_statement(
 
                 let body_statement = match parse_block_statement(ptokens) {
                     Ok(statement) => statement,
-                    Err(e) => return Err(e),
+                    Err(e) => {
+                        return Err(e.push(PengError::SyntaxError(
+                            "failed while parsing parse_match_statement".to_string(),
+                        )));
+                    }
                 };
 
-                let body = match block_statements(
-                    body_statement,
-                    "expected else body".to_string(),
-                ) {
+                let body = match block_statements(body_statement, "expected else body".to_string())
+                {
                     Ok(body) => body,
-                    Err(e) => return Err(e),
+                    Err(e) => {
+                        return Err(e.push(PengError::SyntaxError(
+                            "failed while parsing parse_match_statement".to_string(),
+                        )));
+                    }
                 };
 
                 elsing = Some(body);
@@ -100,26 +110,33 @@ pub fn parse_match_statement(
 
                 let pattern = match parse_expression(ptokens) {
                     Ok(pattern) => pattern,
-                    Err(e) => return Err(e),
+                    Err(e) => {
+                        return Err(e.push(PengError::SyntaxError(
+                            "failed while parsing parse_match_statement".to_string(),
+                        )));
+                    }
                 };
 
                 let body_statement = match parse_block_statement(ptokens) {
                     Ok(statement) => statement,
-                    Err(e) => return Err(e),
+                    Err(e) => {
+                        return Err(e.push(PengError::SyntaxError(
+                            "failed while parsing parse_match_statement".to_string(),
+                        )));
+                    }
                 };
 
-                let body = match block_statements(
-                    body_statement,
-                    "expected match arm body".to_string(),
-                ) {
-                    Ok(body) => body,
-                    Err(e) => return Err(e),
-                };
+                let body =
+                    match block_statements(body_statement, "expected match arm body".to_string()) {
+                        Ok(body) => body,
+                        Err(e) => {
+                            return Err(e.push(PengError::SyntaxError(
+                                "failed while parsing parse_match_statement".to_string(),
+                            )));
+                        }
+                    };
 
-                arms.push(PengMatchArm {
-                    pattern,
-                    body,
-                });
+                arms.push(PengMatchArm { pattern, body });
             }
         }
     }

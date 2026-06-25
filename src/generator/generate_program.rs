@@ -11,7 +11,11 @@ pub fn generate_program(
 ) -> Result<(HashMap<PengNamePoolPtr, PengHeapPtr>, PengHeapPtr), PengError> {
     let local_globals = match allocate_program_globals(env, declarations) {
         Ok(v) => v,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::InvalidState(
+                "failed while generating generate_program".to_string(),
+            )));
+        }
     };
     let mut full_globals = globals.clone();
     full_globals.extend(local_globals);
@@ -20,7 +24,11 @@ pub fn generate_program(
 
     match generate_program_initialization(env, &mut full_globals, declarations, &mut context) {
         Ok(()) => {}
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::InvalidState(
+                "failed while generating generate_program".to_string(),
+            )));
+        }
     };
 
     let program_init = create_anonymous_bytecode_function(env, context);
@@ -149,14 +157,22 @@ fn generate_program_initialization(
             PengDeclaration::Function(function) => {
                 match generate_global_function(env, globals, context, function) {
                     Ok(()) => {}
-                    Err(e) => return Err(e),
+                    Err(e) => {
+                        return Err(e.push(PengError::InvalidState(
+                            "failed while generating generate_program".to_string(),
+                        )));
+                    }
                 }
             }
 
             PengDeclaration::Operation(operation) => {
                 match generate_global_operation(env, globals, context, operation) {
                     Ok(()) => {}
-                    Err(e) => return Err(e),
+                    Err(e) => {
+                        return Err(e.push(PengError::InvalidState(
+                            "failed while generating generate_program".to_string(),
+                        )));
+                    }
                 }
             }
 
@@ -164,7 +180,11 @@ fn generate_program_initialization(
                 if declaration.value.value.is_some() {
                     match generate_global_type_value(env, globals, context, declaration) {
                         Ok(()) => {}
-                        Err(e) => return Err(e),
+                        Err(e) => {
+                            return Err(e.push(PengError::InvalidState(
+                                "failed while generating generate_program".to_string(),
+                            )));
+                        }
                     }
                 }
             }
@@ -208,7 +228,11 @@ fn generate_global_type_value(
 
     match generate_type_expression(env, globals, context, value) {
         Ok(()) => {}
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::InvalidState(
+                "failed while generating generate_program".to_string(),
+            )));
+        }
     }
 
     context.bytecode.push(PengInstruction::StoreHeap);
@@ -233,7 +257,11 @@ fn generate_global_operation(
 
     let value = match generate_operation_declaration_value(env, globals, declaration) {
         Ok(value) => value,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::InvalidState(
+                "failed while generating generate_program".to_string(),
+            )));
+        }
     };
 
     context
@@ -263,7 +291,11 @@ fn generate_global_function(
 
     let value = match generate_function_declaration_value(env, globals, declaration) {
         Ok(value) => value,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::InvalidState(
+                "failed while generating generate_program".to_string(),
+            )));
+        }
     };
 
     context

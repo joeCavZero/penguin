@@ -47,7 +47,11 @@ pub fn parse_vector_literal(
 
         let value = match parse_expression(ptokens) {
             Ok(expression) => expression,
-            Err(e) => return Err(e),
+            Err(e) => {
+                return Err(e.push(PengError::SyntaxError(
+                    "failed while parsing parse_vector_literal".to_string(),
+                )));
+            }
         };
 
         values.push(value);
@@ -74,8 +78,5 @@ pub fn parse_vector_literal(
         }
     }
 
-    literal_expr(
-        PengLiteral::Vector(values),
-        open_token.position.clone(),
-    )
+    literal_expr(PengLiteral::Vector(values), open_token.position.clone())
 }

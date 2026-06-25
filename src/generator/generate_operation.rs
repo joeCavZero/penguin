@@ -31,7 +31,11 @@ pub fn generate_operation_value(
 
     match generate_statements(env, globals, &mut context, body) {
         Ok(()) => {}
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::InvalidState(
+                "failed while generating generate_operation".to_string(),
+            )));
+        }
     }
 
     context.push_const_and_const_instruction(PengValue::Cell(PengCell::Nil));
@@ -56,17 +60,29 @@ pub fn generate_operation_call(
 ) -> Result<(), PengError> {
     match generate_expression(env, globals, context, operation) {
         Ok(()) => {}
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::InvalidState(
+                "failed while generating generate_operation".to_string(),
+            )));
+        }
     }
 
     match generate_expression(env, globals, context, left) {
         Ok(()) => {}
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::InvalidState(
+                "failed while generating generate_operation".to_string(),
+            )));
+        }
     }
 
     match generate_expression(env, globals, context, right) {
         Ok(()) => {}
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::InvalidState(
+                "failed while generating generate_operation".to_string(),
+            )));
+        }
     }
 
     context.bytecode.push(PengInstruction::OperationCall);
@@ -82,7 +98,11 @@ pub fn generate_local_operation_declaration(
 ) -> Result<(), PengError> {
     let value = match generate_operation_declaration_value(env, globals, declaration) {
         Ok(value) => value,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::InvalidState(
+                "failed while generating generate_operation".to_string(),
+            )));
+        }
     };
 
     context.push_const_and_const_instruction(PengValue::Heap(value));

@@ -1,7 +1,7 @@
 use crate::core::*;
 use crate::lexer::*;
-use crate::parser::*;
 use crate::parser::parser_utils::expect_identifier;
+use crate::parser::*;
 
 pub fn parse_union_declaration_statement(
     ptokens: &mut PengPeekablePositionedToken,
@@ -31,7 +31,11 @@ pub fn parse_union_declaration_statement(
         union_token.position.clone(),
     ) {
         Ok(name) => name,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_union_declaration_statement".to_string(),
+            )));
+        }
     };
 
     let equals_token = match ptokens.next() {
@@ -47,13 +51,20 @@ pub fn parse_union_declaration_statement(
     match &equals_token.value {
         PengToken::Equals => {}
         _ => {
-            return Err(PengError::Code(PengErrorCode::TestError));
+            return Err(PengError::ExpectedToken {
+                expected: "=".to_string(),
+                found: format!("{:?}", equals_token.value),
+            });
         }
     }
 
     let value = match parse_type_expression(ptokens) {
         Ok(value) => value,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_union_declaration_statement".to_string(),
+            )));
+        }
     };
 
     let declaration = PengPositioned {
@@ -68,11 +79,7 @@ pub fn parse_union_declaration_statement(
     };
 
     Ok(PengPositioned {
-        value: PengStatement::Declaration(
-            PengBinded::Mutable(
-                PengDeclaration::Type(declaration)
-            )
-        ),
+        value: PengStatement::Declaration(PengBinded::Mutable(PengDeclaration::Type(declaration))),
         position: union_token.position.clone(),
     })
 }
@@ -101,7 +108,11 @@ pub fn parse_union_expression(
 
     let value = match parse_type_expression(ptokens) {
         Ok(value) => value,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_union_declaration_statement".to_string(),
+            )));
+        }
     };
 
     Ok(PengPositioned {

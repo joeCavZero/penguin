@@ -5,12 +5,12 @@ use crate::cell::*;
 use crate::colour::*;
 use crate::error::*;
 use crate::frame::*;
+use crate::heap_value::*;
 use crate::state::*;
 use crate::thread::*;
 use crate::utils::*;
-use crate::heap_value::*;
-use crate::vector::*;
 use crate::value::*;
+use crate::vector::*;
 
 pub struct PengEnv {
     globals: HashMap<PengNamePoolPtr, PengBindedStatedCell>,
@@ -115,7 +115,7 @@ impl PengEnv {
                 return Ok(());
             }
             None => {
-                return Err(PengError::new_message("value not found".to_string()));
+                return Err(PengError::HeapValueNotFound(heap_ptr));
             }
         };
     }
@@ -140,7 +140,7 @@ impl PengEnv {
                 thread.stack.push(cell);
                 Ok(())
             }
-            Err(e) => Err(e),
+            Err(e) => Err(e.push(PengError::ThreadNotFound(thread_ptr))),
         }
     }
 
@@ -152,18 +152,18 @@ impl PengEnv {
         match self.get_thread(thread_ptr) {
             Ok(thread) => {
                 if thread.stack.len() <= offset {
-                    return Err(PengError::Code(PengErrorCode::TestError));
+                    return Err(PengError::StackUnderflow);
                 }
 
                 let index = thread.stack.len() - offset - 1;
 
                 match thread.stack.get(index) {
                     Some(v) => Ok(v),
-                    None => Err(PengError::Code(PengErrorCode::TestError)),
+                    None => Err(PengError::StackUnderflow),
                 }
             }
 
-            Err(e) => Err(e),
+            Err(e) => Err(e.push(PengError::ThreadNotFound(thread_ptr))),
         }
     }
 
@@ -175,7 +175,7 @@ impl PengEnv {
             Some(h) => {
                 if let PengHeapValue::Thread(thread) = h {
                     if thread.stack.len() < 2 {
-                        return Err(PengError::Code(PengErrorCode::TestError));
+                        return Err(PengError::StackUnderflow);
                     }
 
                     let rhs_index = thread.stack.len() - 1;
@@ -184,13 +184,13 @@ impl PengEnv {
                     match (thread.stack.get(lhs_index), thread.stack.get(rhs_index)) {
                         (Some(lhs), Some(rhs)) => Ok((lhs.clone(), rhs.clone())),
 
-                        _ => Err(PengError::Code(PengErrorCode::TestError)),
+                        _ => Err(PengError::StackUnderflow),
                     }
                 } else {
-                    Err(PengError::Code(PengErrorCode::TestError))
+                    Err(PengError::ExpectedThread)
                 }
             }
-            None => Err(PengError::Code(PengErrorCode::TestError)),
+            None => Err(PengError::ThreadNotFound(thread_ptr)),
         }
     }
 
@@ -202,13 +202,13 @@ impl PengEnv {
         match self.get_thread(thread_ptr) {
             Ok(thread) => {
                 if thread.stack.len() < n {
-                    return Err(PengError::Code(PengErrorCode::TestError));
+                    return Err(PengError::StackUnderflow);
                 }
 
                 Ok(thread.stack[thread.stack.len() - n..].to_vec())
             }
 
-            Err(e) => Err(e),
+            Err(e) => Err(e.push(PengError::ThreadNotFound(thread_ptr))),
         }
     }
 
@@ -222,14 +222,14 @@ impl PengEnv {
                 for _ in 0..n {
                     match thread.stack.pop() {
                         Some(_) => {}
-                        None => return Err(PengError::Code(PengErrorCode::TestError)),
+                        None => return Err(PengError::StackUnderflow),
                     }
                 }
 
                 Ok(())
             }
 
-            Err(e) => Err(e),
+            Err(e) => Err(e.push(PengError::ThreadNotFound(thread_ptr))),
         }
     }
 
@@ -242,19 +242,20 @@ impl PengEnv {
             Some(PengHeapValue::Thread(thread)) => {
                 let base = match thread.frames.last() {
                     Some(frame) => frame.base,
-                    None => return Err(PengError::Code(PengErrorCode::TestError)),
+                    None => return Err(PengError::FrameNotFound),
                 };
 
                 match base.checked_add(local) {
                     Some(index) => match thread.stack.get(index) {
                         Some(cell) => Ok(cell),
-                        None => Err(PengError::Code(PengErrorCode::TestError)),
+                        None => Err(PengError::LocalNotFound(local)),
                     },
 
-                    None => Err(PengError::Code(PengErrorCode::TestError)),
+                    None => Err(PengError::InvalidFrame),
                 }
             }
-            _ => Err(PengError::Code(PengErrorCode::TestError)),
+            Some(_) => Err(PengError::ExpectedThread),
+            None => Err(PengError::ThreadNotFound(thread_ptr)),
         }
     }
 
@@ -268,7 +269,7 @@ impl PengEnv {
             Some(PengHeapValue::Thread(thread)) => {
                 let base = match thread.frames.last() {
                     Some(frame) => frame.base,
-                    None => return Err(PengError::Code(PengErrorCode::TestError)),
+                    None => return Err(PengError::FrameNotFound),
                 };
 
                 match base.checked_add(local) {
@@ -278,13 +279,14 @@ impl PengEnv {
                             Ok(())
                         }
 
-                        None => Err(PengError::Code(PengErrorCode::TestError)),
+                        None => Err(PengError::LocalNotFound(local)),
                     },
 
-                    None => Err(PengError::Code(PengErrorCode::TestError)),
+                    None => Err(PengError::InvalidFrame),
                 }
             }
-            _ => Err(PengError::Code(PengErrorCode::TestError)),
+            Some(_) => Err(PengError::ExpectedThread),
+            None => Err(PengError::ThreadNotFound(thread_ptr)),
         }
     }
 
@@ -299,9 +301,9 @@ impl PengEnv {
                     frame.program_counter = target;
                     Ok(())
                 }
-                None => Err(PengError::Code(PengErrorCode::TestError)),
+                None => Err(PengError::FrameNotFound),
             },
-            Err(e) => Err(e),
+            Err(e) => Err(e.push(PengError::ThreadNotFound(thread_ptr))),
         }
     }
 
@@ -316,7 +318,7 @@ impl PengEnv {
                 Ok(())
             }
 
-            Err(e) => Err(e),
+            Err(e) => Err(e.push(PengError::ThreadNotFound(thread_ptr))),
         }
     }
 
@@ -328,21 +330,22 @@ impl PengEnv {
         match self.get_heap_mut(thread_ptr) {
             Some(PengHeapValue::Thread(thread)) => {
                 if thread.stack.len() <= offset {
-                    return Err(PengError::Code(PengErrorCode::TestError));
+                    return Err(PengError::StackUnderflow);
                 }
 
                 let index = thread.stack.len() - offset - 1;
 
                 Ok(thread.stack.remove(index))
             }
-            _ => Err(PengError::Code(PengErrorCode::TestError)),
+            Some(_) => Err(PengError::ExpectedThread),
+            None => Err(PengError::ThreadNotFound(thread_ptr)),
         }
     }
 
     pub fn get_thread_stack_len(&self, thread_ptr: PengHeapPtr) -> Result<usize, PengError> {
         match self.get_thread(thread_ptr) {
             Ok(thread) => Ok(thread.stack.len()),
-            Err(e) => Err(e),
+            Err(e) => Err(e.push(PengError::ThreadNotFound(thread_ptr))),
         }
     }
 
@@ -354,7 +357,10 @@ impl PengEnv {
         match self.get_thread_stack_len(thread_ptr) {
             Ok(stack_len) => {
                 if stack_len < args_count + 1 {
-                    return Err(PengError::Code(PengErrorCode::TestError));
+                    return Err(PengError::TooFewArguments {
+                        expected: args_count + 1,
+                        found: stack_len,
+                    });
                 }
 
                 let function_index = stack_len - args_count - 1;
@@ -363,7 +369,10 @@ impl PengEnv {
                     Ok(function_cell) => {
                         let function_ptr = match function_cell.value() {
                             PengStated::Initialized(PengCell::Reference(ptr)) => *ptr,
-                            _ => return Err(PengError::Code(PengErrorCode::TestError)),
+                            PengStated::Initialized(_) => return Err(PengError::ExpectedReference),
+                            PengStated::Uninitialized => {
+                                return Err(PengError::CannotReadUninitialized);
+                            }
                         };
 
                         match self.pop_thread_stack_at(thread_ptr, args_count) {
@@ -373,19 +382,31 @@ impl PengEnv {
                                     PengFrame::new_try(function_ptr, function_index, args_count),
                                 ) {
                                     Ok(()) => Ok(()),
-                                    Err(e) => return Err(e),
+                                    Err(e) => {
+                                        return Err(e.push(PengError::CannotCallValue(
+                                            "failed while preparing try function call".to_string(),
+                                        )));
+                                    }
                                 }
                             }
 
-                            Err(e) => return Err(e),
+                            Err(e) => {
+                                return Err(e.push(PengError::CannotCallValue(
+                                    "failed while removing callee from stack".to_string(),
+                                )));
+                            }
                         }
                     }
 
-                    Err(e) => return Err(e),
+                    Err(e) => {
+                        return Err(e.push(PengError::CannotCallValue(
+                            "failed while reading try function callee".to_string(),
+                        )));
+                    }
                 }
             }
 
-            Err(e) => return Err(e),
+            Err(e) => return Err(e.push(PengError::ThreadNotFound(thread_ptr))),
         }
     }
 
@@ -396,9 +417,10 @@ impl PengEnv {
         match self.get_heap(thread_ptr) {
             Some(PengHeapValue::Thread(thread)) => match thread.frames.last() {
                 Some(frame) => Ok(frame),
-                None => Err(PengError::Code(PengErrorCode::TestError)),
+                None => Err(PengError::FrameNotFound),
             },
-            _ => Err(PengError::Code(PengErrorCode::TestError)),
+            Some(_) => Err(PengError::ExpectedThread),
+            None => Err(PengError::ThreadNotFound(thread_ptr)),
         }
     }
 
@@ -406,9 +428,10 @@ impl PengEnv {
         match self.get_heap_mut(thread_ptr) {
             Some(PengHeapValue::Thread(thread)) => match thread.frames.pop() {
                 Some(frame) => Ok(frame),
-                None => Err(PengError::Code(PengErrorCode::TestError)),
+                None => Err(PengError::FrameNotFound),
             },
-            _ => Err(PengError::Code(PengErrorCode::TestError)),
+            Some(_) => Err(PengError::ExpectedThread),
+            None => Err(PengError::ThreadNotFound(thread_ptr)),
         }
     }
 
@@ -422,14 +445,16 @@ impl PengEnv {
                 thread.stack.truncate(len);
                 Ok(())
             }
-            _ => Err(PengError::Code(PengErrorCode::TestError)),
+            Some(_) => Err(PengError::ExpectedThread),
+            None => Err(PengError::ThreadNotFound(thread_ptr)),
         }
     }
 
     pub fn get_thread_frames_len(&self, thread_ptr: PengHeapPtr) -> Result<usize, PengError> {
         match self.get_heap(thread_ptr) {
             Some(PengHeapValue::Thread(thread)) => Ok(thread.frames.len()),
-            _ => Err(PengError::Code(PengErrorCode::TestError)),
+            Some(_) => Err(PengError::ExpectedThread),
+            None => Err(PengError::ThreadNotFound(thread_ptr)),
         }
     }
 
@@ -465,47 +490,46 @@ impl PengEnv {
                     None => Ok(false),
                 }
             }
-            _ => Err(PengError::Code(PengErrorCode::TestError)),
+            Some(_) => Err(PengError::ExpectedThread),
+            None => Err(PengError::ThreadNotFound(thread_ptr)),
         }
     }
 
     fn get_thread(&self, thread_ptr: PengHeapPtr) -> Result<&PengThread, PengError> {
         match self.get_heap(thread_ptr) {
             Some(PengHeapValue::Thread(thread)) => Ok(thread),
-            _ => Err(PengError::Code(PengErrorCode::TestError)),
+            Some(_) => Err(PengError::ExpectedThread),
+            None => Err(PengError::ThreadNotFound(thread_ptr)),
         }
     }
 
     fn get_thread_mut(&mut self, thread_ptr: PengHeapPtr) -> Result<&mut PengThread, PengError> {
         match self.get_heap_mut(thread_ptr) {
             Some(PengHeapValue::Thread(thread)) => Ok(thread),
-            _ => Err(PengError::Code(PengErrorCode::TestError)),
+            Some(_) => Err(PengError::ExpectedThread),
+            None => Err(PengError::ThreadNotFound(thread_ptr)),
         }
     }
-
 
     pub fn get_value_from_cell(&self, cell: PengCell) -> Result<PengValue, PengError> {
         match cell {
             PengCell::Reference(ptr) => match self.get_heap(ptr) {
                 Some(value) => Ok(PengValue::Heap(value.clone())),
-                None => Err(PengError::Code(PengErrorCode::TestError)),
+                None => Err(PengError::HeapValueNotFound(ptr)),
             },
 
             _ => Ok(PengValue::Cell(cell)),
         }
     }
 
-    pub fn get_heap_value_from_cell(
-        &self,
-        cell: PengCell,
-    ) -> Result<PengHeapValue, PengError> {
+    pub fn get_heap_value_from_cell(&self, cell: PengCell) -> Result<PengHeapValue, PengError> {
         match cell {
             PengCell::Reference(ptr) => match self.get_heap(ptr) {
                 Some(value) => Ok(value.clone()),
-                None => Err(PengError::Code(PengErrorCode::TestError)),
+                None => Err(PengError::HeapValueNotFound(ptr)),
             },
 
-            _ => Err(PengError::Code(PengErrorCode::TestError)),
+            _ => Err(PengError::ExpectedReference),
         }
     }
 

@@ -1,7 +1,7 @@
 use crate::core::*;
 use crate::lexer::*;
-use crate::parser::*;
 use crate::parser::parser_utils::expect_identifier;
+use crate::parser::*;
 
 pub fn parse_object_literal(
     ptokens: &mut PengPeekablePositionedToken,
@@ -27,13 +27,14 @@ pub fn parse_object_literal(
 
     let fields = match parse_object_fields(ptokens, open_token.position.clone()) {
         Ok(fields) => fields,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_object_literal".to_string(),
+            )));
+        }
     };
 
-    literal_expr(
-        PengLiteral::Object(fields),
-        open_token.position.clone(),
-    )
+    literal_expr(PengLiteral::Object(fields), open_token.position.clone())
 }
 
 pub fn parse_object_fields(
@@ -67,7 +68,11 @@ pub fn parse_object_fields(
             open_position.clone(),
         ) {
             Ok(name) => name,
-            Err(e) => return Err(e),
+            Err(e) => {
+                return Err(e.push(PengError::SyntaxError(
+                    "failed while parsing parse_object_literal".to_string(),
+                )));
+            }
         };
 
         let equals_token = match ptokens.next() {
@@ -92,13 +97,14 @@ pub fn parse_object_fields(
 
         let value = match parse_expression(ptokens) {
             Ok(expression) => expression,
-            Err(e) => return Err(e),
+            Err(e) => {
+                return Err(e.push(PengError::SyntaxError(
+                    "failed while parsing parse_object_literal".to_string(),
+                )));
+            }
         };
 
-        fields.push(PengObjectFieldLiteral {
-            name,
-            value,
-        });
+        fields.push(PengObjectFieldLiteral { name, value });
 
         let separator = match ptokens.next() {
             Some(token) => token,

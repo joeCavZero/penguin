@@ -1,7 +1,7 @@
 use crate::core::*;
 use crate::lexer::*;
-use crate::parser::*;
 use crate::parser::parser_utils::consume_optional_semicolon;
+use crate::parser::*;
 
 pub fn parse_return_statement(
     ptokens: &mut PengPeekablePositionedToken,
@@ -36,7 +36,11 @@ pub fn parse_return_statement(
     let value = if has_expression {
         match parse_expression(ptokens) {
             Ok(expression) => Some(expression),
-            Err(e) => return Err(e),
+            Err(e) => {
+                return Err(e.push(PengError::SyntaxError(
+                    "failed while parsing parse_return_statement".to_string(),
+                )));
+            }
         }
     } else {
         None
@@ -44,7 +48,11 @@ pub fn parse_return_statement(
 
     match consume_optional_semicolon(ptokens) {
         Ok(()) => {}
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_return_statement".to_string(),
+            )));
+        }
     }
 
     Ok(PengPositioned {

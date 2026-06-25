@@ -14,7 +14,11 @@ pub fn generate_while_statement(
 
     match generate_expression(env, globals, context, &statement.condition) {
         Ok(()) => {}
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::InvalidState(
+                "failed while generating generate_loops".to_string(),
+            )));
+        }
     }
 
     let end_jump = context.emit_jump_if_false();
@@ -26,7 +30,9 @@ pub fn generate_while_statement(
         Ok(()) => {}
         Err(e) => {
             context.pop_loop();
-            return Err(e);
+            return Err(e.push(PengError::InvalidState(
+                "failed while generating generate_loops".to_string(),
+            )));
         }
     }
 
@@ -67,7 +73,9 @@ pub fn generate_loop_statement(
         Ok(()) => {}
         Err(e) => {
             context.pop_loop();
-            return Err(e);
+            return Err(e.push(PengError::InvalidState(
+                "failed while generating generate_loops".to_string(),
+            )));
         }
     }
 
@@ -100,7 +108,9 @@ pub fn generate_for_statement(
             Ok(()) => {}
             Err(e) => {
                 context.pop_scope();
-                return Err(e);
+                return Err(e.push(PengError::InvalidState(
+                    "failed while generating generate_loops".to_string(),
+                )));
             }
         },
         None => {}
@@ -113,7 +123,9 @@ pub fn generate_for_statement(
                 Ok(()) => {}
                 Err(e) => {
                     context.pop_scope();
-                    return Err(e);
+                    return Err(e.push(PengError::InvalidState(
+                        "failed while generating generate_loops".to_string(),
+                    )));
                 }
             }
 
@@ -131,7 +143,9 @@ pub fn generate_for_statement(
         Err(e) => {
             context.pop_loop();
             context.pop_scope();
-            return Err(e);
+            return Err(e.push(PengError::InvalidState(
+                "failed while generating generate_loops".to_string(),
+            )));
         }
     }
 
@@ -143,7 +157,9 @@ pub fn generate_for_statement(
             Err(e) => {
                 context.pop_loop();
                 context.pop_scope();
-                return Err(e);
+                return Err(e.push(PengError::InvalidState(
+                    "failed while generating generate_loops".to_string(),
+                )));
             }
         },
         None => {}

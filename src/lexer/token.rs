@@ -1,3 +1,5 @@
+use crate::error::*;
+
 #[derive(Clone, Debug)]
 pub enum PengToken {
     Nil,
@@ -97,7 +99,7 @@ pub enum PengToken {
 }
 
 impl PengToken {
-    pub fn from_string(source: String) -> Result<Self, String> {
+    pub fn from_string(source: String) -> Result<Self, PengError> {
         let fixed = match source.as_str() {
             "nil" => Some(Self::Nil),
             "int" => Some(Self::Int),
@@ -199,7 +201,7 @@ impl PengToken {
         }
     }
 
-    fn parse_number_literal(source: &str) -> Result<Option<Self>, String> {
+    fn parse_number_literal(source: &str) -> Result<Option<Self>, PengError> {
         if !source.chars().next().is_some_and(|c| c.is_ascii_digit()) {
             return Ok(None);
         }
@@ -207,7 +209,7 @@ impl PengToken {
         let clean = source.replace('_', "");
 
         if clean.is_empty() {
-            return Err(format!("invalid number literal: {}", source));
+            return Err(PengError::new_message(format!("invalid number literal: {}", source)));
         }
 
         if let Some(body) = clean.strip_suffix("f64") {
@@ -225,32 +227,32 @@ impl PengToken {
         if let Some(body) = clean.strip_suffix('i') {
             return match Self::parse_int::<isize>(body, source) {
                 Ok(val) => Ok(Some(Self::IntLiteral(val))),
-                Err(e) => Err(e),
+                Err(e) => Err(PengError::new_message(e.to_string())),
             };
         }
 
         if let Some(body) = clean.strip_suffix('u') {
             return match Self::parse_int::<usize>(body, source) {
                 Ok(val) => Ok(Some(Self::UintLiteral(val))),
-                Err(e) => Err(e),
+                Err(e) => Err(PengError::new_message(e.to_string())),
             };
         }
 
         if let Some(body) = clean.strip_suffix('b') {
             return match Self::parse_int::<u8>(body, source) {
                 Ok(val) => Ok(Some(Self::ByteLiteral(val))),
-                Err(e) => Err(e),
+                Err(e) => Err(PengError::new_message(e.to_string())),
             };
         }
 
         if Self::is_digits(&clean) {
             return match clean.parse::<isize>() {
                 Ok(val) => Ok(Some(Self::IntLiteral(val))),
-                Err(_) => Err(format!("invalid number literal: {}", source)),
+                Err(e) => Err(PengError::new_message(e.to_string())),
             };
         }
 
-        Err(format!("invalid number literal: {}", source))
+        Err(PengError::new_message("invalid number literal".to_string()))
     }
     
     fn parse_int<T>(body: &str, original: &str) -> Result<T, String>
@@ -265,24 +267,26 @@ impl PengToken {
             .map_err(|_| format!("invalid number literal: {}", original))
     }
 
-    fn parse_float32(body: &str, original: &str) -> Result<Self, String> {
+    fn parse_float32(body: &str, original: &str) -> Result<Self, PengError> {
         if !Self::is_float_body(body) {
-            return Err(format!("invalid number literal: {}", original));
+            return Err(PengError::new_message( format!("invalid number literal: {}", original)));
         }
 
-        body.parse::<f32>()
-            .map(Self::Float32Literal)
-            .map_err(|_| format!("invalid number literal: {}", original))
+        match body.parse::<f32>().map(Self::Float32Literal) {
+            Ok(v) => Ok(v),
+            Err(e) => Err(PengError::new_message(e.to_string())),
+        }
     }
 
-    fn parse_float64(body: &str, original: &str) -> Result<Self, String> {
+    fn parse_float64(body: &str, original: &str) -> Result<Self, PengError> {
         if !Self::is_float_body(body) {
-            return Err(format!("invalid number literal: {}", original));
+            return Err(PengError::new_message(format!("invalid number literal: {}", original)));
         }
 
-        body.parse::<f64>()
-            .map(Self::Float64Literal)
-            .map_err(|_| format!("invalid number literal: {}", original))
+        match body.parse::<f64>().map(Self::Float64Literal) {
+            Ok(v) => Ok(v),
+            Err(e) => Err(PengError::Message(e.to_string())),
+        }
     }
 
     fn is_digits(s: &str) -> bool {

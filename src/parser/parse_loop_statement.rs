@@ -1,7 +1,7 @@
 use crate::core::*;
 use crate::lexer::*;
-use crate::parser::*;
 use crate::parser::parser_utils::block_statements;
+use crate::parser::*;
 
 pub fn parse_loop_statement(
     ptokens: &mut PengPeekablePositionedToken,
@@ -27,15 +27,20 @@ pub fn parse_loop_statement(
 
     let body_statement = match parse_block_statement(ptokens) {
         Ok(statement) => statement,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_loop_statement".to_string(),
+            )));
+        }
     };
 
-    let body = match block_statements(
-        body_statement,
-        "expected loop body".to_string(),
-    ) {
+    let body = match block_statements(body_statement, "expected loop body".to_string()) {
         Ok(body) => body,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_loop_statement".to_string(),
+            )));
+        }
     };
 
     Ok(PengPositioned {

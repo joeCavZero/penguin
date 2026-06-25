@@ -45,7 +45,11 @@ pub fn parse_function_params(
 
         let param = match parse_expression(ptokens) {
             Ok(expression) => expression,
-            Err(e) => return Err(e),
+            Err(e) => {
+                return Err(e.push(PengError::SyntaxError(
+                    "failed while parsing parse_function_params".to_string(),
+                )));
+            }
         };
 
         params.push(param);
@@ -173,7 +177,11 @@ pub fn parse_function_params_declaration(
 
             match parse_type_expression(ptokens) {
                 Ok(type_expression) => Some(type_expression),
-                Err(e) => return Err(e),
+                Err(e) => {
+                    return Err(e.push(PengError::SyntaxError(
+                        "failed while parsing parse_function_params".to_string(),
+                    )));
+                }
             }
         } else {
             None

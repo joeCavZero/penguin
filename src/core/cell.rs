@@ -1,5 +1,5 @@
-use crate::error::*;
 use crate::binding::*;
+use crate::error::*;
 use crate::state::*;
 use crate::utils::*;
 
@@ -41,7 +41,11 @@ impl PengCell {
             (Self::Float64(left), Self::Float64(right)) => Ok(left > right),
             (Self::Byte(left), Self::Byte(right)) => Ok(left > right),
 
-            _ => Err(PengError::Code(PengErrorCode::TestError)),
+            _ => Err(PengError::InvalidBinaryOperation {
+                operator: ">".to_string(),
+                left: format!("{:?}", self),
+                right: format!("{:?}", rhs),
+            }),
         }
     }
 
@@ -53,7 +57,11 @@ impl PengCell {
             (Self::Float64(left), Self::Float64(right)) => Ok(left >= right),
             (Self::Byte(left), Self::Byte(right)) => Ok(left >= right),
 
-            _ => Err(PengError::Code(PengErrorCode::TestError)),
+            _ => Err(PengError::InvalidBinaryOperation {
+                operator: ">=".to_string(),
+                left: format!("{:?}", self),
+                right: format!("{:?}", rhs),
+            }),
         }
     }
 
@@ -65,7 +73,11 @@ impl PengCell {
             (Self::Float64(left), Self::Float64(right)) => Ok(left < right),
             (Self::Byte(left), Self::Byte(right)) => Ok(left < right),
 
-            _ => Err(PengError::Code(PengErrorCode::TestError)),
+            _ => Err(PengError::InvalidBinaryOperation {
+                operator: "<".to_string(),
+                left: format!("{:?}", self),
+                right: format!("{:?}", rhs),
+            }),
         }
     }
 
@@ -77,7 +89,11 @@ impl PengCell {
             (Self::Float64(left), Self::Float64(right)) => Ok(left <= right),
             (Self::Byte(left), Self::Byte(right)) => Ok(left <= right),
 
-            _ => Err(PengError::Code(PengErrorCode::TestError)),
+            _ => Err(PengError::InvalidBinaryOperation {
+                operator: "<=".to_string(),
+                left: format!("{:?}", self),
+                right: format!("{:?}", rhs),
+            }),
         }
     }
 }

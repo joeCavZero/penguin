@@ -8,9 +8,7 @@ pub fn parse_type_literal(
     let type_token = match ptokens.next() {
         Some(token) => token,
         None => {
-            return Err(PengError::new_message(
-                "expected type literal".to_string(),
-            ));
+            return Err(PengError::new_message("expected type literal".to_string()));
         }
     };
 
@@ -26,12 +24,20 @@ pub fn parse_type_literal(
 
     let supers = match parse_type_supers(ptokens) {
         Ok(supers) => supers,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_type_literal".to_string(),
+            )));
+        }
     };
 
     let (fields, functions) = match parse_type_members(ptokens) {
         Ok(members) => members,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_type_literal".to_string(),
+            )));
+        }
     };
 
     literal_expr(

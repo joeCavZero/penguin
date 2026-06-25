@@ -26,7 +26,11 @@ pub fn parse_function_literal(
 
     let params = match parse_function_params_declaration(ptokens) {
         Ok(params) => params,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_function_literal".to_string(),
+            )));
+        }
     };
 
     let has_return_type = match ptokens.peek() {
@@ -42,7 +46,11 @@ pub fn parse_function_literal(
 
         match parse_type_expression(ptokens) {
             Ok(type_expression) => Some(type_expression),
-            Err(e) => return Err(e),
+            Err(e) => {
+                return Err(e.push(PengError::SyntaxError(
+                    "failed while parsing parse_function_literal".to_string(),
+                )));
+            }
         }
     } else {
         None
@@ -68,7 +76,11 @@ pub fn parse_function_literal(
 
     let body_statement = match parse_block_statement(ptokens) {
         Ok(statement) => statement,
-        Err(e) => return Err(e),
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing parse_function_literal".to_string(),
+            )));
+        }
     };
 
     let body = match body_statement.value {
