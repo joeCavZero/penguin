@@ -237,7 +237,7 @@ pub fn generate_try_expression(
         }
 
         None => {
-            context.push_const_and_const_instruction(PengValue::Nil);
+            context.push_const_and_const_instruction(PengHeapValue::Nil);
         }
     }
 
@@ -304,7 +304,7 @@ pub fn generate_type_expression(
                 }
             };
 
-            context.push_const_and_const_instruction(PengValue::Type(PengType::Vector(Box::new(
+            context.push_const_and_const_instruction(PengHeapValue::Type(PengType::Vector(Box::new(
                 inner_type,
             ))));
 
@@ -326,7 +326,7 @@ pub fn generate_type_expression(
                 }
             };
 
-            context.push_const_and_const_instruction(PengValue::Type(typ));
+            context.push_const_and_const_instruction(PengHeapValue::Type(typ));
 
             Ok(())
         }

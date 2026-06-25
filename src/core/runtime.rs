@@ -6,33 +6,25 @@ pub fn step_thread(
 ) -> Result<Option<PengBindedStatedCell>, PengError> {
     let (frame_program_counter, frame_base, frame_function_ptr, _frame_params_count) =
         match env.get_heap(thread_ptr) {
-            Some(coloured) => {
-                if let PengStated::Initialized(tval) = coloured.value.value() {
-                    if let PengValue::Thread(thread) = tval {
-                        if let Some(last_frame) = thread.frames.last() {
-                            (
-                                last_frame.program_counter,
-                                last_frame.base,
-                                last_frame.procedure,
-                                last_frame.params_count,
-                            )
-                        } else {
-                            return Ok(None);
-                        }
-                    } else {
-                        return Err(PengError::Code(PengErrorCode::TestError));
-                    }
+            Some(PengHeapValue::Thread(thread)) => {
+                if let Some(last_frame) = thread.frames.last() {
+                    (
+                        last_frame.program_counter,
+                        last_frame.base,
+                        last_frame.procedure,
+                        last_frame.params_count,
+                    )
                 } else {
-                    return Err(PengError::Code(PengErrorCode::TestError));
+                    return Ok(None);
                 }
             }
-            None => todo!(),
+            _ => todo!(),
         };
 
     let (should_end_frame, instruction, constant) = match env.get_heap(frame_function_ptr) {
         Some(coloured) => {
             if let PengStated::Initialized(fval) = coloured.value.value() {
-                if let PengValue::Function(func) = fval {
+                if let PengHeapValue::Function(func) = fval {
                     match func {
                         PengFunction::Bytecode(func_btc) => {
                             let instr = match func_btc.bytecode.get(frame_program_counter) {
@@ -52,7 +44,7 @@ pub fn step_thread(
                                     }
                                 }
 
-                                _ => PengValue::Nil,
+                                _ => PengHeapValue::Nil,
                             };
 
                             (false, instr, constant)
@@ -80,7 +72,7 @@ pub fn step_thread(
 
     match env.get_heap_mut(thread_ptr) {
         Some(coloured) => match &mut coloured.value {
-            PengBinded::Mutable(PengStated::Initialized(PengValue::Thread(thread))) => {
+            PengBinded::Mutable(PengStated::Initialized(PengHeapValue::Thread(thread))) => {
                 if let Some(last_frame) = thread.frames.last_mut() {
                     last_frame.program_counter = match last_frame.program_counter.checked_add(1) {
                         Some(r) => r,
@@ -153,7 +145,7 @@ pub fn step_thread(
 
 pub fn execute_instruction(
     instruction: PengInstruction,
-    constant: PengValue,
+    constant: PengHeapValue,
     thread_ptr: PengHeapPtr,
     _frame_base: usize,
     env: &mut PengEnv,
@@ -162,7 +154,7 @@ pub fn execute_instruction(
     match instruction {
         PengInstruction::PushConst(_) => {
             if constant.is_heap() {
-                let ptr = env.create_binded_stated_heap(PengBinded::Mutable(
+                let ptr = env.create_heap_value(PengBinded::Mutable(
                     PengStated::Initialized(constant),
                 ));
                 let cell = PengCell::Reference(ptr);
@@ -233,7 +225,7 @@ pub fn execute_instruction(
                     }
                 }
                 Err(_) => {
-                    let ptr = env.create_binded_stated_heap(PengBinded::Mutable(
+                    let ptr = env.create_heap_value(PengBinded::Mutable(
                         PengStated::Initialized(value),
                     ));
                     match env.push_thread_binded_stated_cell(
@@ -299,8 +291,8 @@ pub fn execute_instruction(
         }
 
         PengInstruction::CreateEmptyObject => {
-            let heap_ptr = env.create_binded_stated_heap(PengBinded::Mutable(
-                PengStated::Initialized(PengValue::Object(PengObject::new_empty())),
+            let heap_ptr = env.create_heap_value(PengBinded::Mutable(
+                PengStated::Initialized(PengHeapValue::Object(PengObject::new_empty())),
             ));
 
             match env.push_thread_binded_stated_cell(
@@ -313,8 +305,8 @@ pub fn execute_instruction(
         }
 
         PengInstruction::CreateEmptyModule => {
-            let heap_ptr = env.create_binded_stated_heap(PengBinded::Mutable(
-                PengStated::Initialized(PengValue::Module(PengModule::new_empty())),
+            let heap_ptr = env.create_heap_value(PengBinded::Mutable(
+                PengStated::Initialized(PengHeapValue::Module(PengModule::new_empty())),
             ));
 
             match env.push_thread_binded_stated_cell(
@@ -330,8 +322,8 @@ pub fn execute_instruction(
             match env.get_thread_latest_n_binded_stated_cells_cloned(thread_ptr, size) {
                 Ok(cells) => match env.pop_thread_stack_n_times(thread_ptr, size) {
                     Ok(()) => {
-                        let heap_ptr = env.create_binded_stated_heap(PengBinded::Mutable(
-                            PengStated::Initialized(PengValue::Vector(PengVector::new(cells))),
+                        let heap_ptr = env.create_heap_value(PengBinded::Mutable(
+                            PengStated::Initialized(PengHeapValue::Vector(PengVector::new(cells))),
                         ));
 
                         match env.push_thread_binded_stated_cell(
@@ -362,7 +354,7 @@ pub fn execute_instruction(
                             PengStated::Initialized(cell) => {
                                 match env.get_value_from_cell(cell.clone()) {
                                     Ok(value) => match value {
-                                        PengValue::Type(PengType::Custom(custom_type)) => {
+                                        PengHeapValue::Type(PengType::Custom(custom_type)) => {
                                             custom_types.push(custom_type);
                                         }
 
@@ -383,8 +375,8 @@ pub fn execute_instruction(
 
                     match env.pop_thread_stack_n_times(thread_ptr, types_count) {
                         Ok(()) => {
-                            let heap_ptr = env.create_binded_stated_heap(PengBinded::Mutable(
-                                PengStated::Initialized(PengValue::Type(PengType::Custom(
+                            let heap_ptr = env.create_heap_value(PengBinded::Mutable(
+                                PengStated::Initialized(PengHeapValue::Type(PengType::Custom(
                                     PengCustomType::new_super_type(custom_types),
                                 ))),
                             ));
@@ -417,7 +409,7 @@ pub fn execute_instruction(
                     let custom_type = match cell.value() {
                         PengStated::Initialized(cell) => {
                             match env.get_value_from_cell(cell.clone()) {
-                                Ok(PengValue::Type(PengType::Custom(custom_type))) => custom_type,
+                                Ok(PengHeapValue::Type(PengType::Custom(custom_type))) => custom_type,
 
                                 Ok(_) => {
                                     return Err(PengError::Code(PengErrorCode::TestError));
@@ -434,8 +426,8 @@ pub fn execute_instruction(
 
                     match env.pop_thread_stack_n_times(thread_ptr, 1) {
                         Ok(()) => {
-                            let heap_ptr = env.create_binded_stated_heap(PengBinded::Mutable(
-                                PengStated::Initialized(PengValue::Object(PengObject::new(
+                            let heap_ptr = env.create_heap_value(PengBinded::Mutable(
+                                PengStated::Initialized(PengHeapValue::Object(PengObject::new(
                                     custom_type.fields,
                                 ))),
                             ));
@@ -495,7 +487,7 @@ pub fn execute_instruction(
                         match env.get_heap_mut(object_ptr) {
                             Some(coloured) => match &mut coloured.value {
                                 PengBinded::Mutable(PengStated::Initialized(
-                                    PengValue::Object(object),
+                                    PengHeapValue::Object(object),
                                 )) => {
                                     object.fields.insert(name_ptr, value);
                                 }
@@ -536,7 +528,7 @@ pub fn execute_instruction(
 
                     let value = match env.get_heap(object_ptr) {
                         Some(coloured) => match &coloured.value {
-                            PengBinded::Mutable(PengStated::Initialized(PengValue::Object(
+                            PengBinded::Mutable(PengStated::Initialized(PengHeapValue::Object(
                                 object,
                             ))) => match object.fields.get(&name_ptr) {
                                 Some(value) => value.clone(),
@@ -586,7 +578,7 @@ pub fn execute_instruction(
                         match env.get_heap_mut(module_ptr) {
                             Some(coloured) => match &mut coloured.value {
                                 PengBinded::Mutable(PengStated::Initialized(
-                                    PengValue::Module(module),
+                                    PengHeapValue::Module(module),
                                 )) => {
                                     module.members.insert(name_ptr, value);
                                 }
@@ -627,7 +619,7 @@ pub fn execute_instruction(
 
                     let value = match env.get_heap(module_ptr) {
                         Some(coloured) => match &coloured.value {
-                            PengBinded::Mutable(PengStated::Initialized(PengValue::Module(
+                            PengBinded::Mutable(PengStated::Initialized(PengHeapValue::Module(
                                 module,
                             ))) => match module.members.get(&name_ptr) {
                                 Some(value) => value.clone(),
@@ -774,8 +766,8 @@ pub fn execute_instruction(
         },
 
         PengInstruction::PushString(name_ptr) => {
-            let heap_ptr = env.create_binded_stated_heap(PengBinded::Immutable(
-                PengStated::Initialized(PengValue::String(match env.get_pooled_name(name_ptr) {
+            let heap_ptr = env.create_heap_value(PengBinded::Immutable(
+                PengStated::Initialized(PengHeapValue::String(match env.get_pooled_name(name_ptr) {
                     Some(name) => name.clone(),
                     None => {
                         return Err(PengError::Code(PengErrorCode::TestError));
@@ -802,7 +794,7 @@ pub fn execute_instruction(
                             PengStated::Initialized(cell) => {
                                 match env.get_value_from_cell(cell.clone()) {
                                     Ok(value) => match value {
-                                        PengValue::Type(value) => {
+                                        PengHeapValue::Type(value) => {
                                             values.push(value);
                                         }
 
@@ -823,8 +815,8 @@ pub fn execute_instruction(
 
                     match env.pop_thread_stack_n_times(thread_ptr, count) {
                         Ok(()) => {
-                            let heap_ptr = env.create_binded_stated_heap(PengBinded::Mutable(
-                                PengStated::Initialized(PengValue::Union(PengUnion {
+                            let heap_ptr = env.create_heap_value(PengBinded::Mutable(
+                                PengStated::Initialized(PengHeapValue::Union(PengUnion {
                                     unions: values,
                                 })),
                             ));
@@ -886,7 +878,7 @@ pub fn execute_instruction(
                             };
 
                             let target_type = match target_value {
-                                PengValue::Type(value) => value,
+                                PengHeapValue::Type(value) => value,
                                 _ => return Err(PengError::Code(PengErrorCode::TestError)),
                             };
 
@@ -1284,9 +1276,9 @@ pub fn execute_instruction(
                     };
 
                     let value = match value {
-                        PengValue::Int(v) => PengValue::Int(-v),
-                        PengValue::Float32(v) => PengValue::Float32(-v),
-                        PengValue::Float64(v) => PengValue::Float64(-v),
+                        PengHeapValue::Int(v) => PengHeapValue::Int(-v),
+                        PengHeapValue::Float32(v) => PengHeapValue::Float32(-v),
+                        PengHeapValue::Float64(v) => PengHeapValue::Float64(-v),
                         _ => return Err(PengError::Code(PengErrorCode::TestError)),
                     };
 
@@ -1349,8 +1341,8 @@ pub fn execute_instruction(
                             };
 
                             let value = match (left, right) {
-                                (PengValue::String(a), PengValue::String(b)) => {
-                                    PengValue::String(format!("{}{}", a, b))
+                                (PengHeapValue::String(a), PengHeapValue::String(b)) => {
+                                    PengHeapValue::String(format!("{}{}", a, b))
                                 }
 
                                 _ => return Err(PengError::Code(PengErrorCode::TestError)),
@@ -2001,7 +1993,7 @@ pub fn execute_instruction(
                             };
 
                             let index = match index_value {
-                                PengValue::Int(v) => {
+                                PengHeapValue::Int(v) => {
                                     if v < 0 {
                                         return Err(PengError::Code(PengErrorCode::TestError));
                                     }
@@ -2009,7 +2001,7 @@ pub fn execute_instruction(
                                     v as usize
                                 }
 
-                                PengValue::Uint(v) => v,
+                                PengHeapValue::Uint(v) => v,
 
                                 _ => return Err(PengError::Code(PengErrorCode::TestError)),
                             };
@@ -2021,7 +2013,7 @@ pub fn execute_instruction(
 
                             let value = match env.get_heap(object_ptr) {
                                 Some(coloured) => match coloured.value.value() {
-                                    PengStated::Initialized(PengValue::Vector(vector)) => {
+                                    PengStated::Initialized(PengHeapValue::Vector(vector)) => {
                                         match vector.values.get(index) {
                                             Some(value) => value.clone(),
                                             None => {
@@ -2092,7 +2084,7 @@ pub fn execute_instruction(
                                     };
 
                                     let index = match index_value {
-                                        PengValue::Int(v) => {
+                                        PengHeapValue::Int(v) => {
                                             if v < 0 {
                                                 return Err(PengError::Code(
                                                     PengErrorCode::TestError,
@@ -2102,7 +2094,7 @@ pub fn execute_instruction(
                                             v as usize
                                         }
 
-                                        PengValue::Uint(v) => v,
+                                        PengHeapValue::Uint(v) => v,
 
                                         _ => return Err(PengError::Code(PengErrorCode::TestError)),
                                     };
@@ -2115,7 +2107,7 @@ pub fn execute_instruction(
                                     match env.get_heap_mut(object_ptr) {
                                         Some(coloured) => match &mut coloured.value {
                                             PengBinded::Mutable(PengStated::Initialized(
-                                                PengValue::Vector(vector),
+                                                PengHeapValue::Vector(vector),
                                             )) => {
                                                 if index >= vector.values.len() {
                                                     return Err(PengError::Code(

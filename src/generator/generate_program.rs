@@ -51,11 +51,11 @@ fn allocate_program_globals(
 
         let value_ptr = match declaration {
             PengBinded::Mutable(_) => {
-                env.create_binded_stated_heap(PengBinded::Mutable(PengStated::Initialized(PengValue::Nil)))
+                env.create_heap_value(PengBinded::Mutable(PengStated::Initialized(PengHeapValue::Nil)))
             }
 
             PengBinded::Immutable(_) => {
-                env.create_binded_stated_heap(PengBinded::Immutable(PengStated::Uninitialized))
+                env.create_heap_value(PengBinded::Immutable(PengStated::Uninitialized))
             }
         };
 
@@ -84,13 +84,13 @@ pub fn allocate_script_globals(
 
                 let value_ptr = match declaration {
                     PengBinded::Mutable(_) => {
-                        env.create_binded_stated_heap(PengBinded::Mutable(
-                            PengStated::Initialized(PengValue::Nil),
+                        env.create_heap_value(PengBinded::Mutable(
+                            PengStated::Initialized(PengHeapValue::Nil),
                         ))
                     }
 
                     PengBinded::Immutable(_) => {
-                        env.create_binded_stated_heap(PengBinded::Immutable(
+                        env.create_heap_value(PengBinded::Immutable(
                             PengStated::Uninitialized,
                         ))
                     }
@@ -117,7 +117,7 @@ pub fn get_allocated_global(
         return Some(*value_ptr);
     }
 
-    env.get_global_ptr_by_name_str(name)
+    env.get_global_by_name_str(name)
 }
 
 fn declaration_name(declaration: &PengBindedDeclaration) -> String {

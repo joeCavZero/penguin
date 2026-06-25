@@ -77,7 +77,7 @@ pub fn generate_statement(
                     }
                 }
                 None => {
-                    context.push_const_and_const_instruction(PengValue::Nil);
+                    context.push_const_and_const_instruction(PengHeapValue::Nil);
                 }
             }
 

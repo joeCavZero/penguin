@@ -16,7 +16,7 @@ pub enum PengOperation {
 #[derive(Debug, Clone)]
 pub struct PengBytecodeOperation {
     pub bytecode: Vec<PengInstruction>,
-    pub consts: Vec<PengValue>,
+    pub consts: Vec<PengHeapValue>,
     pub using_values: Vec<PengHeapPtr>,
 }
 

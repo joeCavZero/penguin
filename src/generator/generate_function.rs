@@ -10,14 +10,14 @@ pub fn create_anonymous_bytecode_function(
 ) -> PengHeapPtr {
     let function = create_bytecode_function_value(context);
 
-    env.create_binded_stated_heap(PengBinded::Mutable(PengStated::Initialized(function)))
+    env.create_heap_value(PengBinded::Mutable(PengStated::Initialized(function)))
 }
 
-pub fn create_bytecode_function_value(mut context: PengGeneratorContext) -> PengValue {
-    context.push_const_and_const_instruction(PengValue::Nil);
+pub fn create_bytecode_function_value(mut context: PengGeneratorContext) -> PengHeapValue {
+    context.push_const_and_const_instruction(PengHeapValue::Nil);
     context.bytecode.push(PengInstruction::Return);
 
-    PengValue::Function(PengFunction::Bytecode(PengBytecodeFunction {
+    PengHeapValue::Function(PengFunction::Bytecode(PengBytecodeFunction {
         bytecode: context.bytecode,
         consts: context.consts,
         using_values: Vec::new(),
@@ -28,7 +28,7 @@ pub fn generate_function_declaration_value(
     env: &mut PengEnv,
     globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     declaration: &PengPositionedFunctionDeclaration,
-) -> Result<PengValue, PengError> {
+) -> Result<PengHeapValue, PengError> {
     generate_function_value(
         env,
         globals,
@@ -42,7 +42,7 @@ pub fn generate_function_value(
     globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     params: &Vec<PengPositionedFunctionParam>,
     body: &Vec<PengPositionedStatement>,
-) -> Result<PengValue, PengError> {
+) -> Result<PengHeapValue, PengError> {
     let mut context = PengGeneratorContext::new();
 
     for param in params {

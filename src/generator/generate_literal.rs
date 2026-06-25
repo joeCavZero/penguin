@@ -27,14 +27,14 @@ pub fn generate_literal(
     }
 
     let value = match &literal.value {
-        PengLiteral::Nil => PengValue::Nil,
-        PengLiteral::Int(value) => PengValue::Int(*value),
-        PengLiteral::Uint(value) => PengValue::Uint(*value),
-        PengLiteral::Byte(value) => PengValue::Byte(*value),
-        PengLiteral::Float32(value) => PengValue::Float32(*value),
-        PengLiteral::Float64(value) => PengValue::Float64(*value),
-        PengLiteral::Bool(value) => PengValue::Bool(*value),
-        PengLiteral::String(value) => PengValue::String(value.clone()),
+        PengLiteral::Nil => PengHeapValue::Nil,
+        PengLiteral::Int(value) => PengHeapValue::Int(*value),
+        PengLiteral::Uint(value) => PengHeapValue::Uint(*value),
+        PengLiteral::Byte(value) => PengHeapValue::Byte(*value),
+        PengLiteral::Float32(value) => PengHeapValue::Float32(*value),
+        PengLiteral::Float64(value) => PengHeapValue::Float64(*value),
+        PengLiteral::Bool(value) => PengHeapValue::Bool(*value),
+        PengLiteral::String(value) => PengHeapValue::String(value.clone()),
         PengLiteral::Type(_) => unreachable!(),
         PengLiteral::Function(function) => {
             match generate_function_value(env, globals, &function.params, &function.body) {
@@ -121,7 +121,7 @@ pub fn generate_type_literal_after_base(
                 Ok(()) => {}
                 Err(e) => return Err(e),
             },
-            None => context.push_const_and_const_instruction(PengValue::Nil),
+            None => context.push_const_and_const_instruction(PengHeapValue::Nil),
         }
 
         context
@@ -201,7 +201,7 @@ pub fn generate_module_literal(
                     Ok(()) => {}
                     Err(e) => return Err(e),
                 },
-                None => context.push_const_and_const_instruction(PengValue::Nil),
+                None => context.push_const_and_const_instruction(PengHeapValue::Nil),
             },
 
             PengDeclaration::As(declaration) => {

@@ -11,13 +11,12 @@ fn main() {
                 Ok(ast) => {
                     println!("============================");
                     let mut env = penguin::PengEnv::new();
-                    env.ensure_mutable_uninitialized_global("g".to_string());
                     match penguin::generate_ast(&mut env, &ast, &HashMap::new()) {
                         Ok((globals, init_ptr)) => {
                             if let Some(cbinit) = env.get_heap(init_ptr).cloned() {
                                 if let penguin::PengBinded::Mutable(stated_init) = cbinit.value {
                                     if let penguin::PengStated::Initialized(init) = stated_init {
-                                        if let penguin::PengValue::Function(init_f) = init {
+                                        if let penguin::PengHeapValue::Function(init_f) = init {
                                             if let penguin::PengFunction::Bytecode(init_btc) = init_f {
                                                 println!("----- conts do init:\n{:#?}", init_btc.consts);
                                                 println!("- - - - - - init.bytecode - - - - ");
@@ -55,7 +54,7 @@ fn main() {
                                     }
                                 }
                                 if let penguin::PengStated::Initialized(t) = env.get_heap(thread_ptr).unwrap().value.value() {
-                                    if let penguin::PengValue::Thread(tt) = t {
+                                    if let penguin::PengHeapValue::Thread(tt) = t {
                                         println!("stack nesse momento: \n {:?}\n-------------", tt.stack)
                                     }
                                 }

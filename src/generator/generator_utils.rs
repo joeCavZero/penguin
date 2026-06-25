@@ -6,7 +6,7 @@ use crate::parser::*;
 
 pub struct PengGeneratorContext {
     pub bytecode: Vec<PengInstruction>,
-    pub consts: Vec<PengValue>,
+    pub consts: Vec<PengHeapValue>,
     scopes: Vec<HashMap<String, usize>>,
     next_local: usize,
     loops: Vec<PengLoopContext>,
@@ -29,7 +29,7 @@ impl PengGeneratorContext {
         }
     }
 
-    pub fn push_const_and_const_instruction(&mut self, value: PengValue) {
+    pub fn push_const_and_const_instruction(&mut self, value: PengHeapValue) {
         let mut const_index = None;
         let mut index = 0usize;
 
@@ -244,7 +244,7 @@ pub fn generate_local_variable(
             Err(e) => return Err(e),
         },
         None => {
-            context.push_const_and_const_instruction(PengValue::Nil);
+            context.push_const_and_const_instruction(PengHeapValue::Nil);
         }
     }
 
@@ -738,7 +738,7 @@ pub fn generate_local_module_declaration(
                     };
                 }
                 None => {
-                    context.push_const_and_const_instruction(PengValue::Nil);
+                    context.push_const_and_const_instruction(PengHeapValue::Nil);
                 }
             },
 
@@ -837,7 +837,7 @@ pub fn generate_module_declaration_value(
                     Ok(()) => {},
                     Err(e) => return Err(e),
                 },
-                None => context.push_const_and_const_instruction(PengValue::Nil),
+                None => context.push_const_and_const_instruction(PengHeapValue::Nil),
             },
 
             PengDeclaration::As(declaration) => {

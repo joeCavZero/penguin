@@ -8,7 +8,7 @@ pub fn generate_operation_declaration_value(
     env: &mut PengEnv,
     globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     declaration: &PengPositionedOperationDeclaration,
-) -> Result<PengValue, PengError> {
+) -> Result<PengHeapValue, PengError> {
     generate_operation_value(env, globals, &declaration.value.params, &declaration.value.body)
 }
 
@@ -17,7 +17,7 @@ pub fn generate_operation_value(
     globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     params: &Vec<PengPositionedFunctionParam>,
     body: &Vec<PengPositionedStatement>,
-) -> Result<PengValue, PengError> {
+) -> Result<PengHeapValue, PengError> {
     let mut context = PengGeneratorContext::new();
 
     for param in params {
@@ -29,10 +29,10 @@ pub fn generate_operation_value(
         Err(e) => return Err(e),
     }
 
-    context.push_const_and_const_instruction(PengValue::Nil);
+    context.push_const_and_const_instruction(PengHeapValue::Nil);
     context.bytecode.push(PengInstruction::Return);
 
-    Ok(PengValue::Operation(PengOperation::Bytecode(
+    Ok(PengHeapValue::Operation(PengOperation::Bytecode(
         PengBytecodeOperation {
             bytecode: context.bytecode,
             consts: context.consts,
