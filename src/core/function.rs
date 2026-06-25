@@ -1,4 +1,4 @@
-use crate::heap_value::*;
+use crate::value::*;
 use crate::utils::*;
 use crate::instruction::*;
 use crate::context::*;
@@ -16,7 +16,7 @@ pub enum PengFunction {
 #[derive(Debug, Clone)]
 pub struct PengBytecodeFunction {
     pub bytecode: Vec<PengInstruction>,
-    pub consts: Vec<PengHeapValue>,
+    pub consts: Vec<PengValue>,
 
     pub using_values: Vec<PengHeapPtr>,
 }

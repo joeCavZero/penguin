@@ -136,7 +136,7 @@ pub fn step_thread(
 
 pub fn execute_instruction(
     instruction: PengInstruction,
-    constant: Option<PengHeapValue>,
+    constant: Option<PengValue>,
     thread_ptr: PengHeapPtr,
     _frame_base: usize,
     env: &mut PengEnv,
@@ -149,14 +149,29 @@ pub fn execute_instruction(
                 None => return Err(PengError::Code(PengErrorCode::TestError)),
             };
 
-            let ptr = env.create_heap_value(constant);
-            let cell = PengCell::Reference(ptr);
-            match env.push_thread_binded_stated_cell(
-                thread_ptr,
-                PengBinded::Mutable(PengStated::Initialized(cell)),
-            ) {
-                Ok(()) => {}
-                Err(e) => return Err(e),
+            match constant {
+                PengValue::Cell(cell) => {
+                    match env.push_thread_binded_stated_cell(
+                        thread_ptr,
+                        PengBinded::Mutable(PengStated::Initialized(cell)),
+                    ) {
+                        Ok(()) => {}
+                        Err(e) => return Err(e),
+                    }
+                }
+
+                PengValue::Heap(value) => {
+                    let ptr = env.create_heap_value(value);
+                    let cell = PengCell::Reference(ptr);
+
+                    match env.push_thread_binded_stated_cell(
+                        thread_ptr,
+                        PengBinded::Mutable(PengStated::Initialized(cell)),
+                    ) {
+                        Ok(()) => {}
+                        Err(e) => return Err(e),
+                    }
+                }
             }
         }
 
@@ -321,9 +336,9 @@ pub fn execute_instruction(
                             PengStated::Initialized(cell) => {
                                 match env.get_value_from_cell(cell.clone()) {
                                     Ok(value) => match value {
-                                        PengValue::Heap(PengHeapValue::Type(
-                                            PengType::Custom(custom_type),
-                                        )) => {
+                                        PengValue::Heap(PengHeapValue::Type(PengType::Custom(
+                                            custom_type,
+                                        ))) => {
                                             custom_types.push(custom_type);
                                         }
 
@@ -376,9 +391,9 @@ pub fn execute_instruction(
                     let custom_type = match cell.value() {
                         PengStated::Initialized(cell) => {
                             match env.get_value_from_cell(cell.clone()) {
-                                Ok(PengValue::Heap(PengHeapValue::Type(
-                                    PengType::Custom(custom_type),
-                                ))) => custom_type,
+                                Ok(PengValue::Heap(PengHeapValue::Type(PengType::Custom(
+                                    custom_type,
+                                )))) => custom_type,
 
                                 Ok(_) => {
                                     return Err(PengError::Code(PengErrorCode::TestError));
@@ -1288,10 +1303,7 @@ pub fn execute_instruction(
                                 (
                                     PengValue::Heap(PengHeapValue::String(a)),
                                     PengValue::Heap(PengHeapValue::String(b)),
-                                ) => PengValue::Heap(PengHeapValue::String(format!(
-                                    "{}{}",
-                                    a, b
-                                ))),
+                                ) => PengValue::Heap(PengHeapValue::String(format!("{}{}", a, b))),
 
                                 _ => return Err(PengError::Code(PengErrorCode::TestError)),
                             };
