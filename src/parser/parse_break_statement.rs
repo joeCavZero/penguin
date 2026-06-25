@@ -9,7 +9,7 @@ pub fn parse_break_statement(
     let token = match ptokens.next() {
         Some(token) => token,
         None => {
-            return Err(PengError::new_message("expected 'break'".to_string()));
+            return Err(PengError::SyntaxError("expected 'break'".to_string()));
         }
     };
 

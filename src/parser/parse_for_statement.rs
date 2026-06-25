@@ -8,7 +8,7 @@ pub fn parse_for_statement(
     let for_token = match ptokens.next() {
         Some(token) => token,
         None => {
-            return Err(PengError::new_message("expected for statement".to_string()));
+            return Err(PengError::SyntaxError("expected for statement".to_string()));
         }
     };
 

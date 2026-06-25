@@ -8,7 +8,7 @@ pub fn parse_type_literal(
     let type_token = match ptokens.next() {
         Some(token) => token,
         None => {
-            return Err(PengError::new_message("expected type literal".to_string()));
+            return Err(PengError::SyntaxError("expected type literal".to_string()));
         }
     };
 

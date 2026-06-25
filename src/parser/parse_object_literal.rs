@@ -9,7 +9,7 @@ pub fn parse_object_literal(
     let open_token = match ptokens.next() {
         Some(token) => token,
         None => {
-            return Err(PengError::new_message(
+            return Err(PengError::SyntaxError(
                 "expected object literal".to_string(),
             ));
         }

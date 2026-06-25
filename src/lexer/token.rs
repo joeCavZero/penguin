@@ -209,7 +209,7 @@ impl PengToken {
         let clean = source.replace('_', "");
 
         if clean.is_empty() {
-            return Err(PengError::new_message(format!("invalid number literal: {}", source)));
+            return Err(PengError::SyntaxError(format!("invalid number literal: {}", source)));
         }
 
         if let Some(body) = clean.strip_suffix("f64") {
@@ -227,32 +227,32 @@ impl PengToken {
         if let Some(body) = clean.strip_suffix('i') {
             return match Self::parse_int::<isize>(body, source) {
                 Ok(val) => Ok(Some(Self::IntLiteral(val))),
-                Err(e) => Err(PengError::new_message(e.to_string())),
+                Err(e) => Err(PengError::SyntaxError(e.to_string())),
             };
         }
 
         if let Some(body) = clean.strip_suffix('u') {
             return match Self::parse_int::<usize>(body, source) {
                 Ok(val) => Ok(Some(Self::UintLiteral(val))),
-                Err(e) => Err(PengError::new_message(e.to_string())),
+                Err(e) => Err(PengError::SyntaxError(e.to_string())),
             };
         }
 
         if let Some(body) = clean.strip_suffix('b') {
             return match Self::parse_int::<u8>(body, source) {
                 Ok(val) => Ok(Some(Self::ByteLiteral(val))),
-                Err(e) => Err(PengError::new_message(e.to_string())),
+                Err(e) => Err(PengError::SyntaxError(e.to_string())),
             };
         }
 
         if Self::is_digits(&clean) {
             return match clean.parse::<isize>() {
                 Ok(val) => Ok(Some(Self::IntLiteral(val))),
-                Err(e) => Err(PengError::new_message(e.to_string())),
+                Err(e) => Err(PengError::SyntaxError(e.to_string())),
             };
         }
 
-        Err(PengError::new_message("invalid number literal".to_string()))
+        Err(PengError::SyntaxError("invalid number literal".to_string()))
     }
     
     fn parse_int<T>(body: &str, original: &str) -> Result<T, String>
@@ -269,23 +269,23 @@ impl PengToken {
 
     fn parse_float32(body: &str, original: &str) -> Result<Self, PengError> {
         if !Self::is_float_body(body) {
-            return Err(PengError::new_message( format!("invalid number literal: {}", original)));
+            return Err(PengError::SyntaxError( format!("invalid number literal: {}", original)));
         }
 
         match body.parse::<f32>().map(Self::Float32Literal) {
             Ok(v) => Ok(v),
-            Err(e) => Err(PengError::new_message(e.to_string())),
+            Err(e) => Err(PengError::SyntaxError(e.to_string())),
         }
     }
 
     fn parse_float64(body: &str, original: &str) -> Result<Self, PengError> {
         if !Self::is_float_body(body) {
-            return Err(PengError::new_message(format!("invalid number literal: {}", original)));
+            return Err(PengError::SyntaxError(format!("invalid number literal: {}", original)));
         }
 
         match body.parse::<f64>().map(Self::Float64Literal) {
             Ok(v) => Ok(v),
-            Err(e) => Err(PengError::Message(e.to_string())),
+            Err(e) => Err(PengError::SyntaxError(e.to_string())),
         }
     }
 

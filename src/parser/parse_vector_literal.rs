@@ -8,7 +8,7 @@ pub fn parse_vector_literal(
     let open_token = match ptokens.next() {
         Some(token) => token,
         None => {
-            return Err(PengError::new_message(
+            return Err(PengError::SyntaxError(
                 "expected vector literal".to_string(),
             ));
         }

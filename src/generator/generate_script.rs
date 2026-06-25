@@ -30,7 +30,11 @@ pub fn generate_script(
         }
     }
 
-    let script_function = create_anonymous_bytecode_function(env, context);
+    let script_function = create_anonymous_bytecode_function(
+        env, 
+        context,
+        PengBytecodeFunctionParams::Fixed(0),
+    );
 
     Ok(script_function)
 }

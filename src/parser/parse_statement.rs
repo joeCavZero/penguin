@@ -8,7 +8,7 @@ pub fn parse_statement(
     let token = match ptokens.peek() {
         Some(t) => t,
         None => {
-            return Err(PengError::new_message("expected statement".to_string()));
+            return Err(PengError::SyntaxError("expected statement".to_string()));
         }
     };
 

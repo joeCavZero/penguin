@@ -1,10 +1,10 @@
+use crate::instruction::*;
+use crate::token::*;
 use crate::position::*;
 use crate::utils::*;
 
 #[derive(Debug, Clone)]
 pub enum PengError {
-    Message(String),
-
     Stack(Vec<PengError>),
 
     Position(PengPosition),
@@ -187,30 +187,18 @@ pub enum PengError {
 
     InstructionExpectedConstant,
 
-    InvalidInstruction(String),
+    InvalidInstruction(PengInstruction),
 
     ThreadNotFound(PengHeapPtr),
 
     CurrentThreadNotFound,
 
     // ======================
-    // Erros de módulo / import
-    // ======================
-    ModuleNotFound(String),
-
-    ImportFailed(String),
-
-    MemberNotFound {
-        module: String,
-        member: String,
-    },
-
-    // ======================
     // Erros de parsing / compilação
     // ======================
     SyntaxError(String),
 
-    UnexpectedToken(String),
+    UnexpectedToken(PengToken),
 
     ExpectedToken {
         expected: String,
@@ -245,9 +233,6 @@ impl PengError {
             }
         }
     }
-    pub fn new_message(message: String) -> Self {
-        Self::Message(message)
-    }
 
     pub fn new_position(position: PengPosition) -> Self {
         Self::Position(position)
@@ -269,7 +254,6 @@ impl PengError {
 
     pub fn equals(&self, rhs: &Self) -> bool {
         match (self, rhs) {
-            (Self::Message(left), Self::Message(right)) => left == right,
 
             (Self::Stack(left), Self::Stack(right)) => {
                 left.len() == right.len() && left.iter().zip(right.iter()).all(|(a, b)| a.equals(b))
@@ -301,41 +285,5 @@ impl PengError {
 
             _ => false,
         }
-    }
-
-    pub fn heap_value_not_found(ptr: PengHeapPtr) -> Self {
-        Self::HeapValueNotFound(ptr)
-    }
-
-    pub fn name_not_found(name: PengNamePoolPtr) -> Self {
-        Self::NameNotFound(name)
-    }
-
-    pub fn local_not_found(index: usize) -> Self {
-        Self::LocalNotFound(index)
-    }
-
-    pub fn attribute_not_found(name: PengNamePoolPtr) -> Self {
-        Self::AttributeNotFound(name)
-    }
-
-    pub fn type_mismatch(expected: String, found: String) -> Self {
-        Self::TypeMismatch { expected, found }
-    }
-
-    pub fn invalid_conversion(from: String, to: String) -> Self {
-        Self::InvalidConversion { from, to }
-    }
-
-    pub fn wrong_argument_count(expected: usize, found: usize) -> Self {
-        Self::WrongArgumentCount { expected, found }
-    }
-
-    pub fn index_out_of_bounds(index: usize, len: usize) -> Self {
-        Self::IndexOutOfBounds { index, len }
-    }
-
-    pub fn program_counter_out_of_bounds(pc: usize, len: usize) -> Self {
-        Self::ProgramCounterOutOfBounds { pc, len }
     }
 }

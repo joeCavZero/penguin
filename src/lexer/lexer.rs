@@ -15,7 +15,7 @@ pub fn lex_file(
     let source = match std::fs::read_to_string(file_path) {
         Ok(src) => src,
         Err(e) => return Err(
-            PengError::Message(e.to_string())
+            PengError::SyntaxError(e.to_string())
         ),
     };
 

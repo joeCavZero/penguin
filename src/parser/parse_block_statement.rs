@@ -8,7 +8,7 @@ pub fn parse_block_statement(
     let open_token = match ptokens.next() {
         Some(token) => token,
         None => {
-            return Err(PengError::new_message(
+            return Err(PengError::SyntaxError(
                 "expected block statement".to_string(),
             ));
         }

@@ -9,7 +9,7 @@ pub fn parse_operation_literal(
     let oper_token = match ptokens.next() {
         Some(token) => token,
         None => {
-            return Err(PengError::new_message(
+            return Err(PengError::SyntaxError(
                 "expected operation literal".to_string(),
             ));
         }

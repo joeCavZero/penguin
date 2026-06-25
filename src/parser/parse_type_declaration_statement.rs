@@ -9,7 +9,7 @@ pub fn parse_type_declaration_statement(
     let type_token = match ptokens.next() {
         Some(token) => token,
         None => {
-            return Err(PengError::new_message(
+            return Err(PengError::SyntaxError(
                 "expected type declaration".to_string(),
             ));
         }
@@ -106,7 +106,7 @@ pub fn parse_type_supers(
         let token = match ptokens.peek() {
             Some(token) => token,
             None => {
-                return Err(PengError::new_message("expected type body".to_string()));
+                return Err(PengError::SyntaxError("expected type body".to_string()));
             }
         };
 
@@ -181,7 +181,7 @@ fn parse_type_super_expression(
         let position = match ptokens.peek() {
             Some(token) => token.position.clone(),
             None => {
-                return Err(PengError::new_message("expected super type".to_string()));
+                return Err(PengError::SyntaxError("expected super type".to_string()));
             }
         };
 
@@ -247,7 +247,7 @@ pub fn parse_type_members(
     let open_token = match ptokens.next() {
         Some(token) => token,
         None => {
-            return Err(PengError::new_message("expected type body".to_string()));
+            return Err(PengError::SyntaxError("expected type body".to_string()));
         }
     };
 

@@ -8,7 +8,7 @@ pub fn parse_function_params(
     let open_token = match ptokens.next() {
         Some(token) => token,
         None => {
-            return Err(PengError::new_message("expected '('".to_string()));
+            return Err(PengError::SyntaxError("expected '('".to_string()));
         }
     };
 
@@ -85,7 +85,7 @@ pub fn parse_function_params_declaration(
     let open_token = match ptokens.next() {
         Some(token) => token,
         None => {
-            return Err(PengError::new_message("expected '('".to_string()));
+            return Err(PengError::SyntaxError("expected '('".to_string()));
         }
     };
 

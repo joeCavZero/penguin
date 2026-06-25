@@ -66,7 +66,7 @@ fn parse_primary_type_expression(
     let token = match ptokens.peek() {
         Some(token) => (*token).clone(),
         None => {
-            return Err(PengError::new_message(
+            return Err(PengError::SyntaxError(
                 "expected type expression".to_string(),
             ));
         }
@@ -132,7 +132,7 @@ fn parse_builtin_type(
     let token = match ptokens.next() {
         Some(token) => token,
         None => {
-            return Err(PengError::new_message(
+            return Err(PengError::SyntaxError(
                 "expected type expression".to_string(),
             ));
         }
@@ -150,7 +150,7 @@ fn parse_custom_type_expression(
     let first_token = match ptokens.next() {
         Some(token) => token,
         None => {
-            return Err(PengError::new_message("expected custom type".to_string()));
+            return Err(PengError::SyntaxError("expected custom type".to_string()));
         }
     };
 
@@ -295,7 +295,7 @@ fn parse_vector_type_expression(
     let open_token = match ptokens.next() {
         Some(token) => token,
         None => {
-            return Err(PengError::new_message("expected '['".to_string()));
+            return Err(PengError::SyntaxError("expected '['".to_string()));
         }
     };
 
@@ -336,7 +336,7 @@ fn parse_type_type_expression(
     let type_token = match ptokens.next() {
         Some(token) => token,
         None => {
-            return Err(PengError::new_message("expected 'type'".to_string()));
+            return Err(PengError::SyntaxError("expected 'type'".to_string()));
         }
     };
 

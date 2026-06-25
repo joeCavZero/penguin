@@ -9,7 +9,7 @@ pub fn parse_return_statement(
     let return_token = match ptokens.next() {
         Some(token) => token,
         None => {
-            return Err(PengError::new_message(
+            return Err(PengError::SyntaxError(
                 "expected return statement".to_string(),
             ));
         }

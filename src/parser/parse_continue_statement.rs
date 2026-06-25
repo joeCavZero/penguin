@@ -9,7 +9,7 @@ pub fn parse_continue_statement(
     let token = match ptokens.next() {
         Some(token) => token,
         None => {
-            return Err(PengError::new_message("expected 'continue'".to_string()));
+            return Err(PengError::SyntaxError("expected 'continue'".to_string()));
         }
     };
 

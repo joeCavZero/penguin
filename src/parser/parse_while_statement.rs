@@ -8,7 +8,7 @@ pub fn parse_while_statement(
     let while_token = match ptokens.next() {
         Some(token) => token,
         None => {
-            return Err(PengError::new_message(
+            return Err(PengError::SyntaxError(
                 "expected while statement".to_string(),
             ));
         }

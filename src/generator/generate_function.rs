@@ -7,13 +7,17 @@ use crate::parser::*;
 pub fn create_anonymous_bytecode_function(
     env: &mut PengEnv,
     context: PengGeneratorContext,
+    params: PengBytecodeFunctionParams,
 ) -> PengHeapPtr {
-    let function = create_bytecode_function_value(context);
+    let function = create_bytecode_function_value(context, params);
 
     env.create_heap_value(function)
 }
 
-pub fn create_bytecode_function_value(mut context: PengGeneratorContext) -> PengHeapValue {
+pub fn create_bytecode_function_value(
+    mut context: PengGeneratorContext,
+    params: PengBytecodeFunctionParams,
+) -> PengHeapValue {
     context.push_const_and_const_instruction(PengValue::Cell(PengCell::Nil));
     context.bytecode.push(PengInstruction::Return);
 
@@ -21,6 +25,7 @@ pub fn create_bytecode_function_value(mut context: PengGeneratorContext) -> Peng
         bytecode: context.bytecode,
         consts: context.consts,
         using_values: Vec::new(),
+        params,
     }))
 }
 
@@ -45,6 +50,34 @@ pub fn generate_function_value(
 ) -> Result<PengHeapValue, PengError> {
     let mut context = PengGeneratorContext::new();
 
+    let mut variadic_index: Option<usize> = None;
+
+    for i in 0..params.len() {
+        if params[i].value.variadic {
+            if variadic_index.is_some() {
+                return Err(PengError::InvalidState(
+                    "function cannot have more than one variadic parameter".to_string(),
+                ));
+            }
+
+            variadic_index = Some(i);
+        }
+    }
+
+    let function_params = match variadic_index {
+        Some(index) => {
+            if index + 1 != params.len() {
+                return Err(PengError::InvalidState(
+                    "variadic parameter must be the last parameter".to_string(),
+                ));
+            }
+
+            PengBytecodeFunctionParams::Variadic(index)
+        }
+
+        None => PengBytecodeFunctionParams::Fixed(params.len()),
+    };
+
     for param in params {
         context.create_local(param.value.name.value.clone());
     }
@@ -58,7 +91,7 @@ pub fn generate_function_value(
         }
     }
 
-    Ok(create_bytecode_function_value(context))
+    Ok(create_bytecode_function_value(context, function_params))
 }
 
 pub fn generate_function_call(

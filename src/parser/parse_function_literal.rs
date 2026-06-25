@@ -8,7 +8,7 @@ pub fn parse_function_literal(
     let func_token = match ptokens.next() {
         Some(token) => token,
         None => {
-            return Err(PengError::new_message(
+            return Err(PengError::SyntaxError(
                 "expected function literal".to_string(),
             ));
         }

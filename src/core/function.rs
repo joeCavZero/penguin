@@ -15,8 +15,25 @@ pub enum PengFunction {
 pub struct PengBytecodeFunction {
     pub bytecode: Vec<PengInstruction>,
     pub consts: Vec<PengValue>,
-
     pub using_values: Vec<PengHeapPtr>,
+
+    pub params: PengBytecodeFunctionParams,
+}
+
+#[derive(Debug, Clone)]
+pub enum PengBytecodeFunctionParams {
+    Fixed(usize),
+    Variadic(usize),
+}
+
+impl PengBytecodeFunctionParams {
+    pub fn equals(&self, rhs: &Self) -> bool {
+        match (self, rhs) {
+            (Self::Fixed(left), Self::Fixed(right)) => left == right,
+            (Self::Variadic(left), Self::Variadic(right)) => left == right,
+            _ => false,
+        }
+    }
 }
 
 impl PengFunction {
@@ -56,6 +73,7 @@ impl PengBytecodeFunction {
                 .iter()
                 .zip(&rhs.using_values)
                 .all(|(left, right)| left == right)
+            && self.params.equals(&rhs.params)
     }
 }
 

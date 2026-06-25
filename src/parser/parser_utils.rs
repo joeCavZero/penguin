@@ -21,7 +21,7 @@ pub fn consume_optional_semicolon(
         match ptokens.next() {
             Some(_) => {}
             None => {
-                return Err(PengError::new_message(
+                return Err(PengError::SyntaxError(
                     "expected semicolon".to_string(),
                 ));
             }

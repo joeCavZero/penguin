@@ -85,7 +85,7 @@ pub fn generate_loop_statement(
     let loop_context = match context.pop_loop() {
         Some(loop_context) => loop_context,
         None => {
-            return Err(PengError::new_message(
+            return Err(PengError::SyntaxError(
                 "missing loop generation context".to_string(),
             ));
         }
@@ -182,7 +182,7 @@ pub fn generate_for_statement(
         Some(loop_context) => loop_context,
         None => {
             context.pop_scope();
-            return Err(PengError::new_message(
+            return Err(PengError::SyntaxError(
                 "missing for loop generation context".to_string(),
             ));
         }

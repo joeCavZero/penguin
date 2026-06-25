@@ -51,7 +51,7 @@ pub fn parse_variable_declaration_statement(
     let var_token = match ptokens.next() {
         Some(t) => t,
         None => {
-            return Err(PengError::new_message(
+            return Err(PengError::SyntaxError(
                 "expected variable declaration".to_string(),
             ));
         }
@@ -236,7 +236,7 @@ pub fn parse_const_declaration(
             parse_const_variable_declaration(tokens).map(PengDeclaration::Var)
         }
 
-        _ => Err(PengError::new_message(
+        _ => Err(PengError::SyntaxError(
             "expected const declaration".to_string(),
         )),
     }
@@ -248,7 +248,7 @@ fn parse_const_variable_declaration(
     let name_token = match tokens.next() {
         Some(t) => t,
         None => {
-            return Err(PengError::new_message("expected const name".to_string()));
+            return Err(PengError::SyntaxError("expected const name".to_string()));
         }
     };
 
@@ -325,7 +325,7 @@ pub fn parse_declaration_statement(
 ) -> Result<PengPositionedStatement, PengError> {
     let position = match tokens.peek().map(|t| t.position.clone()) {
         Some(p) => p,
-        None => return Err(PengError::new_message("expected declaration".to_string())),
+        None => return Err(PengError::SyntaxError("expected declaration".to_string())),
     };
 
     let declaration = match parse_binded_declaration(tokens) {
@@ -428,7 +428,7 @@ pub fn parse_mutable_declaration(
             extract_declaration(statement)
         }
 
-        _ => Err(PengError::new_message(
+        _ => Err(PengError::SyntaxError(
             "expected mutable declaration".to_string(),
         )),
     }
@@ -452,7 +452,7 @@ pub fn parse_declaration_body(
     let open_token = match ptokens.next() {
         Some(token) => token,
         None => {
-            return Err(PengError::new_message(
+            return Err(PengError::SyntaxError(
                 "expected declaration body".to_string(),
             ));
         }

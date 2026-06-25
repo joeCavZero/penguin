@@ -34,15 +34,42 @@ fn peng_print(
     return Ok(penguin::PengBindedCell::Mutable(penguin::PengCell::Nil))
 }
 
+fn peng_len(
+    args: Vec<penguin::PengBindedCell>,
+    env: &mut penguin::PengEnv,
+) -> Result<penguin::PengBindedCell, penguin::PengError> {
+    for arg in args {
+        match arg.value() {
+            penguin::PengCell::Reference(ptr) => {
+                if let Some(h) = env.get_heap(*ptr) {
+                    match h {
+                        penguin::PengHeapValue::String(s) => return Ok(penguin::PengBinded::Mutable(penguin::PengCell::Uint(s.len()))),
+                        penguin::PengHeapValue::Vector(v) => return Ok(penguin::PengBinded::Mutable(penguin::PengCell::Uint(v.len()))),
+                        _ => {
+                            return Err(penguin::PengError::NotImplemented("Expected string or vector".to_string()))
+                        }
+                    }
+                }
+            }
+            _ => {
+                return Err(penguin::PengError::NotImplemented("Expected string or vector".to_string()))
+            }
+        }
+    }
+    println!();
+    return Ok(penguin::PengBindedCell::Mutable(penguin::PengCell::Nil))
+}
+
 fn main() {
     match penguin::lex_file("main.p".to_string(), 0) {
         Ok(tkns) => {
             match penguin::parse_script(tkns) {
                 Ok(ast) => {
                     let mut env = penguin::PengEnv::new();
-                    let f = penguin::PengCell::Reference(env.create_heap_value(penguin::PengHeapValue::Function(penguin::PengFunction::new_native(peng_print))));
-                    let ff = penguin::PengBinded::Immutable(penguin::PengStated::Initialized(f));
-                    env.set_global("print".to_string(), ff);
+                    let f = penguin::PengBinded::Immutable(penguin::PengStated::Initialized(penguin::PengCell::Reference(env.create_heap_value(penguin::PengHeapValue::Function(penguin::PengFunction::new_native(peng_print))))));
+                    env.set_global("print".to_string(), f);
+                    let f = penguin::PengBinded::Immutable(penguin::PengStated::Initialized(penguin::PengCell::Reference(env.create_heap_value(penguin::PengHeapValue::Function(penguin::PengFunction::new_native(peng_len))))));
+                    env.set_global("len".to_string(), f);
                     match penguin::generate_ast(&mut env, &ast, &HashMap::new()) {
                         Ok((_, init_ptr)) => {
                             let thread_ptr = env.create_thread(init_ptr, 0, Vec::new());
@@ -61,11 +88,13 @@ fn main() {
                                 }
                             }
                         }
-                        Err(_) => {
+                        Err(e) => {
+                            println!("{:?}", e);
                         }
                     }
                 }
-                Err(_) => {
+                Err(e) => {
+                    println!("{:?}", e);
                 }
             }
         }

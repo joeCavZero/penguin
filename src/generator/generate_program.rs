@@ -31,7 +31,11 @@ pub fn generate_program(
         }
     };
 
-    let program_init = create_anonymous_bytecode_function(env, context);
+    let program_init = create_anonymous_bytecode_function(
+        env, 
+        context,
+        PengBytecodeFunctionParams::Fixed(0),
+    );
 
     Ok((full_globals, program_init))
 }
@@ -47,7 +51,7 @@ fn allocate_program_globals(
         let name_ptr = env.ensure_pooled_name_ptr(name);
 
         if globals.contains_key(&name_ptr) {
-            return Err(PengError::new_message(
+            return Err(PengError::SyntaxError(
                 "duplicated global declaration".to_string(),
             ));
         }
@@ -80,7 +84,7 @@ pub fn allocate_script_globals(
                 let name_ptr = env.ensure_pooled_name_ptr(name);
 
                 if globals.contains_key(&name_ptr) {
-                    return Err(PengError::new_message(
+                    return Err(PengError::SyntaxError(
                         "duplicated global declaration".to_string(),
                     ));
                 }

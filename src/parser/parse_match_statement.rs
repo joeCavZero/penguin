@@ -8,7 +8,7 @@ pub fn parse_match_statement(
     let match_token = match ptokens.next() {
         Some(token) => token,
         None => {
-            return Err(PengError::new_message(
+            return Err(PengError::SyntaxError(
                 "expected match statement".to_string(),
             ));
         }

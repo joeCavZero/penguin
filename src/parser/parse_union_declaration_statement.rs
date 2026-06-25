@@ -9,7 +9,7 @@ pub fn parse_union_declaration_statement(
     let union_token = match ptokens.next() {
         Some(token) => token,
         None => {
-            return Err(PengError::new_message(
+            return Err(PengError::SyntaxError(
                 "expected union declaration".to_string(),
             ));
         }
@@ -90,7 +90,7 @@ pub fn parse_union_expression(
     let union_token = match ptokens.next() {
         Some(token) => token,
         None => {
-            return Err(PengError::new_message(
+            return Err(PengError::SyntaxError(
                 "expected union expression".to_string(),
             ));
         }

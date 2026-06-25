@@ -149,7 +149,7 @@ fn parse_prefix_expression(
     let token = match ptokens.peek() {
         Some(t) => *t,
         None => {
-            return Err(PengError::new_message("expected expression".to_string()));
+            return Err(PengError::SyntaxError("expected expression".to_string()));
         }
     };
 
@@ -338,7 +338,7 @@ fn parse_primary_expression(
     let primary_token = match ptokens.peek() {
         Some(token) => token,
         None => {
-            return Err(PengError::new_message("expected expression".to_string()));
+            return Err(PengError::SyntaxError("expected expression".to_string()));
         }
     };
 
@@ -393,7 +393,7 @@ fn parse_primary_expression(
     let token = match ptokens.next() {
         Some(t) => t,
         None => {
-            return Err(PengError::new_message("expected expression".to_string()));
+            return Err(PengError::SyntaxError("expected expression".to_string()));
         }
     };
 
@@ -591,7 +591,7 @@ fn parse_dot_expression(
     let dot_token = match ptokens.next() {
         Some(token) => token,
         None => {
-            return Err(PengError::new_message("expected '.'".to_string()));
+            return Err(PengError::SyntaxError("expected '.'".to_string()));
         }
     };
 
@@ -653,7 +653,7 @@ fn parse_colon_func_call_expression(
     let colon_token = match ptokens.next() {
         Some(token) => token,
         None => {
-            return Err(PengError::new_message("expected ':'".to_string()));
+            return Err(PengError::SyntaxError("expected ':'".to_string()));
         }
     };
 
@@ -755,7 +755,7 @@ fn parse_index_expression(
     let open_token = match ptokens.next() {
         Some(token) => token,
         None => {
-            return Err(PengError::new_message("expected '['".to_string()));
+            return Err(PengError::SyntaxError("expected '['".to_string()));
         }
     };
 
@@ -817,7 +817,7 @@ fn parse_infix_operation_expression(
     let first_token = match ptokens.next() {
         Some(token) => token,
         None => {
-            return Err(PengError::new_message(
+            return Err(PengError::SyntaxError(
                 "expected operation name".to_string(),
             ));
         }

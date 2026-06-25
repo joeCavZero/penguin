@@ -8,7 +8,7 @@ pub fn parse_if_statement(
     let if_token = match ptokens.next() {
         Some(token) => token,
         None => {
-            return Err(PengError::new_message("expected if statement".to_string()));
+            return Err(PengError::SyntaxError("expected if statement".to_string()));
         }
     };
 
