@@ -18,10 +18,10 @@ impl PengValue {
     pub fn greater_than(&self, rhs: &Self) -> Result<bool, PengError> {
         match (self, rhs) {
             (Self::Cell(left), Self::Cell(right)) => left.greater_than(right),
-            _ => Err(PengError::InvalidBinaryOperation {
+            _ => Err(PengError::InvalidBinaryOperationValue {
                 operator: ">".to_string(),
-                left: format!("{:?}", self),
-                right: format!("{:?}", rhs),
+                left: self.clone(),
+                right: rhs.clone(),
             }),
         }
     }
@@ -29,10 +29,10 @@ impl PengValue {
     pub fn greater_equals_than(&self, rhs: &Self) -> Result<bool, PengError> {
         match (self, rhs) {
             (Self::Cell(left), Self::Cell(right)) => left.greater_equals_than(right),
-            _ => Err(PengError::InvalidBinaryOperation {
+            _ => Err(PengError::InvalidBinaryOperationValue {
                 operator: ">=".to_string(),
-                left: format!("{:?}", self),
-                right: format!("{:?}", rhs),
+                left: self.clone(),
+                right: rhs.clone(),
             }),
         }
     }
@@ -40,10 +40,10 @@ impl PengValue {
     pub fn less_than(&self, rhs: &Self) -> Result<bool, PengError> {
         match (self, rhs) {
             (Self::Cell(left), Self::Cell(right)) => left.less_than(right),
-            _ => Err(PengError::InvalidBinaryOperation {
+            _ => Err(PengError::InvalidBinaryOperationValue {
                 operator: "<".to_string(),
-                left: format!("{:?}", self),
-                right: format!("{:?}", rhs),
+                left: self.clone(),
+                right: rhs.clone(),
             }),
         }
     }
@@ -51,17 +51,17 @@ impl PengValue {
     pub fn less_equals_than(&self, rhs: &Self) -> Result<bool, PengError> {
         match (self, rhs) {
             (Self::Cell(left), Self::Cell(right)) => left.less_equals_than(right),
-            _ => Err(PengError::InvalidBinaryOperation {
+            _ => Err(PengError::InvalidBinaryOperationValue {
                 operator: "<=".to_string(),
-                left: format!("{:?}", self),
-                right: format!("{:?}", rhs),
+                left: self.clone(),
+                right: rhs.clone(),
             }),
         }
     }
 
     pub fn convert(self, target_type: PengType) -> Result<PengValue, PengError> {
-        let from = format!("{:?}", self);
-        let to = format!("{:?}", target_type);
+        let from = self.clone();
+        let to = target_type.clone();
 
         match (self, target_type) {
             // Any

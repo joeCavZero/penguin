@@ -2600,10 +2600,7 @@ pub fn execute_instruction(
                             let index = match index_value {
                                 PengValue::Cell(PengCell::Int(v)) => {
                                     if v < 0 {
-                                        return Err(PengError::InvalidIndexType(format!(
-                                            "{:?}",
-                                            index_value
-                                        )));
+                                        return Err(PengError::InvalidIndexTypeValue(index_value));
                                     }
 
                                     v as usize
@@ -2612,10 +2609,7 @@ pub fn execute_instruction(
                                 PengValue::Cell(PengCell::Uint(v)) => v,
 
                                 _ => {
-                                    return Err(PengError::InvalidIndexType(format!(
-                                        "{:?}",
-                                        index_value
-                                    )));
+                                    return Err(PengError::InvalidIndexTypeValue(index_value));
                                 }
                             };
 
@@ -2716,10 +2710,7 @@ pub fn execute_instruction(
                                     let index = match index_value {
                                         PengValue::Cell(PengCell::Int(v)) => {
                                             if v < 0 {
-                                                return Err(PengError::InvalidIndexType(format!(
-                                                    "{:?}",
-                                                    index_value
-                                                )));
+                                                return Err(PengError::InvalidIndexTypeValue(index_value));
                                             }
 
                                             v as usize
@@ -2728,10 +2719,7 @@ pub fn execute_instruction(
                                         PengValue::Cell(PengCell::Uint(v)) => v,
 
                                         _ => {
-                                            return Err(PengError::InvalidIndexType(format!(
-                                                "{:?}",
-                                                index_value
-                                            )));
+                                            return Err(PengError::InvalidIndexTypeValue(index_value));
                                         }
                                     };
 

@@ -77,27 +77,26 @@ fn main() {
         Ok(tkns) => {
             match penguin::parse_script(tkns) {
                 Ok(ast) => {
-                    println!("ast: {:#?}", ast);
                     let mut env = penguin::PengEnv::new();
                     let f = penguin::PengBinded::Immutable(penguin::PengCell::Reference(
                         env.create_heap_value(penguin::PengHeapValue::Function(
                             penguin::PengFunction::new_native(peng_print),
                         )),
                     ));
-                    env.set_global("print".to_string(), f).unwrap();
+                    env.set_global("print".to_string(), f).unwrap_err();
                     let f = penguin::PengBinded::Immutable(penguin::PengCell::Reference(
                         env.create_heap_value(penguin::PengHeapValue::Function(
                             penguin::PengFunction::new_native(peng_len),
                         )),
                     ));
-                    env.set_global("len".to_string(), f).unwrap();
+                    env.set_global("len".to_string(), f).unwrap_err();
                     match penguin::generate_ast(&mut env, &ast, &HashMap::new()) {
                         Ok((_, init_ptr)) => {
                             if let penguin::PengHeapValue::Function(f) =
                                 env.get_heap(init_ptr).unwrap()
                             {
                                 if let penguin::PengFunction::Bytecode(b) = f {
-                                    println!("bytecode de init:\n{:#?}", b.bytecode);
+                                    //println!("bytecode de init:\n{:#?}", b.bytecode);
                                 }
                             }
                             let thread_ptr = env.create_thread(init_ptr, 0, Vec::new());
@@ -110,24 +109,24 @@ fn main() {
                                         None => {}
                                     },
                                     Err(e) => {
-                                        println!("execution:\n{:#?}", e);
+                                        //println!("execution:\n{:#?}", e);
                                         return;
                                     }
                                 }
                             }
                         }
                         Err(e) => {
-                            println!("ast generation:\n{:#?}", e);
+                            //println!("ast generation:\n{:#?}", e);
                         }
                     }
                 }
                 Err(e) => {
-                    println!("parsing:\n{:#?}", e);
+                    //println!("parsing:\n{:#?}", e);
                 }
             }
         }
         Err(e) => {
-            println!("{:?}", e);
+            //println!("{:?}", e);
         }
     }
 }

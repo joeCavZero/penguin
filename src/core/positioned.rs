@@ -1,6 +1,6 @@
 use crate::core::*;
 
-#[derive(Clone, Debug)]
+#[derive(Debug, Clone)]
 pub struct PengPositioned<T> {
     pub value: T,
     pub position: PengPosition,

@@ -39,10 +39,10 @@ impl PengCell {
             (Self::Float64(left), Self::Float64(right)) => Ok(left > right),
             (Self::Byte(left), Self::Byte(right)) => Ok(left > right),
 
-            _ => Err(PengError::InvalidBinaryOperation {
+            _ => Err(PengError::InvalidBinaryOperationCell {
                 operator: ">".to_string(),
-                left: format!("{:?}", self),
-                right: format!("{:?}", rhs),
+                left: self.clone(),
+                right: rhs.clone(),
             }),
         }
     }
@@ -55,10 +55,10 @@ impl PengCell {
             (Self::Float64(left), Self::Float64(right)) => Ok(left >= right),
             (Self::Byte(left), Self::Byte(right)) => Ok(left >= right),
 
-            _ => Err(PengError::InvalidBinaryOperation {
+            _ => Err(PengError::InvalidBinaryOperationCell {
                 operator: ">=".to_string(),
-                left: format!("{:?}", self),
-                right: format!("{:?}", rhs),
+                left: self.clone(),
+                right: rhs.clone(),
             }),
         }
     }
@@ -71,10 +71,10 @@ impl PengCell {
             (Self::Float64(left), Self::Float64(right)) => Ok(left < right),
             (Self::Byte(left), Self::Byte(right)) => Ok(left < right),
 
-            _ => Err(PengError::InvalidBinaryOperation {
+            _ => Err(PengError::InvalidBinaryOperationCell {
                 operator: "<".to_string(),
-                left: format!("{:?}", self),
-                right: format!("{:?}", rhs),
+                left: self.clone(),
+                right: rhs.clone(),
             }),
         }
     }
@@ -87,10 +87,10 @@ impl PengCell {
             (Self::Float64(left), Self::Float64(right)) => Ok(left <= right),
             (Self::Byte(left), Self::Byte(right)) => Ok(left <= right),
 
-            _ => Err(PengError::InvalidBinaryOperation {
+            _ => Err(PengError::InvalidBinaryOperationCell {
                 operator: "<=".to_string(),
-                left: format!("{:?}", self),
-                right: format!("{:?}", rhs),
+                left: self.clone(),
+                right: rhs.clone(),
             }),
         }
     }

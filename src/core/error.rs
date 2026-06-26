@@ -1,3 +1,6 @@
+use crate::typing::*;
+use crate::value::*;
+use crate::cell::*;
 use crate::instruction::*;
 use crate::token::*;
 use crate::position::*;
@@ -81,8 +84,8 @@ pub enum PengError {
     },
 
     InvalidConversion {
-        from: String,
-        to: String,
+        from: PengValue,
+        to: PengType,
     },
 
     CannotInferType,
@@ -113,10 +116,16 @@ pub enum PengError {
         operand: String,
     },
 
-    InvalidBinaryOperation {
+    InvalidBinaryOperationCell {
         operator: String,
-        left: String,
-        right: String,
+        left: PengCell,
+        right: PengCell,
+    },
+
+    InvalidBinaryOperationValue {
+        operator: String,
+        left: PengValue,
+        right: PengValue,
     },
 
     DivisionByZero,
@@ -135,7 +144,7 @@ pub enum PengError {
         len: usize,
     },
 
-    InvalidIndexType(String),
+    InvalidIndexTypeValue(PengValue),
 
     CannotIndexValue(String),
 
