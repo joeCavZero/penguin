@@ -140,6 +140,7 @@ pub fn generate_local_function_declaration(
     globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     declaration: &PengPositionedFunctionDeclaration,
+    immutable: bool,
 ) -> Result<(), PengError> {
     let global = get_allocated_global(env, globals, &declaration.value.name.value);
 
@@ -176,6 +177,8 @@ pub fn generate_local_function_declaration(
             };
 
             context.push_const_and_const_instruction(PengValue::Heap(value));
+
+            generate_make_immutable_if_needed(context, immutable);
 
             let local = context.create_local(declaration.value.name.value.clone());
 

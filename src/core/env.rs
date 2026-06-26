@@ -70,9 +70,33 @@ impl PengEnv {
         Ok(self.create_heap_value(PengHeapValue::Vector(vector)))
     }
 
-    pub fn set_global(&mut self, name: String, cell: PengBindedStatedCell) {
+    pub fn set_global(
+        &mut self,
+        name: String,
+        cell: PengBindedStatedCell,
+    ) -> Result<(), PengError> {
         let name_ptr = self.ensure_pooled_name_ptr(name);
-        self.globals.insert(name_ptr, cell);
+
+        match self.globals.get_mut(&name_ptr) {
+            Some(current_cell) => match current_cell {
+                PengBinded::Mutable(current) => {
+                    *current = cell.value().clone();
+                    Ok(())
+                }
+
+                PengBinded::Immutable(PengStated::Uninitialized) => {
+                    *current_cell = cell;
+                    Ok(())
+                }
+
+                PengBinded::Immutable(_) => Err(PengError::CannotMutateImmutable),
+            },
+
+            None => {
+                self.globals.insert(name_ptr, cell);
+                Ok(())
+            }
+        }
     }
 
     pub fn get_global_by_name_str(&self, name: &str) -> Option<&PengBindedStatedCell> {
@@ -274,17 +298,31 @@ impl PengEnv {
 
                 match base.checked_add(local) {
                     Some(index) => match thread.stack.get_mut(index) {
-                        Some(cell) => {
-                            *cell = value;
-                            Ok(())
-                        }
+                        Some(cell) => match cell {
+                            PengBinded::Mutable(PengStated::Uninitialized) => {
+                                *cell = value;
+                                Ok(())
+                            }
 
+                            PengBinded::Mutable(current) => {
+                                *current = value.value().clone();
+                                Ok(())
+                            }
+
+                            PengBinded::Immutable(PengStated::Uninitialized) => {
+                                *cell = value;
+                                Ok(())
+                            }
+
+                            PengBinded::Immutable(_) => Err(PengError::CannotMutateImmutable),
+                        },
                         None => Err(PengError::LocalNotFound(local)),
                     },
 
                     None => Err(PengError::InvalidFrame),
                 }
             }
+
             Some(_) => Err(PengError::ExpectedThread),
             None => Err(PengError::ThreadNotFound(thread_ptr)),
         }

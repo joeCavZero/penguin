@@ -31,34 +31,15 @@ pub fn generate_statement(
     statement: &PengPositionedStatement,
 ) -> Result<(), PengError> {
     match &statement.value {
-        PengStatement::Declaration(binded_declaration) => {
-            let declaration = match binded_declaration {
-                PengBinded::Mutable(declaration) => declaration,
-                PengBinded::Immutable(declaration) => declaration,
-            };
-
-            match declaration {
-                PengDeclaration::Var(variable) => {
-                    generate_local_variable(env, globals, context, variable)
-                }
-                PengDeclaration::As(declaration) => {
-                    generate_local_as_declaration(env, globals, context, declaration)
-                }
-                PengDeclaration::Function(declaration) => {
-                    generate_local_function_declaration(env, globals, context, declaration)
-                }
-                PengDeclaration::Operation(declaration) => {
-                    generate_local_operation_declaration(env, globals, context, declaration)
-                }
-                PengDeclaration::Type(declaration) => {
-                    generate_local_type_declaration(env, globals, context, declaration)
-                }
-                PengDeclaration::Module(declaration) => {
-                    generate_local_module_declaration(env, globals, context, declaration)
-                }
+        PengStatement::Declaration(binded_declaration) => match binded_declaration {
+            PengBinded::Mutable(declaration) => {
+                generate_binded_local_declaration(env, globals, context, declaration, false)
             }
-        }
 
+            PengBinded::Immutable(declaration) => {
+                generate_binded_local_declaration(env, globals, context, declaration, true)
+            }
+        },
         PengStatement::Block(statements) => {
             context.push_scope();
 
@@ -296,3 +277,47 @@ pub fn generate_match_statement(
 
     Ok(())
 }
+
+pub fn generate_make_immutable_if_needed(
+    context: &mut PengGeneratorContext,
+    immutable: bool,
+) {
+    if immutable {
+        context.bytecode.push(PengInstruction::MakeImmutable);
+    }
+}
+
+pub fn generate_binded_local_declaration(
+    env: &mut PengEnv,
+    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
+    context: &mut PengGeneratorContext,
+    declaration: &PengDeclaration,
+    immutable: bool,
+) -> Result<(), PengError> {
+    match declaration {
+        PengDeclaration::Var(variable) => {
+            generate_local_variable(env, globals, context, variable, immutable)
+        }
+
+        PengDeclaration::As(declaration) => {
+            generate_local_as_declaration(env, globals, context, declaration, immutable)
+        }
+
+        PengDeclaration::Function(declaration) => {
+            generate_local_function_declaration(env, globals, context, declaration, immutable)
+        }
+
+        PengDeclaration::Operation(declaration) => {
+            generate_local_operation_declaration(env, globals, context, declaration, immutable)
+        }
+
+        PengDeclaration::Type(declaration) => {
+            generate_local_type_declaration(env, globals, context, declaration, immutable)
+        }
+
+        PengDeclaration::Module(declaration) => {
+            generate_local_module_declaration(env, globals, context, declaration, immutable)
+        }
+    }
+}
+

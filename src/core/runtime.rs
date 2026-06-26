@@ -310,10 +310,41 @@ pub fn execute_instruction(
     instruction: PengInstruction,
     constant: Option<PengValue>,
     thread_ptr: PengHeapPtr,
-    _frame_base: usize,
+    frame_base: usize,
     env: &mut PengEnv,
 ) -> Result<Option<PengBindedStatedCell>, PengError> {
     match instruction {
+        PengInstruction::MakeImmutable => {
+            let cell = match env
+                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .cloned()
+            {
+                Ok(cell) => cell,
+                Err(e) => {
+                    return Err(e.push(PengError::InvalidInstruction(instruction)));
+                }
+            };
+
+            let immutable = match cell {
+                PengBinded::Mutable(value) => PengBinded::Immutable(value),
+                PengBinded::Immutable(value) => PengBinded::Immutable(value),
+            };
+
+            match env.pop_thread_stack_n_times(thread_ptr, 1) {
+                Ok(()) => {}
+                Err(e) => {
+                    return Err(e.push(PengError::InvalidInstruction(instruction)));
+                }
+            }
+
+            match env.push_thread_binded_stated_cell(thread_ptr, immutable) {
+                Ok(()) => {}
+                Err(e) => {
+                    return Err(e.push(PengError::InvalidInstruction(instruction)));
+                }
+            }
+        }
+
         PengInstruction::PushConst(_) => {
             let constant = match constant {
                 Some(value) => value,
@@ -364,19 +395,44 @@ pub fn execute_instruction(
         },
 
         PengInstruction::StoreLocal(local) => {
-            match env
+            let stack_len = match env.get_thread_stack_len(thread_ptr) {
+                Ok(len) => len,
+                Err(e) => return Err(e.push(PengError::InvalidInstruction(instruction))),
+            };
+
+            if stack_len == 0 {
+                return Err(PengError::InvalidInstruction(instruction));
+            }
+
+            let value_index = stack_len - 1;
+
+            let target_index = match frame_base.checked_add(local) {
+                Some(index) => index,
+                None => return Err(PengError::InvalidFrame),
+            };
+
+            // declaração local: o topo da stack já é o próprio slot
+            if value_index == target_index {
+                return Ok(None);
+            }
+
+            // reassignment: copia o topo para o local antigo e remove temporário
+            let value = match env
                 .get_thread_latest_binded_stated_cell(thread_ptr, 0)
                 .cloned()
             {
-                Ok(lst) => match env.set_thread_local(thread_ptr, local, lst.clone()) {
-                    Ok(()) => {}
-                    Err(e) => {
-                        return Err(e.push(PengError::InvalidInstruction(instruction)));
-                    }
-                },
-                Err(e) => {
-                    return Err(e.push(PengError::InvalidInstruction(instruction)));
-                }
+                Ok(value) => value,
+                Err(e) => return Err(e.push(PengError::InvalidInstruction(instruction))),
+            };
+
+            match env.set_thread_local(thread_ptr, local, value) {
+                Ok(()) => {}
+                Err(e) => return Err(e.push(PengError::InvalidInstruction(instruction))),
+            }
+
+            match env.pop_thread_stack_n_times(thread_ptr, 1) {
+                Ok(()) => {}
+                Err(e) => return Err(e.push(PengError::InvalidInstruction(instruction))),
             }
         }
 
@@ -3022,7 +3078,7 @@ pub fn execute_instruction(
                         PengInstruction::FunctionCall(args_count),
                         None,
                         thread_ptr,
-                        _frame_base,
+                        frame_base,
                         env,
                     ) {
                         Ok(value) => return Ok(value),

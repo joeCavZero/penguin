@@ -3,6 +3,7 @@ use crate::utils::*;
 #[derive(Debug, Clone)]
 pub enum PengInstruction {
     PushConst(usize),
+    MakeImmutable,
 
     PushLocal(usize),   // ...| ---> ...|v| , v := *<usize>
     StoreLocal(usize),  // ...|v| ---> ...| , *<usize> := v

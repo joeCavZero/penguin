@@ -237,6 +237,7 @@ pub fn generate_local_variable(
     globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     variable: &PengPositionedVariableDeclaration,
+    immutable: bool,
 ) -> Result<(), PengError> {
     match &variable.value.value {
         Some(value) => match generate_expression(env, globals, context, value) {
@@ -247,10 +248,20 @@ pub fn generate_local_variable(
                 )));
             }
         },
+
         None => {
+            if immutable {
+                return Err(PengError::new_positioned_message(
+                    "const declaration must have an initializer".to_string(),
+                    variable.position.clone(),
+                ));
+            }
+
             context.push_const_and_const_instruction(PengValue::Cell(PengCell::Nil));
         }
     }
+
+    generate_make_immutable_if_needed(context, immutable);
 
     let local = context.create_local(variable.value.name.value.clone());
     context.bytecode.push(PengInstruction::StoreLocal(local));
@@ -263,6 +274,7 @@ pub fn generate_local_as_declaration(
     globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     declaration: &PengPositionedAsDeclaration,
+    immutable: bool,
 ) -> Result<(), PengError> {
     match generate_expression(env, globals, context, &declaration.value.value) {
         Ok(()) => {}
@@ -272,10 +284,10 @@ pub fn generate_local_as_declaration(
             )));
         }
     }
+    generate_make_immutable_if_needed(context, immutable);
 
     let local = context.create_local(declaration.value.name.value.clone());
     context.bytecode.push(PengInstruction::StoreLocal(local));
-
     Ok(())
 }
 
@@ -284,11 +296,12 @@ pub fn generate_local_type_declaration(
     globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     declaration: &PengPositionedTypeDeclaration,
+    immutable: bool,
 ) -> Result<(), PengError> {
     let value = match &declaration.value.value {
         Some(value) => value,
         None => {
-            return generate_structured_local_type_declaration(env, globals, context, declaration);
+            return generate_structured_local_type_declaration(env, globals, context, declaration, immutable);
         }
     };
 
@@ -312,6 +325,7 @@ pub fn generate_structured_local_type_declaration(
     globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     declaration: &PengPositionedTypeDeclaration,
+    immutable: bool,
 ) -> Result<(), PengError> {
     let literal = PengTypeLiteral {
         supers: declaration.value.supers.clone(),
@@ -327,8 +341,10 @@ pub fn generate_structured_local_type_declaration(
             )));
         }
     };
-    let local = context.create_local(declaration.value.name.value.clone());
-    context.bytecode.push(PengInstruction::StoreLocal(local));
+    generate_make_immutable_if_needed(context, immutable);
+
+let local = context.create_local(declaration.value.name.value.clone());
+context.bytecode.push(PengInstruction::StoreLocal(local));
     Ok(())
 }
 
@@ -788,6 +804,7 @@ pub fn generate_local_module_declaration(
     globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     declaration: &PengPositionedModuleDeclaration,
+    immutable: bool,
 ) -> Result<(), PengError> {
     context.bytecode.push(PengInstruction::CreateEmptyModule);
 
@@ -906,7 +923,7 @@ pub fn generate_local_module_declaration(
             .bytecode
             .push(PengInstruction::SetConstMember(name_ptr));
     }
-
+    generate_make_immutable_if_needed(context, immutable);
     let local = context.create_local(declaration.value.name.value.clone());
     context.bytecode.push(PengInstruction::StoreLocal(local));
 

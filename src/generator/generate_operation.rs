@@ -95,6 +95,7 @@ pub fn generate_local_operation_declaration(
     globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     declaration: &PengPositionedOperationDeclaration,
+    immutable: bool,
 ) -> Result<(), PengError> {
     let value = match generate_operation_declaration_value(env, globals, declaration) {
         Ok(value) => value,
@@ -106,7 +107,7 @@ pub fn generate_local_operation_declaration(
     };
 
     context.push_const_and_const_instruction(PengValue::Heap(value));
-
+    generate_make_immutable_if_needed(context, immutable);
     let local = context.create_local(declaration.value.name.value.clone());
     context.bytecode.push(PengInstruction::StoreLocal(local));
 
