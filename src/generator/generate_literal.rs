@@ -100,7 +100,7 @@ pub fn generate_object_literal(
         };
         context
             .bytecode
-            .push(PengInstruction::SetConstAttribute(name));
+            .push(PengInstruction::SetAttribute(name));
     }
 
     Ok(())
@@ -146,7 +146,7 @@ pub fn generate_type_literal_after_base(
 
         context
             .bytecode
-            .push(PengInstruction::SetConstAttribute(name));
+            .push(PengInstruction::SetAttribute(name));
     }
 
     for function in &literal.functions {
@@ -167,7 +167,7 @@ pub fn generate_type_literal_after_base(
 
         context
             .bytecode
-            .push(PengInstruction::SetConstAttribute(name));
+            .push(PengInstruction::SetAttribute(name));
     }
 
     Ok(())
@@ -312,7 +312,7 @@ pub fn generate_module_literal(
 
         context
             .bytecode
-            .push(PengInstruction::SetConstMember(name_ptr));
+            .push(PengInstruction::SetMember(name_ptr));
     }
 
     Ok(())

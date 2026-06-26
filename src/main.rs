@@ -74,7 +74,7 @@ fn main() {
                     match penguin::generate_ast(&mut env, &ast, &HashMap::new()) {
                         Ok((_, init_ptr)) => {
                             if let penguin::PengHeapValue::Function(f) = env.get_heap(init_ptr).unwrap() {
-                                if let penguin::PengFunction::Bytecode(b) = f {
+                                if let penguin::PengFunction::Bytecode(_b) = f {
                                     //println!("bytecode de init:\n{:#?}", b.bytecode);
                                 }
                             }

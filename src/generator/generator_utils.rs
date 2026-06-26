@@ -646,7 +646,7 @@ pub fn generate_attribute_assignment(
 
         context
             .bytecode
-            .push(PengInstruction::SetConstAttribute(name));
+            .push(PengInstruction::SetAttribute(name));
         return Ok(());
     }
 
@@ -675,7 +675,7 @@ pub fn generate_attribute_assignment(
                 .push(PengInstruction::PushLocal(object_local));
             context
                 .bytecode
-                .push(PengInstruction::GetConstAttribute(name));
+                .push(PengInstruction::GetAttribute(name));
 
             match generate_expression(env, globals, context, value) {
                 Ok(()) => {}
@@ -693,7 +693,7 @@ pub fn generate_attribute_assignment(
 
     context
         .bytecode
-        .push(PengInstruction::SetConstAttribute(name));
+        .push(PengInstruction::SetAttribute(name));
     Ok(())
 }
 
@@ -752,7 +752,7 @@ pub fn generate_member_assignment(
             }
         }
 
-        context.bytecode.push(PengInstruction::SetConstMember(name));
+        context.bytecode.push(PengInstruction::SetMember(name));
         return Ok(());
     }
 
@@ -779,7 +779,7 @@ pub fn generate_member_assignment(
             context
                 .bytecode
                 .push(PengInstruction::PushLocal(object_local));
-            context.bytecode.push(PengInstruction::GetConstMember(name));
+            context.bytecode.push(PengInstruction::GetMember(name));
 
             match generate_expression(env, globals, context, value) {
                 Ok(()) => {}
@@ -795,7 +795,7 @@ pub fn generate_member_assignment(
         None => unreachable!(),
     }
 
-    context.bytecode.push(PengInstruction::SetConstMember(name));
+    context.bytecode.push(PengInstruction::SetMember(name));
     Ok(())
 }
 
@@ -921,7 +921,7 @@ pub fn generate_local_module_declaration(
 
         context
             .bytecode
-            .push(PengInstruction::SetConstMember(name_ptr));
+            .push(PengInstruction::SetMember(name_ptr));
     }
     generate_make_immutable_if_needed(context, immutable);
     let local = context.create_local(declaration.value.name.value.clone());
@@ -1045,7 +1045,7 @@ pub fn generate_module_declaration_value(
 
         context
             .bytecode
-            .push(PengInstruction::SetConstMember(name_ptr));
+            .push(PengInstruction::SetMember(name_ptr));
     }
 
     Ok(())

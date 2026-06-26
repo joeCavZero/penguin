@@ -113,7 +113,7 @@ pub fn generate_expression(
             let name = env.ensure_pooled_name_ptr(attribute.name.value.clone());
             context
                 .bytecode
-                .push(PengInstruction::GetConstAttribute(name));
+                .push(PengInstruction::GetAttribute(name));
             Ok(())
         }
         PengExpression::MemberAccess(member) => {
@@ -126,7 +126,7 @@ pub fn generate_expression(
                 }
             };
             let name = env.ensure_pooled_name_ptr(member.name.value.clone());
-            context.bytecode.push(PengInstruction::GetConstMember(name));
+            context.bytecode.push(PengInstruction::GetMember(name));
             Ok(())
         }
         PengExpression::Index(index) => generate_index_expression(env, globals, context, index),
@@ -169,7 +169,7 @@ pub fn generate_method_call(
         .push(PengInstruction::PushLocal(object_local));
     context
         .bytecode
-        .push(PengInstruction::GetConstAttribute(method));
+        .push(PengInstruction::GetAttribute(method));
 
     context
         .bytecode
@@ -226,7 +226,7 @@ pub fn generate_object_construction(
 
         context
             .bytecode
-            .push(PengInstruction::SetConstAttribute(name));
+            .push(PengInstruction::SetAttribute(name));
     }
 
     Ok(())
@@ -299,7 +299,7 @@ pub fn generate_try_expression(
 
             context
                 .bytecode
-                .push(PengInstruction::GetConstAttribute(method));
+                .push(PengInstruction::GetAttribute(method));
 
             context
                 .bytecode

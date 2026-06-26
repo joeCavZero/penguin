@@ -746,13 +746,17 @@ pub fn execute_instruction(
             }
         },
 
-        PengInstruction::SetConstAttribute(name_ptr) => {
+        PengInstruction::SetAttribute(name_ptr) => {
             match env
                 .get_thread_latest_binded_stated_cell(thread_ptr, 0)
                 .cloned()
             {
                 Ok(value_cell) => match env.get_thread_latest_binded_stated_cell(thread_ptr, 1) {
                     Ok(object_cell) => {
+                        match ensure_mutable_base(object_cell) {
+                            Ok(()) => {}
+                            Err(e) => return Err(e),
+                        }
                         let object_ptr = match object_cell.value() {
                             PengStated::Initialized(PengCell::Reference(ptr)) => *ptr,
                             PengStated::Initialized(_) => return Err(PengError::ExpectedReference),
@@ -804,7 +808,7 @@ pub fn execute_instruction(
             }
         }
 
-        PengInstruction::GetConstAttribute(name_ptr) => {
+        PengInstruction::GetAttribute(name_ptr) => {
             match env
                 .get_thread_latest_binded_stated_cell(thread_ptr, 0)
                 .cloned()
@@ -849,12 +853,16 @@ pub fn execute_instruction(
                     };
 
                     match env.pop_thread_stack_n_times(thread_ptr, 1) {
-                        Ok(()) => match env.push_thread_binded_stated_cell(thread_ptr, value) {
-                            Ok(()) => {}
-                            Err(e) => {
-                                return Err(e.push(PengError::InvalidInstruction(instruction)));
+                        Ok(()) => {
+                            let value = inherit_binding_from_base(&object_cell, value);
+
+                            match env.push_thread_binded_stated_cell(thread_ptr, value) {
+                                Ok(()) => {}
+                                Err(e) => {
+                                    return Err(e.push(PengError::InvalidInstruction(instruction)));
+                                }
                             }
-                        },
+                        }
 
                         Err(e) => {
                             return Err(e.push(PengError::InvalidInstruction(instruction)));
@@ -868,13 +876,17 @@ pub fn execute_instruction(
             }
         }
 
-        PengInstruction::SetConstMember(name_ptr) => {
+        PengInstruction::SetMember(name_ptr) => {
             match env
                 .get_thread_latest_binded_stated_cell(thread_ptr, 0)
                 .cloned()
             {
                 Ok(value_cell) => match env.get_thread_latest_binded_stated_cell(thread_ptr, 1) {
                     Ok(module_cell) => {
+                        match ensure_mutable_base(module_cell) {
+                            Ok(()) => {}
+                            Err(e) => return Err(e),
+                        }
                         let module_ptr = match module_cell.value() {
                             PengStated::Initialized(PengCell::Reference(ptr)) => *ptr,
                             PengStated::Initialized(_) => return Err(PengError::ExpectedReference),
@@ -918,7 +930,7 @@ pub fn execute_instruction(
             }
         }
 
-        PengInstruction::GetConstMember(name_ptr) => {
+        PengInstruction::GetMember(name_ptr) => {
             match env
                 .get_thread_latest_binded_stated_cell(thread_ptr, 0)
                 .cloned()
@@ -952,12 +964,15 @@ pub fn execute_instruction(
                     };
 
                     match env.pop_thread_stack_n_times(thread_ptr, 1) {
-                        Ok(()) => match env.push_thread_binded_stated_cell(thread_ptr, value) {
-                            Ok(()) => {}
-                            Err(e) => {
-                                return Err(e.push(PengError::InvalidInstruction(instruction)));
+                        Ok(()) => {
+                            let value = inherit_binding_from_base(&module_cell, value);
+                            match env.push_thread_binded_stated_cell(thread_ptr, value) {
+                                Ok(()) => {}
+                                Err(e) => {
+                                    return Err(e.push(PengError::InvalidInstruction(instruction)));
+                                }
                             }
-                        },
+                        }
 
                         Err(e) => {
                             return Err(e.push(PengError::InvalidInstruction(instruction)));
@@ -2869,6 +2884,8 @@ pub fn execute_instruction(
 
                             match env.pop_thread_stack_n_times(thread_ptr, 2) {
                                 Ok(()) => {
+                                    let value = inherit_binding_from_base(&object_cell, value);
+
                                     match env.push_thread_binded_stated_cell(thread_ptr, value) {
                                         Ok(()) => {}
                                         Err(e) => {
@@ -2913,6 +2930,10 @@ pub fn execute_instruction(
                                 .cloned()
                             {
                                 Ok(object_cell) => {
+                                    match ensure_mutable_base(&object_cell) {
+                                        Ok(()) => {}
+                                        Err(e) => return Err(e),
+                                    }
                                     let index_value = match index_cell.value() {
                                         PengStated::Initialized(cell) => {
                                             match env.get_value_from_cell(cell.clone()) {
@@ -3296,4 +3317,21 @@ pub fn execute_instruction(
         }
     }
     Ok(None)
+}
+
+fn inherit_binding_from_base(
+    base: &PengBindedStatedCell,
+    value: PengBindedStatedCell,
+) -> PengBindedStatedCell {
+    match base {
+        PengBinded::Mutable(_) => PengBinded::Mutable(value.value().clone()),
+        PengBinded::Immutable(_) => PengBinded::Immutable(value.value().clone()),
+    }
+}
+
+fn ensure_mutable_base(base: &PengBindedStatedCell) -> Result<(), PengError> {
+    match base {
+        PengBinded::Mutable(_) => Ok(()),
+        PengBinded::Immutable(_) => Err(PengError::CannotMutateImmutable),
+    }
 }

@@ -59,11 +59,11 @@ pub enum PengInstruction {
     GetIndex,
     SetIndex,
 
-    GetConstAttribute(PengNamePoolPtr),
-    SetConstAttribute(PengNamePoolPtr),
+    GetAttribute(PengNamePoolPtr),
+    SetAttribute(PengNamePoolPtr),
 
-    GetConstMember(PengNamePoolPtr),
-    SetConstMember(PengNamePoolPtr),
+    GetMember(PengNamePoolPtr),
+    SetMember(PengNamePoolPtr),
 
     Jump(usize),
     JumpIfTrue(usize),
@@ -85,10 +85,10 @@ impl PengInstruction {
             | (Self::CreateSuperType(left), Self::CreateSuperType(right))
             | (Self::CreateVector(left), Self::CreateVector(right))
             | (Self::CreateUnion(left), Self::CreateUnion(right))
-            | (Self::GetConstAttribute(left), Self::GetConstAttribute(right))
-            | (Self::SetConstAttribute(left), Self::SetConstAttribute(right))
-            | (Self::GetConstMember(left), Self::GetConstMember(right))
-            | (Self::SetConstMember(left), Self::SetConstMember(right))
+            | (Self::GetAttribute(left), Self::GetAttribute(right))
+            | (Self::SetAttribute(left), Self::SetAttribute(right))
+            | (Self::GetMember(left), Self::GetMember(right))
+            | (Self::SetMember(left), Self::SetMember(right))
             | (Self::FunctionCall(left), Self::FunctionCall(right))
             | (Self::TryFunctionCall(left), Self::TryFunctionCall(right))
             | (Self::Jump(left), Self::Jump(right))
