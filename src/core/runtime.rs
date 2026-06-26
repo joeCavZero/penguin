@@ -11,7 +11,7 @@ pub fn step_thread(
                     (
                         last_frame.program_counter,
                         last_frame.base,
-                        last_frame.procedure,
+                        last_frame.procedure_ptr,
                         last_frame.params_count,
                     )
                 } else {

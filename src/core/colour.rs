@@ -1,8 +1,7 @@
-#[derive(Debug,Clone)]
+#[derive(Debug,Clone, PartialEq, Eq)]
 pub enum PengColour {
-    White,
-    Gray,
-    Black,
+    Red, // not passed
+    Black,  // passed
 }
 
 #[derive(Debug,Clone)]
@@ -14,8 +13,12 @@ pub struct PengColoured<T> {
 impl<T> PengColoured<T> {
     pub fn new(value: T) -> Self {
         Self {
-            colour: PengColour::White,
+            colour: PengColour::Black,
             value: value,
         }
+    }
+
+    pub fn paint(&mut self, colour: PengColour) {
+        self.colour = colour
     }
 }

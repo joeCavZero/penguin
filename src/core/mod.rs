@@ -20,6 +20,7 @@ pub mod runtime;
 pub mod binding;
 pub mod colour;
 pub mod value;
+pub mod garbage_collector;
 
 pub use env::*;
 pub use thread::*;
@@ -43,3 +44,4 @@ pub use runtime::*;
 pub use binding::*;
 pub use colour::*;
 pub use value::*;
+pub use garbage_collector::*;

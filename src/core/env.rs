@@ -26,6 +26,8 @@ impl PengEnv {
         }
     }
 
+    //pub fn bind_immutable_function(&self, name: String, f:)
+
     fn next_name_ptr(&self) -> PengNamePoolPtr {
         self.name_pool.keys().max().map(|v| *v + PengNamePoolPtr(1).into()).unwrap_or(PengNamePoolPtr(0))
     }
@@ -109,6 +111,20 @@ impl PengEnv {
         };
 
         self.globals.get(&name_ptr)
+    }
+
+    pub fn get_coloured_heap(&self, value_ptr: PengHeapPtr) -> Option<&PengColouredHeapValue> {
+        match self.heap.get(&value_ptr) {
+            Some(v) => Some(&v),
+            None => None,
+        }
+    }
+
+    pub fn get_coloured_heap_mut(&mut self, value_ptr: PengHeapPtr) -> Option<&mut PengColouredHeapValue> {
+        match self.heap.get_mut(&value_ptr) {
+            Some(v) => Some(v),
+            None => None,
+        }
     }
 
     pub fn get_heap(&self, value_ptr: PengHeapPtr) -> Option<&PengHeapValue> {
