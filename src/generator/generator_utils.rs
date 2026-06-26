@@ -29,11 +29,16 @@ impl PengGeneratorContext {
         }
     }
 
-    pub fn push_const_and_const_instruction(&mut self, value: PengValue) {
-        let mut const_index = None;
-        let mut index = 0usize;
+    pub fn push_const_and_const_instruction(&mut self, env: &mut PengEnv, value: PengValue) {
+        if let PengValue::Heap(PengHeapValue::String(s)) = value {
+            let name_ptr = env.ensure_pooled_name_ptr(s);
+            self.bytecode.push(PengInstruction::PushString(name_ptr));
+            return;
+        }
 
-        while index < self.consts.len() {
+        let mut const_index = None;
+
+        for index in 0..self.consts.len() {
             let existing = match self.consts.get(index) {
                 Some(existing) => existing,
                 None => break,
@@ -43,8 +48,6 @@ impl PengGeneratorContext {
                 const_index = Some(index);
                 break;
             }
-
-            index += 1;
         }
 
         let const_index = match const_index {
@@ -257,7 +260,7 @@ pub fn generate_local_variable(
                 ));
             }
 
-            context.push_const_and_const_instruction(PengValue::Cell(PengCell::Nil));
+            context.push_const_and_const_instruction(env, PengValue::Cell(PengCell::Nil));
         }
     }
 
@@ -301,7 +304,13 @@ pub fn generate_local_type_declaration(
     let value = match &declaration.value.value {
         Some(value) => value,
         None => {
-            return generate_structured_local_type_declaration(env, globals, context, declaration, immutable);
+            return generate_structured_local_type_declaration(
+                env,
+                globals,
+                context,
+                declaration,
+                immutable,
+            );
         }
     };
 
@@ -343,8 +352,8 @@ pub fn generate_structured_local_type_declaration(
     };
     generate_make_immutable_if_needed(context, immutable);
 
-let local = context.create_local(declaration.value.name.value.clone());
-context.bytecode.push(PengInstruction::StoreLocal(local));
+    let local = context.create_local(declaration.value.name.value.clone());
+    context.bytecode.push(PengInstruction::StoreLocal(local));
     Ok(())
 }
 
@@ -644,9 +653,7 @@ pub fn generate_attribute_assignment(
             }
         }
 
-        context
-            .bytecode
-            .push(PengInstruction::SetAttribute(name));
+        context.bytecode.push(PengInstruction::SetAttribute(name));
         return Ok(());
     }
 
@@ -673,9 +680,7 @@ pub fn generate_attribute_assignment(
             context
                 .bytecode
                 .push(PengInstruction::PushLocal(object_local));
-            context
-                .bytecode
-                .push(PengInstruction::GetAttribute(name));
+            context.bytecode.push(PengInstruction::GetAttribute(name));
 
             match generate_expression(env, globals, context, value) {
                 Ok(()) => {}
@@ -691,9 +696,7 @@ pub fn generate_attribute_assignment(
         None => unreachable!(),
     }
 
-    context
-        .bytecode
-        .push(PengInstruction::SetAttribute(name));
+    context.bytecode.push(PengInstruction::SetAttribute(name));
     Ok(())
 }
 
@@ -839,7 +842,7 @@ pub fn generate_local_module_declaration(
                     };
                 }
                 None => {
-                    context.push_const_and_const_instruction(PengValue::Cell(PengCell::Nil));
+                    context.push_const_and_const_instruction(env, PengValue::Cell(PengCell::Nil));
                 }
             },
 
@@ -863,7 +866,7 @@ pub fn generate_local_module_declaration(
                         )));
                     }
                 };
-                context.push_const_and_const_instruction(PengValue::Heap(value));
+                context.push_const_and_const_instruction(env, PengValue::Heap(value));
             }
 
             PengDeclaration::Operation(declaration) => {
@@ -875,7 +878,7 @@ pub fn generate_local_module_declaration(
                         )));
                     }
                 };
-                context.push_const_and_const_instruction(PengValue::Heap(value));
+                context.push_const_and_const_instruction(env, PengValue::Heap(value));
             }
 
             PengDeclaration::Type(declaration) => match &declaration.value.value {
@@ -919,9 +922,7 @@ pub fn generate_local_module_declaration(
             }
         }
 
-        context
-            .bytecode
-            .push(PengInstruction::SetMember(name_ptr));
+        context.bytecode.push(PengInstruction::SetMember(name_ptr));
     }
     generate_make_immutable_if_needed(context, immutable);
     let local = context.create_local(declaration.value.name.value.clone());
@@ -966,7 +967,9 @@ pub fn generate_module_declaration_value(
                         )));
                     }
                 },
-                None => context.push_const_and_const_instruction(PengValue::Cell(PengCell::Nil)),
+                None => {
+                    context.push_const_and_const_instruction(env, PengValue::Cell(PengCell::Nil))
+                }
             },
 
             PengDeclaration::As(declaration) => {
@@ -989,7 +992,7 @@ pub fn generate_module_declaration_value(
                         )));
                     }
                 };
-                context.push_const_and_const_instruction(PengValue::Heap(value));
+                context.push_const_and_const_instruction(env, PengValue::Heap(value));
             }
 
             PengDeclaration::Operation(declaration) => {
@@ -1001,7 +1004,7 @@ pub fn generate_module_declaration_value(
                         )));
                     }
                 };
-                context.push_const_and_const_instruction(PengValue::Heap(value));
+                context.push_const_and_const_instruction(env, PengValue::Heap(value));
             }
 
             PengDeclaration::Type(declaration) => match &declaration.value.value {
@@ -1043,9 +1046,7 @@ pub fn generate_module_declaration_value(
             }
         }
 
-        context
-            .bytecode
-            .push(PengInstruction::SetMember(name_ptr));
+        context.bytecode.push(PengInstruction::SetMember(name_ptr));
     }
 
     Ok(())

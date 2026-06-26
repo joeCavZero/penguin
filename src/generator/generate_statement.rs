@@ -64,7 +64,7 @@ pub fn generate_statement(
                     }
                 },
                 None => {
-                    context.push_const_and_const_instruction(PengValue::Cell(PengCell::Nil));
+                    context.push_const_and_const_instruction(env, PengValue::Cell(PengCell::Nil));
                 }
             }
 

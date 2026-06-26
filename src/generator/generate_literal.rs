@@ -61,7 +61,7 @@ pub fn generate_literal(
         PengLiteral::Object(_) => unreachable!(),
     };
 
-    context.push_const_and_const_instruction(value);
+    context.push_const_and_const_instruction(env, value);
     Ok(())
 }
 
@@ -141,7 +141,7 @@ pub fn generate_type_literal_after_base(
                     )));
                 }
             },
-            None => context.push_const_and_const_instruction(PengValue::Cell(PengCell::Nil)),
+            None => context.push_const_and_const_instruction(env, PengValue::Cell(PengCell::Nil)),
         }
 
         context
@@ -163,7 +163,7 @@ pub fn generate_type_literal_after_base(
             }
         };
 
-        context.push_const_and_const_instruction(PengValue::Heap(value));
+        context.push_const_and_const_instruction(env, PengValue::Heap(value));
 
         context
             .bytecode
@@ -233,7 +233,7 @@ pub fn generate_module_literal(
                         )));
                     }
                 },
-                None => context.push_const_and_const_instruction(PengValue::Cell(PengCell::Nil)),
+                None => context.push_const_and_const_instruction(env, PengValue::Cell(PengCell::Nil)),
             },
 
             PengDeclaration::As(declaration) => {
@@ -256,7 +256,7 @@ pub fn generate_module_literal(
                         )));
                     }
                 };
-                context.push_const_and_const_instruction(PengValue::Heap(value));
+                context.push_const_and_const_instruction(env, PengValue::Heap(value));
             }
 
             PengDeclaration::Type(declaration) => match &declaration.value.value {
@@ -306,7 +306,7 @@ pub fn generate_module_literal(
                         )));
                     }
                 };
-                context.push_const_and_const_instruction(PengValue::Heap(value));
+                context.push_const_and_const_instruction(env, PengValue::Heap(value));
             }
         }
 

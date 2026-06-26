@@ -234,7 +234,7 @@ fn generate_global_operation(
     context
         .bytecode
         .push(PengInstruction::PushHeapRef(value_ptr));
-    context.push_const_and_const_instruction(PengValue::Heap(value));
+    context.push_const_and_const_instruction(env, PengValue::Heap(value));
     context.bytecode.push(PengInstruction::StoreHeap);
 
     Ok(())
@@ -268,7 +268,7 @@ fn generate_global_function(
     context
         .bytecode
         .push(PengInstruction::PushHeapRef(value_ptr));
-    context.push_const_and_const_instruction(PengValue::Heap(value));
+    context.push_const_and_const_instruction(env, PengValue::Heap(value));
     context.bytecode.push(PengInstruction::StoreHeap);
 
     Ok(())
