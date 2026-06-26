@@ -210,6 +210,7 @@ pub struct PengModuleDeclaration {
 pub struct PengOperationDeclaration {
     pub name: PengPositioned<String>,
     pub params: Vec<PengPositionedFunctionParam>,
+    pub return_type: Option<PengPositionedTypeExpression>,
     pub body: Vec<PengPositionedStatement>,
 }
 
@@ -366,6 +367,7 @@ pub struct PengModuleLiteral {
 #[derive(Debug, Clone)]
 pub struct PengOperationLiteral {
     pub params: Vec<PengPositionedFunctionParam>,
+    pub return_type: Option<PengPositionedTypeExpression>,
     pub body: Vec<PengPositionedStatement>,
 }
 

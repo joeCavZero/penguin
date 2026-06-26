@@ -72,11 +72,21 @@ fn peng_len(
     return Ok(PengBindedCell::Mutable(PengCell::Nil));
 }
 
+fn peng_test_op(
+    (_a, _b): (PengBindedCell, PengBindedCell),
+    _env: &mut PengEnv,
+) -> Result<PengBindedCell, PengError> {
+    println!("a + b");
+    return Ok(PengBindedCell::Mutable(PengCell::Nil));
+}
+
+
 fn main() {
     let mut peng = PengEnv::new();
 
-    peng.register_native("print", peng_print).unwrap();
-    peng.register_native("len", peng_len).unwrap();
+    peng.register_native_function("print", peng_print).unwrap();
+    peng.register_native_function("len", peng_len).unwrap();
+    peng.register_native_operation("test_op", peng_test_op).unwrap();
 
     let (_, init) = peng.load_script_from_file("main.peng").unwrap();
     peng.run(init).unwrap();

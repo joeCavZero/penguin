@@ -29,7 +29,7 @@ pub fn step_thread(
         };
 
     let (ntv_opt, should_end_frame, instruction, constant): (
-        Option<PengNativeFunction>,
+        Option<PengNativeCallable>,
         bool,
         PengInstruction,
         Option<PengValue>,
@@ -62,9 +62,12 @@ pub fn step_thread(
                 (None, false, instr, constant)
             }
 
-            PengFunction::Native(func_ntv) => {
-                (Some(func_ntv.clone()), false, PengInstruction::Add, None)
-            }
+            PengFunction::Native(func_ntv) => (
+                Some(PengNativeCallable::Function(func_ntv.clone())),
+                false,
+                PengInstruction::Add,
+                None,
+            ),
         },
         Some(PengHeapValue::Operation(operation)) => match operation {
             PengOperation::Bytecode(operation_btc) => {
@@ -94,11 +97,12 @@ pub fn step_thread(
                 (None, false, instr, constant)
             }
 
-            PengOperation::Native(_) => {
-                return Err(PengError::NotImplemented(
-                    "native operations are not executable yet".to_string(),
-                ));
-            }
+            PengOperation::Native(operation_ntv) => (
+                Some(PengNativeCallable::Operation(operation_ntv.clone())),
+                false,
+                PengInstruction::Add,
+                None,
+            ),
         },
         Some(_) => {
             return Err(PengError::ExpectedFunction);
@@ -109,7 +113,7 @@ pub fn step_thread(
     };
 
     match ntv_opt {
-        Some(ntv_func) => {
+        Some(ntv_call) => {
             let args = match env
                 .get_thread_latest_n_binded_stated_cells_cloned(thread_ptr, frame_params_count)
             {
@@ -128,12 +132,31 @@ pub fn step_thread(
                 }
             };
 
-            let ret = match ntv_func.call(args, env) {
-                Ok(ret) => ret,
-                Err(e) => {
-                    return Err(e.push(PengError::CannotCallValue(
-                        "native function call failed".to_string(),
-                    )));
+            let ret = match ntv_call {
+                PengNativeCallable::Function(ntv_fn) => match ntv_fn.call(args, env) {
+                    Ok(ret) => ret,
+                    Err(e) => {
+                        return Err(e.push(PengError::CannotCallValue(
+                            "native function call failed".to_string(),
+                        )));
+                    }
+                },
+                PengNativeCallable::Operation(ntv_oper) => {
+                    if args.len() != 2 {
+                        return Err(PengError::TooFewArguments {
+                            expected: 2,
+                            found: args.len(),
+                        });
+                    }
+
+                    match ntv_oper.call((args[0].clone(), args[1].clone()), env) {
+                        Ok(ret) => ret,
+                        Err(e) => {
+                            return Err(e.push(PengError::CannotCallValue(
+                                "native operation call failed".to_string(),
+                            )));
+                        }
+                    }
                 }
             };
 
@@ -290,6 +313,11 @@ pub fn step_thread(
     }
 
     Ok(None)
+}
+
+enum PengNativeCallable {
+    Function(PengNativeFunction),
+    Operation(PengNativeOperation),
 }
 
 pub fn execute_instruction(
@@ -2710,7 +2738,9 @@ pub fn execute_instruction(
                                     let index = match index_value {
                                         PengValue::Cell(PengCell::Int(v)) => {
                                             if v < 0 {
-                                                return Err(PengError::InvalidIndexTypeValue(index_value));
+                                                return Err(PengError::InvalidIndexTypeValue(
+                                                    index_value,
+                                                ));
                                             }
 
                                             v as usize
@@ -2719,7 +2749,9 @@ pub fn execute_instruction(
                                         PengValue::Cell(PengCell::Uint(v)) => v,
 
                                         _ => {
-                                            return Err(PengError::InvalidIndexTypeValue(index_value));
+                                            return Err(PengError::InvalidIndexTypeValue(
+                                                index_value,
+                                            ));
                                         }
                                     };
 

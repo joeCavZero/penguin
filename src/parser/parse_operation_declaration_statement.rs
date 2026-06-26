@@ -54,6 +54,14 @@ pub fn parse_operation_declaration_statement(
         ));
     }
 
+    let return_type = match parse_optional_arrow_return_type(
+        ptokens,
+        "failed while parsing parse_operation_declaration_statement",
+    ) {
+        Ok(return_type) => return_type,
+        Err(e) => return Err(e),
+    };
+
     let body_statement = match parse_block_statement(ptokens) {
         Ok(statement) => statement,
         Err(e) => {
@@ -73,7 +81,12 @@ pub fn parse_operation_declaration_statement(
     };
 
     let declaration = PengPositioned {
-        value: PengOperationDeclaration { name, params, body },
+        value: PengOperationDeclaration {
+            name,
+            params,
+            return_type,
+            body,
+        },
         position: oper_token.position.clone(),
     };
 
@@ -83,4 +96,30 @@ pub fn parse_operation_declaration_statement(
         ))),
         position: oper_token.position.clone(),
     })
+}
+
+pub fn parse_optional_arrow_return_type(
+    ptokens: &mut PengPeekablePositionedToken,
+    error_context: &str,
+) -> Result<Option<PengPositioned<PengTypeExpression>>, PengError> {
+    let has_return_type = match ptokens.peek() {
+        Some(token) => match &token.value {
+            PengToken::Arrow => true,
+            _ => false,
+        },
+        None => false,
+    };
+
+    if !has_return_type {
+        return Ok(None);
+    }
+
+    ptokens.next();
+
+    match parse_type_expression(ptokens) {
+        Ok(type_expression) => Ok(Some(type_expression)),
+        Err(e) => Err(e.push(PengError::SyntaxError(
+            error_context.to_string(),
+        ))),
+    }
 }

@@ -10,6 +10,14 @@ pub enum PengThreadState {
     Paused,
     Waiting,
     Cancelled,
+    Failed,
+}
+
+#[derive(Debug, Clone)]
+pub enum PengThreadResult {
+    Pending,
+    Returned(PengBindedCell),
+    Failed(Box<PengError>),
 }
 
 #[derive(Debug, Clone)]
@@ -17,7 +25,8 @@ pub struct PengThread {
     pub state: PengThreadState,
     pub stack: Vec<PengBindedCell>,
     pub frames: Vec<PengFrame>,
-    pub result: Result<PengCell, Box<PengError>>,
+    pub result: PengThreadResult,
+    pub quantum: usize,
 }
 
 impl PengThread {
@@ -33,7 +42,8 @@ impl PengThread {
             state,
             stack: Vec::new(),
             frames,
-            result: Ok(PengCell::Nil),
+            result: PengThreadResult::Pending,
+            quantum: 1,
         };
 
         for p in &params {

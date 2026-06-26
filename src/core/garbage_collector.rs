@@ -1,9 +1,9 @@
-use crate::core::thread::*;
 use crate::core::cell::*;
 use crate::core::colour::*;
 use crate::core::env::*;
 use crate::core::function::*;
 use crate::core::heap_value::*;
+use crate::core::thread::*;
 use crate::core::utils::*;
 use crate::core::value::*;
 
@@ -37,13 +37,12 @@ fn collect_roots(env: &PengEnv) -> Vec<PengHeapPtr> {
     for (ptr, heap_value) in env.heap.iter() {
         if let PengHeapValue::Thread(thread) = &heap_value.value {
             match thread.state {
-                PengThreadState::Running
-                | PengThreadState::Paused
-                | PengThreadState::Waiting => {
+                PengThreadState::Running | PengThreadState::Paused | PengThreadState::Waiting => {
                     roots.push(*ptr);
                 }
 
                 PengThreadState::Finished
+                | PengThreadState::Failed
                 | PengThreadState::Cancelled => {}
             }
         }
@@ -128,8 +127,13 @@ fn collect_heap_value_children(value: &PengHeapValue, children: &mut Vec<PengHea
             for frame in thread.frames.iter() {
                 children.push(frame.procedure_ptr);
             }
-            if let Ok(c) = &thread.result {
-                collect_cell_children(c, children);
+
+            match &thread.result {
+                PengThreadResult::Returned(cell) => {
+                    collect_cell_children(cell.value(), children);
+                }
+
+                PengThreadResult::Pending | PengThreadResult::Failed(_) => {}
             }
         }
 

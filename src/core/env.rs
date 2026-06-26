@@ -1,19 +1,20 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
 
-use crate::core::function::*;
 use crate::core::binding::*;
 use crate::core::cell::*;
 use crate::core::colour::*;
 use crate::core::error::*;
 use crate::core::frame::*;
+use crate::core::function::*;
+use crate::core::operation::*;
+use crate::core::garbage_collector::*;
 use crate::core::heap_value::*;
 use crate::core::runtime::*;
 use crate::core::thread::*;
 use crate::core::utils::*;
 use crate::core::value::*;
 use crate::core::vector::*;
-use crate::core::garbage_collector::*;
 use crate::generator::*;
 use crate::lexer::*;
 use crate::parser::*;
@@ -22,8 +23,8 @@ pub struct PengEnv {
     globals: HashMap<PengNamePoolPtr, PengBindedCell>,
     pub heap: HashMap<PengHeapPtr, PengColouredHeapValue>,
     pub name_pool: HashMap<PengNamePoolPtr, String>,
-    thread_ptrs: HashSet<PengHeapPtr>,
-    garbage_collector_interval: std::time::Duration
+    active_threads: HashSet<PengHeapPtr>,
+    garbage_collector_interval: std::time::Duration,
 }
 
 impl PengEnv {
@@ -33,81 +34,97 @@ impl PengEnv {
             heap: HashMap::new(),
             name_pool: HashMap::new(),
             garbage_collector_interval: std::time::Duration::from_secs(5),
-            thread_ptrs: HashSet::new(),
+            active_threads: HashSet::new(),
         }
     }
 
-    pub fn load_script_from_file(&mut self, path: &str) -> Result<(HashMap<PengNamePoolPtr, PengHeapPtr>, PengHeapPtr), PengError> {
+    pub fn load_script_from_file(
+        &mut self,
+        path: &str,
+    ) -> Result<(HashMap<PengNamePoolPtr, PengHeapPtr>, PengHeapPtr), PengError> {
         let tokens = match lex_file(path.to_string()) {
             Ok(v) => v,
-            Err(e) => return Err(e), 
+            Err(e) => return Err(e),
         };
         let ast = match parse_script(tokens) {
             Ok(v) => v,
-            Err(e) => return Err(e), 
+            Err(e) => return Err(e),
         };
-        let (globals, init_ptr) = match generate_ast(self, &ast, &HashMap::new())  {
+        let (globals, init_ptr) = match generate_ast(self, &ast, &HashMap::new()) {
             Ok(v) => v,
-            Err(e) => return Err(e), 
+            Err(e) => return Err(e),
         };
 
         Ok((globals, init_ptr))
     }
 
-    pub fn load_script_from_source(&mut self, source: &str) -> Result<(HashMap<PengNamePoolPtr, PengHeapPtr>, PengHeapPtr), PengError> {
+    pub fn load_script_from_source(
+        &mut self,
+        source: &str,
+    ) -> Result<(HashMap<PengNamePoolPtr, PengHeapPtr>, PengHeapPtr), PengError> {
         let tokens = match lex_source(source.to_string()) {
             Ok(v) => v,
-            Err(e) => return Err(e), 
+            Err(e) => return Err(e),
         };
         let ast = match parse_script(tokens) {
             Ok(v) => v,
-            Err(e) => return Err(e), 
+            Err(e) => return Err(e),
         };
-        let (globals, init_ptr) = match generate_ast(self, &ast, &HashMap::new())  {
+        let (globals, init_ptr) = match generate_ast(self, &ast, &HashMap::new()) {
             Ok(v) => v,
-            Err(e) => return Err(e), 
+            Err(e) => return Err(e),
         };
 
         Ok((globals, init_ptr))
     }
 
-    pub fn load_program_from_file(&mut self, path: &str) -> Result<(HashMap<PengNamePoolPtr, PengHeapPtr>, PengHeapPtr), PengError> {
+    pub fn load_program_from_file(
+        &mut self,
+        path: &str,
+    ) -> Result<(HashMap<PengNamePoolPtr, PengHeapPtr>, PengHeapPtr), PengError> {
         let tokens = match lex_file(path.to_string()) {
             Ok(v) => v,
-            Err(e) => return Err(e), 
+            Err(e) => return Err(e),
         };
         let ast = match parse_script(tokens) {
             Ok(v) => v,
-            Err(e) => return Err(e), 
+            Err(e) => return Err(e),
         };
-        let (globals, init_ptr) = match generate_ast(self, &ast, &HashMap::new())  {
+        let (globals, init_ptr) = match generate_ast(self, &ast, &HashMap::new()) {
             Ok(v) => v,
-            Err(e) => return Err(e), 
+            Err(e) => return Err(e),
         };
 
         Ok((globals, init_ptr))
     }
 
-    pub fn load_program_from_source(&mut self, source: &str) -> Result<(HashMap<PengNamePoolPtr, PengHeapPtr>, PengHeapPtr), PengError> {
+    pub fn load_program_from_source(
+        &mut self,
+        source: &str,
+    ) -> Result<(HashMap<PengNamePoolPtr, PengHeapPtr>, PengHeapPtr), PengError> {
         let tokens = match lex_source(source.to_string()) {
             Ok(v) => v,
-            Err(e) => return Err(e), 
+            Err(e) => return Err(e),
         };
         let ast = match parse_script(tokens) {
             Ok(v) => v,
-            Err(e) => return Err(e), 
+            Err(e) => return Err(e),
         };
-        let (globals, init_ptr) = match generate_ast(self, &ast, &HashMap::new())  {
+        let (globals, init_ptr) = match generate_ast(self, &ast, &HashMap::new()) {
             Ok(v) => v,
-            Err(e) => return Err(e), 
+            Err(e) => return Err(e),
         };
 
         Ok((globals, init_ptr))
     }
 
     pub fn run(&mut self, init_ptr: PengHeapPtr) -> Result<PengBindedCell, PengError> {
-        let thread_ptr = self.create_thread(init_ptr, 0, Vec::new(), PengThreadState::Running);
+        let main_thread = self.create_thread(init_ptr, 0, Vec::new(), PengThreadState::Running);
 
+        self.run_scheduler(main_thread)
+    }
+
+    pub fn run_scheduler(&mut self, main_thread: PengHeapPtr) -> Result<PengBindedCell, PengError> {
         let gc_interval = self.garbage_collector_interval;
         let mut last_gc = std::time::Instant::now();
 
@@ -117,21 +134,81 @@ impl PengEnv {
                 last_gc = std::time::Instant::now();
             }
 
-            match step_thread(self, thread_ptr)? {
-                Some(result) => return Ok(result),
-                None => {}
+            let threads: Vec<PengHeapPtr> = self.active_threads.iter().cloned().collect();
+
+            let mut any_running = false;
+
+            for thread_ptr in threads {
+                let state = match self.get_thread(thread_ptr) {
+                    Ok(v) => v.state.clone(),
+                    Err(e) => return Err(e),  
+                };
+
+                match state {
+                    PengThreadState::Running => {
+                        any_running = true;
+
+                        match step_thread(self, thread_ptr) {
+                            Ok(Some(result)) => {
+                                {
+                                    let thread = match self.get_thread_mut(thread_ptr) {
+                                        Ok(v) => v,
+                                        Err(e) => return Err(e),  
+                                    };
+                                    thread.result = PengThreadResult::Returned(result.clone());
+                                    thread.state = PengThreadState::Finished;
+                                }
+
+                                if thread_ptr == main_thread {
+                                    return Ok(result);
+                                }
+                            }
+
+                            Ok(None) => {}
+
+                            Err(e) => {
+                                let thread = match self.get_thread_mut(thread_ptr) {
+                                        Ok(v) => v,
+                                        Err(e) => return Err(e),  
+                                    };
+                                thread.result = PengThreadResult::Failed(Box::new(e.clone()));
+                                thread.state = PengThreadState::Failed;
+                            }
+                        }
+                    }
+
+                    PengThreadState::Finished
+                    | PengThreadState::Failed
+                    | PengThreadState::Paused
+                    | PengThreadState::Waiting
+                    | PengThreadState::Cancelled => {}
+                }
+            }
+
+            if !any_running {
+                return Err(PengError::InvalidState("no running threads".to_string()));
             }
         }
     }
 
-    pub fn register_native(
+    pub fn register_native_function(
         &mut self,
         name: &str,
         func: fn(Vec<PengBindedCell>, &mut PengEnv) -> Result<PengBindedCell, PengError>,
     ) -> Result<(), PengError> {
-        let ptr = self.create_heap_value(PengHeapValue::Function(
-            PengFunction::new_native(func),
-        ));
+        let ptr = self.create_heap_value(PengHeapValue::Function(PengFunction::new_native(func)));
+
+        let value = PengBindedCell::Immutable(PengCell::Reference(ptr));
+
+        self.set_global(name.to_string(), value)
+    }
+
+    pub fn register_native_operation(
+        &mut self,
+        name: &str,
+        op: fn((PengBindedCell, PengBindedCell), &mut PengEnv) -> Result<PengBindedCell, PengError>,
+    ) -> Result<(), PengError> {
+        let ptr = self.create_heap_value(PengHeapValue::Operation(PengOperation::new_native(op)));
 
         let value = PengBindedCell::Immutable(PengCell::Reference(ptr));
 
@@ -140,11 +217,19 @@ impl PengEnv {
 
 
     fn next_name_ptr(&self) -> PengNamePoolPtr {
-        self.name_pool.keys().max().map(|v| *v + PengNamePoolPtr(1).into()).unwrap_or(PengNamePoolPtr(0))
+        self.name_pool
+            .keys()
+            .max()
+            .map(|v| *v + PengNamePoolPtr(1).into())
+            .unwrap_or(PengNamePoolPtr(0))
     }
 
     fn next_heap_ptr(&self) -> PengHeapPtr {
-        self.heap.keys().max().map(|v| *v + PengHeapPtr(1).into()).unwrap_or(PengHeapPtr(0))
+        self.heap
+            .keys()
+            .max()
+            .map(|v| *v + PengHeapPtr(1).into())
+            .unwrap_or(PengHeapPtr(0))
     }
 
     pub fn ensure_pooled_name_ptr(&mut self, name: String) -> PengNamePoolPtr {
@@ -182,11 +267,7 @@ impl PengEnv {
         Ok(self.create_heap_value(PengHeapValue::Vector(vector)))
     }
 
-    pub fn set_global(
-        &mut self,
-        name: String,
-        cell: PengBindedCell,
-    ) -> Result<(), PengError> {
+    pub fn set_global(&mut self, name: String, cell: PengBindedCell) -> Result<(), PengError> {
         let name_ptr = self.ensure_pooled_name_ptr(name);
 
         match self.globals.get_mut(&name_ptr) {
@@ -231,7 +312,10 @@ impl PengEnv {
         }
     }
 
-    pub fn get_coloured_heap_mut(&mut self, value_ptr: PengHeapPtr) -> Option<&mut PengColouredHeapValue> {
+    pub fn get_coloured_heap_mut(
+        &mut self,
+        value_ptr: PengHeapPtr,
+    ) -> Option<&mut PengColouredHeapValue> {
         match self.heap.get_mut(&value_ptr) {
             Some(v) => Some(v),
             None => None,
@@ -277,7 +361,7 @@ impl PengEnv {
     ) -> PengHeapPtr {
         let t = PengHeapValue::Thread(PengThread::new(procedure_ptr, base, params, state));
         let tptr = self.create_heap_value(t);
-        self.thread_ptrs.insert(tptr);
+        self.active_threads.insert(tptr);
         tptr
     }
 
@@ -629,15 +713,11 @@ impl PengEnv {
                     Some(frame) => {
                         thread.stack.truncate(frame.base);
 
-                        thread
-                            .stack
-                            .push(PengBinded::Mutable(PengCell::Nil));
+                        thread.stack.push(PengBinded::Mutable(PengCell::Nil));
 
                         thread
                             .stack
-                            .push(PengBinded::Mutable(
-                                PengCell::Bool(false),
-                            ));
+                            .push(PengBinded::Mutable(PengCell::Bool(false)));
 
                         Ok(true)
                     }
@@ -695,6 +775,20 @@ impl PengEnv {
                 let ptr = self.create_heap_value(value);
                 Ok(PengCell::Reference(ptr))
             }
+        }
+    }
+
+    pub fn set_thread_state(
+        &mut self,
+        thread_ptr: PengHeapPtr,
+        state: PengThreadState,
+    ) -> Result<(), PengError> {
+        match self.get_thread_mut(thread_ptr) {
+            Ok(thread) => {
+                thread.state = state;
+                Ok(())
+            }
+            Err(e) => Err(e.push(PengError::ThreadNotFound(thread_ptr))),
         }
     }
 }

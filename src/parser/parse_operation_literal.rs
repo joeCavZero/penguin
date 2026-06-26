@@ -41,6 +41,14 @@ pub fn parse_operation_literal(
         ));
     }
 
+    let return_type = match parse_optional_arrow_return_type(
+        ptokens,
+        "failed while parsing parse_operation_literal",
+    ) {
+        Ok(return_type) => return_type,
+        Err(e) => return Err(e),
+    };
+
     let body_statement = match parse_block_statement(ptokens) {
         Ok(statement) => statement,
         Err(e) => {
@@ -60,7 +68,7 @@ pub fn parse_operation_literal(
     };
 
     literal_expr(
-        PengLiteral::Operation(PengOperationLiteral { params, body }),
+        PengLiteral::Operation(PengOperationLiteral { params, return_type,body }),
         oper_token.position.clone(),
     )
 }
