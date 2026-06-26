@@ -77,7 +77,7 @@ fn main() {
         Ok(tkns) => {
             match penguin::parse_script(tkns) {
                 Ok(ast) => {
-                    //println!("ast: {:#?}", ast);
+                    println!("ast: {:#?}", ast);
                     let mut env = penguin::PengEnv::new();
                     let f = penguin::PengBinded::Immutable(penguin::PengCell::Reference(
                         env.create_heap_value(penguin::PengHeapValue::Function(
@@ -96,8 +96,8 @@ fn main() {
                             if let penguin::PengHeapValue::Function(f) =
                                 env.get_heap(init_ptr).unwrap()
                             {
-                                if let penguin::PengFunction::Bytecode(_b) = f {
-                                    //println!("bytecode de init:\n{:#?}", b.bytecode);
+                                if let penguin::PengFunction::Bytecode(b) = f {
+                                    println!("bytecode de init:\n{:#?}", b.bytecode);
                                 }
                             }
                             let thread_ptr = env.create_thread(init_ptr, 0, Vec::new());

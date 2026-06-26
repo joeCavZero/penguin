@@ -251,6 +251,7 @@ fn is_assignable(expression: &PengExpression) -> bool {
         expression,
         PengExpression::Identifier(_)
             | PengExpression::AttributeAccess(_)
+            | PengExpression::MemberAccess(_)
             | PengExpression::Index(_)
     )
 }

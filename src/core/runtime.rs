@@ -398,7 +398,19 @@ pub fn execute_instruction(
                 return Ok(None);
             }
 
-            // reassignment: copia o topo para o local antigo e remove temporário
+            let current = match env.get_thread_local(thread_ptr, local).cloned() {
+                Ok(current) => current,
+                Err(e) => return Err(e.push(PengError::InvalidInstruction(instruction))),
+            };
+
+            match current {
+                PengBinded::Immutable(_) => {
+                    return Err(PengError::CannotMutateImmutable);
+                }
+
+                PengBinded::Mutable(_) => {}
+            }
+
             let value = match env
                 .get_thread_latest_binded_stated_cell(thread_ptr, 0)
                 .cloned()
@@ -1209,7 +1221,7 @@ pub fn execute_instruction(
 
             match env.push_thread_binded_stated_cell(
                 thread_ptr,
-                PengBinded::Immutable(PengCell::Reference(heap_ptr)),
+                PengBinded::Mutable(PengCell::Reference(heap_ptr)),
             ) {
                 Ok(()) => {}
                 Err(e) => {
