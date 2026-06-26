@@ -31,7 +31,7 @@ fn peng_print(
         }
     }
     println!();
-    return Ok(penguin::PengBindedCell::Mutable(penguin::PengCell::Nil))
+    return Ok(penguin::PengBindedCell::Mutable(penguin::PengCell::Nil));
 }
 
 fn peng_len(
@@ -43,21 +43,33 @@ fn peng_len(
             penguin::PengCell::Reference(ptr) => {
                 if let Some(h) = env.get_heap(*ptr) {
                     match h {
-                        penguin::PengHeapValue::String(s) => return Ok(penguin::PengBinded::Mutable(penguin::PengCell::Uint(s.len()))),
-                        penguin::PengHeapValue::Vector(v) => return Ok(penguin::PengBinded::Mutable(penguin::PengCell::Uint(v.len()))),
+                        penguin::PengHeapValue::String(s) => {
+                            return Ok(penguin::PengBinded::Mutable(penguin::PengCell::Uint(
+                                s.len(),
+                            )))
+                        }
+                        penguin::PengHeapValue::Vector(v) => {
+                            return Ok(penguin::PengBinded::Mutable(penguin::PengCell::Uint(
+                                v.len(),
+                            )))
+                        }
                         _ => {
-                            return Err(penguin::PengError::NotImplemented("Expected string or vector".to_string()))
+                            return Err(penguin::PengError::NotImplemented(
+                                "Expected string or vector".to_string(),
+                            ))
                         }
                     }
                 }
             }
             _ => {
-                return Err(penguin::PengError::NotImplemented("Expected string or vector".to_string()))
+                return Err(penguin::PengError::NotImplemented(
+                    "Expected string or vector".to_string(),
+                ))
             }
         }
     }
     println!();
-    return Ok(penguin::PengBindedCell::Mutable(penguin::PengCell::Nil))
+    return Ok(penguin::PengBindedCell::Mutable(penguin::PengCell::Nil));
 }
 
 fn main() {
@@ -67,13 +79,23 @@ fn main() {
                 Ok(ast) => {
                     //println!("ast: {:#?}", ast);
                     let mut env = penguin::PengEnv::new();
-                    let f = penguin::PengBinded::Immutable(penguin::PengStated::Initialized(penguin::PengCell::Reference(env.create_heap_value(penguin::PengHeapValue::Function(penguin::PengFunction::new_native(peng_print))))));
+                    let f = penguin::PengBinded::Immutable(penguin::PengCell::Reference(
+                        env.create_heap_value(penguin::PengHeapValue::Function(
+                            penguin::PengFunction::new_native(peng_print),
+                        )),
+                    ));
                     env.set_global("print".to_string(), f).unwrap();
-                    let f = penguin::PengBinded::Immutable(penguin::PengStated::Initialized(penguin::PengCell::Reference(env.create_heap_value(penguin::PengHeapValue::Function(penguin::PengFunction::new_native(peng_len))))));
+                    let f = penguin::PengBinded::Immutable(penguin::PengCell::Reference(
+                        env.create_heap_value(penguin::PengHeapValue::Function(
+                            penguin::PengFunction::new_native(peng_len),
+                        )),
+                    ));
                     env.set_global("len".to_string(), f).unwrap();
                     match penguin::generate_ast(&mut env, &ast, &HashMap::new()) {
                         Ok((_, init_ptr)) => {
-                            if let penguin::PengHeapValue::Function(f) = env.get_heap(init_ptr).unwrap() {
+                            if let penguin::PengHeapValue::Function(f) =
+                                env.get_heap(init_ptr).unwrap()
+                            {
                                 if let penguin::PengFunction::Bytecode(_b) = f {
                                     //println!("bytecode de init:\n{:#?}", b.bytecode);
                                 }

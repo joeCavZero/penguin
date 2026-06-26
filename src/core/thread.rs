@@ -4,12 +4,12 @@ use crate::frame::*;
 
 #[derive(Debug, Clone)]
 pub struct PengThread {
-    pub stack: Vec<PengBindedStatedCell>,
+    pub stack: Vec<PengBindedCell>,
     pub frames: Vec<PengFrame>,
 }
 
 impl PengThread {
-    pub fn new(function_ptr: PengHeapPtr, base: usize, params: Vec<PengBindedStatedCell>) -> Self {
+    pub fn new(function_ptr: PengHeapPtr, base: usize, params: Vec<PengBindedCell>) -> Self {
         
         let mut frames = Vec::new();
 

@@ -85,7 +85,7 @@ pub fn get_allocated_global(
 
     match env.get_global_by_name_str(name) {
         Some(cell) => match cell.value() {
-            PengStated::Initialized(PengCell::Reference(ptr)) => Some(*ptr),
+            PengCell::Reference(ptr) => Some(*ptr),
             _ => None,
         },
         None => None,

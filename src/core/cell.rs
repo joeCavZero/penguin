@@ -1,10 +1,7 @@
 use crate::binding::*;
 use crate::error::*;
-use crate::state::*;
 use crate::utils::*;
 
-pub type PengStatedCell = PengStated<PengCell>;
-pub type PengBindedStatedCell = PengBinded<PengStatedCell>;
 pub type PengBindedCell = PengBinded<PengCell>;
 
 #[derive(Debug, Clone)]
@@ -99,18 +96,7 @@ impl PengCell {
     }
 }
 
-impl PengStated<PengCell> {
-    pub fn equals(&self, rhs: &Self) -> bool {
-        match (self, rhs) {
-            (Self::Initialized(left), Self::Initialized(right)) => left.equals(right),
-            (Self::Uninitialized, Self::Uninitialized) => true,
-            (Self::Initialized(_), Self::Uninitialized) => false,
-            (Self::Uninitialized, Self::Initialized(_)) => false,
-        }
-    }
-}
-
-impl PengBindedStatedCell {
+impl PengBindedCell {
     pub fn equals(&self, rhs: &Self) -> bool {
         match (self, rhs) {
             (Self::Mutable(left), Self::Mutable(right)) => left.equals(right),

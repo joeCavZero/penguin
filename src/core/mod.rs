@@ -18,7 +18,6 @@ pub mod unioning;
 pub mod operation;
 pub mod runtime;
 pub mod binding;
-pub mod state;
 pub mod colour;
 pub mod value;
 
@@ -42,6 +41,5 @@ pub use unioning::*;
 pub use operation::*;
 pub use runtime::*;
 pub use binding::*;
-pub use state::*;
 pub use colour::*;
 pub use value::*;

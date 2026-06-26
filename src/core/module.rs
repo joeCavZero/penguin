@@ -4,7 +4,7 @@ use crate::cell::*;
 
 #[derive(Debug, Clone)]
 pub struct PengModule {
-    pub members: HashMap<PengNamePoolPtr, PengBindedStatedCell>
+    pub members: HashMap<PengNamePoolPtr, PengBindedCell>
 }
 
 impl PengModule {

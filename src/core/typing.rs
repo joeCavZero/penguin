@@ -32,7 +32,7 @@ pub enum PengType {
 
 #[derive(Debug, Clone)]
 pub struct PengCustomType {
-    pub fields: HashMap<PengNamePoolPtr, PengBindedStatedCell>,
+    pub fields: HashMap<PengNamePoolPtr, PengBindedCell>,
 }
 
 impl PengType {

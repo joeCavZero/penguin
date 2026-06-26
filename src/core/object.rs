@@ -4,11 +4,11 @@ use crate::cell::*;
 
 #[derive(Debug, Clone)]
 pub struct PengObject {
-    pub fields: HashMap<PengNamePoolPtr, PengBindedStatedCell>
+    pub fields: HashMap<PengNamePoolPtr, PengBindedCell>
 }
 
 impl PengObject {
-    pub fn new(fields: HashMap<PengNamePoolPtr, PengBindedStatedCell>) -> Self {
+    pub fn new(fields: HashMap<PengNamePoolPtr, PengBindedCell>) -> Self {
         Self { fields }
     }
     pub fn new_empty() -> Self {

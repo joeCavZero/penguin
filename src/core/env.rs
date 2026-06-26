@@ -6,14 +6,13 @@ use crate::colour::*;
 use crate::error::*;
 use crate::frame::*;
 use crate::heap_value::*;
-use crate::state::*;
 use crate::thread::*;
 use crate::utils::*;
 use crate::value::*;
 use crate::vector::*;
 
 pub struct PengEnv {
-    globals: HashMap<PengNamePoolPtr, PengBindedStatedCell>,
+    globals: HashMap<PengNamePoolPtr, PengBindedCell>,
     pub heap: HashMap<PengHeapPtr, PengColouredHeapValue>,
     pub name_pool: HashMap<PengNamePoolPtr, String>,
 }
@@ -59,7 +58,7 @@ impl PengEnv {
 
     pub fn create_vector_from_cells(
         &mut self,
-        cells: impl IntoIterator<Item = PengBindedStatedCell>,
+        cells: impl IntoIterator<Item = PengBindedCell>,
     ) -> Result<PengHeapPtr, PengError> {
         let mut vector = PengVector::new_empty();
 
@@ -73,7 +72,7 @@ impl PengEnv {
     pub fn set_global(
         &mut self,
         name: String,
-        cell: PengBindedStatedCell,
+        cell: PengBindedCell,
     ) -> Result<(), PengError> {
         let name_ptr = self.ensure_pooled_name_ptr(name);
 
@@ -84,12 +83,10 @@ impl PengEnv {
                     Ok(())
                 }
 
-                PengBinded::Immutable(PengStated::Uninitialized) => {
+                PengBinded::Immutable(_) => {
                     *current_cell = cell;
                     Ok(())
                 }
-
-                PengBinded::Immutable(_) => Err(PengError::CannotMutateImmutable),
             },
 
             None => {
@@ -99,7 +96,7 @@ impl PengEnv {
         }
     }
 
-    pub fn get_global_by_name_str(&self, name: &str) -> Option<&PengBindedStatedCell> {
+    pub fn get_global_by_name_str(&self, name: &str) -> Option<&PengBindedCell> {
         let name_ptr = match self.name_pool.iter().find_map(|(name_ptr, pooled_name)| {
             if pooled_name == name {
                 Some(*name_ptr)
@@ -148,7 +145,7 @@ impl PengEnv {
         &mut self,
         procedure_ptr: PengHeapPtr,
         base: usize,
-        params: Vec<PengBindedStatedCell>,
+        params: Vec<PengBindedCell>,
     ) -> PengHeapPtr {
         let t = PengHeapValue::Thread(PengThread::new(procedure_ptr, base, params));
         self.create_heap_value(t)
@@ -157,7 +154,7 @@ impl PengEnv {
     pub fn push_thread_binded_stated_cell(
         &mut self,
         thread_ptr: PengHeapPtr,
-        cell: PengBindedStatedCell,
+        cell: PengBindedCell,
     ) -> Result<(), PengError> {
         match self.get_thread_mut(thread_ptr) {
             Ok(thread) => {
@@ -172,7 +169,7 @@ impl PengEnv {
         &self,
         thread_ptr: PengHeapPtr,
         offset: usize,
-    ) -> Result<&PengBindedStatedCell, PengError> {
+    ) -> Result<&PengBindedCell, PengError> {
         match self.get_thread(thread_ptr) {
             Ok(thread) => {
                 if thread.stack.len() <= offset {
@@ -194,7 +191,7 @@ impl PengEnv {
     pub fn get_thread_2_latests_binded_stated_cell_cloned(
         &self,
         thread_ptr: PengHeapPtr,
-    ) -> Result<(PengBindedStatedCell, PengBindedStatedCell), PengError> {
+    ) -> Result<(PengBindedCell, PengBindedCell), PengError> {
         match self.get_heap(thread_ptr) {
             Some(h) => {
                 if let PengHeapValue::Thread(thread) = h {
@@ -222,7 +219,7 @@ impl PengEnv {
         &self,
         thread_ptr: PengHeapPtr,
         n: usize,
-    ) -> Result<Vec<PengBindedStatedCell>, PengError> {
+    ) -> Result<Vec<PengBindedCell>, PengError> {
         match self.get_thread(thread_ptr) {
             Ok(thread) => {
                 if thread.stack.len() < n {
@@ -261,7 +258,7 @@ impl PengEnv {
         &self,
         thread_ptr: PengHeapPtr,
         local: usize,
-    ) -> Result<&PengBindedStatedCell, PengError> {
+    ) -> Result<&PengBindedCell, PengError> {
         match self.get_heap(thread_ptr) {
             Some(PengHeapValue::Thread(thread)) => {
                 let base = match thread.frames.last() {
@@ -287,7 +284,7 @@ impl PengEnv {
         &mut self,
         thread_ptr: PengHeapPtr,
         local: usize,
-        value: PengBindedStatedCell,
+        value: PengBindedCell,
     ) -> Result<(), PengError> {
         match self.get_heap_mut(thread_ptr) {
             Some(PengHeapValue::Thread(thread)) => {
@@ -299,22 +296,15 @@ impl PengEnv {
                 match base.checked_add(local) {
                     Some(index) => match thread.stack.get_mut(index) {
                         Some(cell) => match cell {
-                            PengBinded::Mutable(PengStated::Uninitialized) => {
+                            PengBinded::Mutable(_) => {
                                 *cell = value;
                                 Ok(())
                             }
 
-                            PengBinded::Mutable(current) => {
-                                *current = value.value().clone();
-                                Ok(())
-                            }
-
-                            PengBinded::Immutable(PengStated::Uninitialized) => {
+                            PengBinded::Immutable(_) => {
                                 *cell = value;
                                 Ok(())
                             }
-
-                            PengBinded::Immutable(_) => Err(PengError::CannotMutateImmutable),
                         },
                         None => Err(PengError::LocalNotFound(local)),
                     },
@@ -364,7 +354,7 @@ impl PengEnv {
         &mut self,
         thread_ptr: PengHeapPtr,
         offset: usize,
-    ) -> Result<PengBindedStatedCell, PengError> {
+    ) -> Result<PengBindedCell, PengError> {
         match self.get_heap_mut(thread_ptr) {
             Some(PengHeapValue::Thread(thread)) => {
                 if thread.stack.len() <= offset {
@@ -406,11 +396,8 @@ impl PengEnv {
                 match self.get_thread_latest_binded_stated_cell(thread_ptr, args_count) {
                     Ok(function_cell) => {
                         let function_ptr = match function_cell.value() {
-                            PengStated::Initialized(PengCell::Reference(ptr)) => *ptr,
-                            PengStated::Initialized(_) => return Err(PengError::ExpectedReference),
-                            PengStated::Uninitialized => {
-                                return Err(PengError::CannotReadUninitialized);
-                            }
+                            PengCell::Reference(ptr) => *ptr,
+                            _ => return Err(PengError::ExpectedReference),
                         };
 
                         match self.pop_thread_stack_at(thread_ptr, args_count) {
@@ -514,13 +501,13 @@ impl PengEnv {
 
                         thread
                             .stack
-                            .push(PengBinded::Mutable(PengStated::Initialized(PengCell::Nil)));
+                            .push(PengBinded::Mutable(PengCell::Nil));
 
                         thread
                             .stack
-                            .push(PengBinded::Mutable(PengStated::Initialized(
+                            .push(PengBinded::Mutable(
                                 PengCell::Bool(false),
-                            )));
+                            ));
 
                         Ok(true)
                     }

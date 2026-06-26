@@ -2,11 +2,11 @@ use crate::cell::*;
 
 #[derive(Debug, Clone)]
 pub struct PengVector {
-    pub values: Vec<PengBindedStatedCell>
+    pub values: Vec<PengBindedCell>
 }
 
 impl PengVector {
-    pub fn new(values: Vec<PengBindedStatedCell>) -> Self {
+    pub fn new(values: Vec<PengBindedCell>) -> Self {
         Self { values }
     }
     pub fn new_empty() -> Self {
@@ -15,7 +15,7 @@ impl PengVector {
         }
     }
 
-    pub fn push(&mut self, value: PengBindedStatedCell) {
+    pub fn push(&mut self, value: PengBindedCell) {
         self.values.push(value);
     }
 
@@ -27,7 +27,7 @@ impl PengVector {
         self.values.is_empty()
     }
 
-    pub fn get(&self, index: usize) -> Option<&PengBindedStatedCell> {
+    pub fn get(&self, index: usize) -> Option<&PengBindedCell> {
         self.values.get(index)
     }
 
