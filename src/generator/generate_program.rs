@@ -7,7 +7,7 @@ use crate::parser::*;
 pub fn generate_program(
     env: &mut PengEnv,
     declarations: &Vec<PengBinded<PengDeclaration>>,
-    globals: &HashMap<usize, usize>,
+    globals: &HashMap<PengNamePoolPtr, PengHeapPtr>,
 ) -> Result<(HashMap<PengNamePoolPtr, PengHeapPtr>, PengHeapPtr), PengError> {
     let local_globals = match allocate_program_globals(env, declarations) {
         Ok(v) => v,

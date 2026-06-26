@@ -7,7 +7,7 @@ use crate::parser::*;
 pub fn generate_script(
     env: &mut PengEnv,
     statements: &Vec<PengPositioned<PengStatement>>,
-    global: &HashMap<usize, usize>,
+    global: &HashMap<PengNamePoolPtr, PengHeapPtr>,
 ) -> Result<PengHeapPtr, PengError> {
     let mut local_globals = global.clone();
     let mut context = PengGeneratorContext::new();

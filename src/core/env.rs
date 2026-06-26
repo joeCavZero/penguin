@@ -27,11 +27,11 @@ impl PengEnv {
     }
 
     fn next_name_ptr(&self) -> PengNamePoolPtr {
-        self.name_pool.keys().max().map(|v| v + 1).unwrap_or(0)
+        self.name_pool.keys().max().map(|v| *v + PengNamePoolPtr(1).into()).unwrap_or(PengNamePoolPtr(0))
     }
 
     fn next_heap_ptr(&self) -> PengHeapPtr {
-        self.heap.keys().max().map(|v| v + 1).unwrap_or(0)
+        self.heap.keys().max().map(|v| *v + PengHeapPtr(1).into()).unwrap_or(PengHeapPtr(0))
     }
 
     pub fn ensure_pooled_name_ptr(&mut self, name: String) -> PengNamePoolPtr {

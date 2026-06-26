@@ -7,7 +7,7 @@ use crate::generator::*;
 pub fn generate_ast(
     env: &mut PengEnv,
     ast: &PengAST,
-    globals: &HashMap<usize, usize>,
+    globals: &HashMap<PengNamePoolPtr, PengHeapPtr>,
 ) -> Result<(HashMap<PengNamePoolPtr, PengHeapPtr>, PengHeapPtr), PengError> {
     match ast {
         PengAST::Script(statements) => {

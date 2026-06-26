@@ -79,21 +79,24 @@ impl PengInstruction {
             (Self::PushConst(left), Self::PushConst(right))
             | (Self::PushLocal(left), Self::PushLocal(right))
             | (Self::StoreLocal(left), Self::StoreLocal(right))
-            | (Self::PushHeap(left), Self::PushHeap(right))
-            | (Self::PushHeapRef(left), Self::PushHeapRef(right))
-            | (Self::PushString(left), Self::PushString(right))
             | (Self::CreateSuperType(left), Self::CreateSuperType(right))
             | (Self::CreateVector(left), Self::CreateVector(right))
             | (Self::CreateUnion(left), Self::CreateUnion(right))
-            | (Self::GetAttribute(left), Self::GetAttribute(right))
-            | (Self::SetAttribute(left), Self::SetAttribute(right))
-            | (Self::GetMember(left), Self::GetMember(right))
-            | (Self::SetMember(left), Self::SetMember(right))
             | (Self::FunctionCall(left), Self::FunctionCall(right))
             | (Self::TryFunctionCall(left), Self::TryFunctionCall(right))
             | (Self::Jump(left), Self::Jump(right))
             | (Self::JumpIfTrue(left), Self::JumpIfTrue(right))
             | (Self::JumpIfFalse(left), Self::JumpIfFalse(right)) => left == right,
+
+            (Self::PushHeap(left), Self::PushHeap(right))
+            | (Self::PushHeapRef(left), Self::PushHeapRef(right)) => left == right,
+
+            (Self::PushString(left), Self::PushString(right))
+            | (Self::GetAttribute(left), Self::GetAttribute(right))
+            | (Self::SetAttribute(left), Self::SetAttribute(right))
+            | (Self::GetMember(left), Self::GetMember(right))
+            | (Self::SetMember(left), Self::SetMember(right)) => left == right,
+
             _ => std::mem::discriminant(self) == std::mem::discriminant(rhs),
         }
     }
