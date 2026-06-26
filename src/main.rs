@@ -82,19 +82,19 @@ fn main() {
                                         None => {}
                                     },
                                     Err(e) => {
-                                        println!("ERROR:\n{:#?}", e);
+                                        println!("execution:\n{:#?}", e);
                                         return;
                                     }
                                 }
                             }
                         }
                         Err(e) => {
-                            println!("{:?}", e);
+                            println!("ast generation:\n{:#?}", e);
                         }
                     }
                 }
                 Err(e) => {
-                    println!("{:?}", e);
+                    println!("parsing:\n{:#?}", e);
                 }
             }
         }

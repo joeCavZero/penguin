@@ -4,7 +4,7 @@ use crate::parser::*;
 
 pub fn parse_function_params(
     ptokens: &mut PengPeekablePositionedToken,
-) -> Result<Vec<PengPositionedExpression>, PengError> {
+) -> Result<Vec<PengPositionedFunctionCallArg>, PengError> {
     let open_token = match ptokens.next() {
         Some(token) => token,
         None => {
@@ -22,7 +22,8 @@ pub fn parse_function_params(
         }
     }
 
-    let mut params = Vec::new();
+    let mut args = Vec::new();
+    let mut has_variadic = false;
 
     loop {
         let token = match ptokens.peek() {
@@ -43,7 +44,7 @@ pub fn parse_function_params(
             _ => {}
         }
 
-        let param = match parse_expression(ptokens) {
+        let expression = match parse_expression(ptokens) {
             Ok(expression) => expression,
             Err(e) => {
                 return Err(e.push(PengError::SyntaxError(
@@ -52,7 +53,47 @@ pub fn parse_function_params(
             }
         };
 
-        params.push(param);
+        let mut variadic = false;
+
+        match ptokens.peek() {
+            Some(token) => match &token.value {
+                PengToken::TripleDot => {
+                    let triple_dot_token = match ptokens.next() {
+                        Some(token) => token,
+                        None => {
+                            return Err(PengError::new_positioned_message(
+                                "expected '...'".to_string(),
+                                expression.position.clone(),
+                            ));
+                        }
+                    };
+
+                    if has_variadic {
+                        return Err(PengError::new_positioned_message(
+                            "cannot use more than one variadic unpacking in the same function call"
+                                .to_string(),
+                            triple_dot_token.position.clone(),
+                        ));
+                    }
+
+                    has_variadic = true;
+                    variadic = true;
+                }
+
+                _ => {}
+            },
+            None => {}
+        }
+
+        let position = expression.position.clone();
+
+        args.push(PengPositioned {
+            value: PengFunctionCallArg {
+                expression,
+                variadic,
+            },
+            position,
+        });
 
         let separator = match ptokens.next() {
             Some(token) => token,
@@ -65,8 +106,17 @@ pub fn parse_function_params(
         };
 
         match &separator.value {
-            PengToken::Comma => {}
+            PengToken::Comma => {
+                if variadic {
+                    return Err(PengError::new_positioned_message(
+                        "variadic unpacking must be the last argument".to_string(),
+                        separator.position.clone(),
+                    ));
+                }
+            }
+
             PengToken::RightParenthesis => break,
+
             _ => {
                 return Err(PengError::new_positioned_message(
                     "expected ',' or ')'".to_string(),
@@ -76,7 +126,7 @@ pub fn parse_function_params(
         }
     }
 
-    Ok(params)
+    Ok(args)
 }
 
 pub fn parse_function_params_declaration(

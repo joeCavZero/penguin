@@ -176,7 +176,7 @@ pub fn generate_method_call(
         .push(PengInstruction::PushLocal(object_local));
 
     for arg in &call.args {
-        match generate_expression(env, globals, context, arg) {
+        match generate_expression(env, globals, context, &arg.value.expression) {
             Ok(()) => {}
             Err(e) => {
                 return Err(e.push(PengError::InvalidState(
@@ -259,7 +259,7 @@ pub fn generate_try_expression(
     };
 
     for arg in &call.args {
-        match generate_expression(env, globals, context, arg) {
+        match generate_expression(env, globals, context, &arg.value.expression) {
             Ok(()) => {}
             Err(e) => {
                 return Err(e.push(PengError::InvalidState(

@@ -104,25 +104,33 @@ pub fn generate_function_call(
         Ok(()) => {}
         Err(e) => {
             return Err(e.push(PengError::InvalidState(
-                "failed while generating generate_function".to_string(),
+                "failed while generating generate_function_call function".to_string(),
             )));
         }
     }
 
-    for arg in &call.args {
-        match generate_expression(env, globals, context, arg) {
-            Ok(()) => {}
-            Err(e) => {
-                return Err(e.push(PengError::InvalidState(
-                    "failed while generating generate_function".to_string(),
-                )));
-            }
+    let variadic_index = match generate_function_call_args(env, globals, context, &call.args) {
+        Ok(value) => value,
+        Err(e) => {
+            return Err(e.push(PengError::InvalidState(
+                "failed while generating generate_function_call args".to_string(),
+            )));
+        }
+    };
+
+    match variadic_index {
+        Some(index) => {
+            context
+                .bytecode
+                .push(PengInstruction::FunctionCallSpread(index));
+        }
+
+        None => {
+            context
+                .bytecode
+                .push(PengInstruction::FunctionCall(call.args.len()));
         }
     }
-
-    context
-        .bytecode
-        .push(PengInstruction::FunctionCall(call.args.len()));
 
     Ok(())
 }
@@ -176,4 +184,47 @@ pub fn generate_local_function_declaration(
             Ok(())
         }
     }
+}
+
+pub fn generate_function_call_args(
+    env: &mut PengEnv,
+    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
+    context: &mut PengGeneratorContext,
+    args: &Vec<PengPositionedFunctionCallArg>,
+) -> Result<Option<usize>, PengError> {
+    let mut variadic_index: Option<usize> = None;
+
+    for i in 0..args.len() {
+        let arg = &args[i];
+
+        if arg.value.variadic {
+            if variadic_index.is_some() {
+                return Err(PengError::new_positioned_message(
+                    "cannot use more than one variadic unpacking in the same function call"
+                        .to_string(),
+                    arg.position.clone(),
+                ));
+            }
+
+            if i + 1 != args.len() {
+                return Err(PengError::new_positioned_message(
+                    "variadic unpacking must be the last argument".to_string(),
+                    arg.position.clone(),
+                ));
+            }
+
+            variadic_index = Some(i);
+        }
+
+        match generate_expression(env, globals, context, &arg.value.expression) {
+            Ok(()) => {}
+            Err(e) => {
+                return Err(e.push(PengError::InvalidState(
+                    "failed while generating function call arg".to_string(),
+                )));
+            }
+        }
+    }
+
+    Ok(variadic_index)
 }

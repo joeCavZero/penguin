@@ -22,6 +22,7 @@ pub type PengPositionedFunctionParam = PengPositioned<PengFunctionParam>;
 
 pub type PengPositionedLiteral = PengPositioned<PengLiteral>;
 
+pub type PengPositionedFunctionCallArg = PengPositioned<PengFunctionCallArg>;
 
 #[derive(Debug, Clone)]
 pub enum PengAST {
@@ -1118,6 +1119,12 @@ pub struct PengFunctionParam {
 }
 
 #[derive(Debug, Clone)]
+pub struct PengFunctionCallArg {
+    pub expression: PengPositionedExpression,
+    pub variadic: bool,
+}
+
+#[derive(Debug, Clone)]
 pub struct PengTypeDeclaration {
     pub name: PengPositioned<String>,
     pub value: Option<PengPositionedTypeExpression>,
@@ -1176,14 +1183,14 @@ pub struct PengForStatement {
 #[derive(Debug, Clone)]
 pub struct PengFuncCallExpression {
     pub function: Box<PengPositionedExpression>,
-    pub args: Vec<PengPositionedExpression>,
+    pub args: Vec<PengPositionedFunctionCallArg>,
 }
 
 #[derive(Debug, Clone)]
 pub struct PengMethodCallExpression {
     pub object: Box<PengPositionedExpression>,
     pub method: PengPositioned<String>,
-    pub args: Vec<PengPositionedExpression>,
+    pub args: Vec<PengPositionedFunctionCallArg>,
 }
 
 #[derive(Debug, Clone)]

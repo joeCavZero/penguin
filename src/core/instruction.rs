@@ -49,8 +49,10 @@ pub enum PengInstruction {
     OperationCall,
 
     FunctionCall(usize),  // ...|func|p0..pn| ---> ...|ret?|
+    FunctionCallSpread(usize),
 
     TryFunctionCall(usize),  // ...|func|p0..pn| ---> ...|return|bool ok|
+    TryFunctionCallSpread(usize),
 
     GetIndex,
     SetIndex,
