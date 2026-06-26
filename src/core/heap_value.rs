@@ -1,12 +1,12 @@
-use crate::colour::*;
-use crate::function::*;
-use crate::module::*;
-use crate::object::*;
-use crate::operation::*;
-use crate::thread::*;
-use crate::typing::*;
-use crate::unioning::*;
-use crate::vector::*;
+use crate::core::colour::*;
+use crate::core::function::*;
+use crate::core::module::*;
+use crate::core::object::*;
+use crate::core::operation::*;
+use crate::core::thread::*;
+use crate::core::typing::*;
+use crate::core::unioning::*;
+use crate::core::vector::*;
 
 pub type PengColouredHeapValue = PengColoured<PengHeapValue>;
 

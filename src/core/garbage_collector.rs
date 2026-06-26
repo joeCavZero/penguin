@@ -1,10 +1,10 @@
-use crate::cell::*;
-use crate::colour::*;
-use crate::env::*;
-use crate::function::*;
-use crate::heap_value::*;
-use crate::utils::*;
-use crate::value::*;
+use crate::core::cell::*;
+use crate::core::colour::*;
+use crate::core::env::*;
+use crate::core::function::*;
+use crate::core::heap_value::*;
+use crate::core::utils::*;
+use crate::core::value::*;
 
 pub trait PengGarbageCollectable {
     fn mark_and_sweep(&mut self);

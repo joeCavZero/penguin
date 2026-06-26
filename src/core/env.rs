@@ -1,20 +1,28 @@
 use std::collections::HashMap;
 
-use crate::binding::*;
-use crate::cell::*;
-use crate::colour::*;
-use crate::error::*;
-use crate::frame::*;
-use crate::heap_value::*;
-use crate::thread::*;
-use crate::utils::*;
-use crate::value::*;
-use crate::vector::*;
+use crate::core::function::*;
+use crate::core::binding::*;
+use crate::core::cell::*;
+use crate::core::colour::*;
+use crate::core::error::*;
+use crate::core::frame::*;
+use crate::core::heap_value::*;
+use crate::core::runtime::*;
+use crate::core::thread::*;
+use crate::core::utils::*;
+use crate::core::value::*;
+use crate::core::vector::*;
+use crate::core::garbage_collector::*;
+use crate::generator::*;
+use crate::lexer::*;
+use crate::parser::*;
 
 pub struct PengEnv {
     globals: HashMap<PengNamePoolPtr, PengBindedCell>,
     pub heap: HashMap<PengHeapPtr, PengColouredHeapValue>,
     pub name_pool: HashMap<PengNamePoolPtr, String>,
+
+    garbage_collector_interval: std::time::Duration
 }
 
 impl PengEnv {
@@ -23,10 +31,111 @@ impl PengEnv {
             globals: HashMap::new(),
             heap: HashMap::new(),
             name_pool: HashMap::new(),
+            garbage_collector_interval: std::time::Duration::from_secs(10),
         }
     }
 
-    //pub fn bind_immutable_function(&self, name: String, f:)
+    pub fn load_script_from_file(&mut self, path: &str) -> Result<(HashMap<PengNamePoolPtr, PengHeapPtr>, PengHeapPtr), PengError> {
+        let tokens = match lex_file(path.to_string()) {
+            Ok(v) => v,
+            Err(e) => return Err(e), 
+        };
+        let ast = match parse_script(tokens) {
+            Ok(v) => v,
+            Err(e) => return Err(e), 
+        };
+        let (globals, init_ptr) = match generate_ast(self, &ast, &HashMap::new())  {
+            Ok(v) => v,
+            Err(e) => return Err(e), 
+        };
+
+        Ok((globals, init_ptr))
+    }
+
+    pub fn load_script_from_source(&mut self, source: &str) -> Result<(HashMap<PengNamePoolPtr, PengHeapPtr>, PengHeapPtr), PengError> {
+        let tokens = match lex_source(source.to_string()) {
+            Ok(v) => v,
+            Err(e) => return Err(e), 
+        };
+        let ast = match parse_script(tokens) {
+            Ok(v) => v,
+            Err(e) => return Err(e), 
+        };
+        let (globals, init_ptr) = match generate_ast(self, &ast, &HashMap::new())  {
+            Ok(v) => v,
+            Err(e) => return Err(e), 
+        };
+
+        Ok((globals, init_ptr))
+    }
+
+    pub fn load_program_from_file(&mut self, path: &str) -> Result<(HashMap<PengNamePoolPtr, PengHeapPtr>, PengHeapPtr), PengError> {
+        let tokens = match lex_file(path.to_string()) {
+            Ok(v) => v,
+            Err(e) => return Err(e), 
+        };
+        let ast = match parse_script(tokens) {
+            Ok(v) => v,
+            Err(e) => return Err(e), 
+        };
+        let (globals, init_ptr) = match generate_ast(self, &ast, &HashMap::new())  {
+            Ok(v) => v,
+            Err(e) => return Err(e), 
+        };
+
+        Ok((globals, init_ptr))
+    }
+
+    pub fn load_program_from_source(&mut self, source: &str) -> Result<(HashMap<PengNamePoolPtr, PengHeapPtr>, PengHeapPtr), PengError> {
+        let tokens = match lex_source(source.to_string()) {
+            Ok(v) => v,
+            Err(e) => return Err(e), 
+        };
+        let ast = match parse_script(tokens) {
+            Ok(v) => v,
+            Err(e) => return Err(e), 
+        };
+        let (globals, init_ptr) = match generate_ast(self, &ast, &HashMap::new())  {
+            Ok(v) => v,
+            Err(e) => return Err(e), 
+        };
+
+        Ok((globals, init_ptr))
+    }
+
+    pub fn run(&mut self, init_ptr: PengHeapPtr) -> Result<PengBindedCell, PengError> {
+        let thread_ptr = self.create_thread(init_ptr, 0, Vec::new());
+
+        let gc_interval = self.garbage_collector_interval;
+        let mut last_gc = std::time::Instant::now();
+
+        loop {
+            if last_gc.elapsed() >= gc_interval {
+                self.mark_and_sweep();
+                last_gc = std::time::Instant::now();
+            }
+
+            match step_thread(self, thread_ptr)? {
+                Some(result) => return Ok(result),
+                None => {}
+            }
+        }
+    }
+
+    pub fn register_native(
+        &mut self,
+        name: &str,
+        func: fn(Vec<PengBindedCell>, &mut PengEnv) -> Result<PengBindedCell, PengError>,
+    ) -> Result<(), PengError> {
+        let ptr = self.create_heap_value(PengHeapValue::Function(
+            PengFunction::new_native(func),
+        ));
+
+        let value = PengBindedCell::Immutable(PengCell::Reference(ptr));
+
+        self.set_global(name.to_string(), value)
+    }
+
 
     fn next_name_ptr(&self) -> PengNamePoolPtr {
         self.name_pool.keys().max().map(|v| *v + PengNamePoolPtr(1).into()).unwrap_or(PengNamePoolPtr(0))

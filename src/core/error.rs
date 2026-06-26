@@ -1,10 +1,10 @@
-use crate::typing::*;
-use crate::value::*;
-use crate::cell::*;
-use crate::instruction::*;
-use crate::token::*;
-use crate::position::*;
-use crate::utils::*;
+use crate::core::typing::*;
+use crate::core::value::*;
+use crate::core::cell::*;
+use crate::core::instruction::*;
+use crate::lexer::token::*;
+use crate::core::position::*;
+use crate::core::utils::*;
 
 #[derive(Debug, Clone)]
 pub enum PengError {
