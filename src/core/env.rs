@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::collections::HashSet;
 
 use crate::core::function::*;
 use crate::core::binding::*;
@@ -21,7 +22,7 @@ pub struct PengEnv {
     globals: HashMap<PengNamePoolPtr, PengBindedCell>,
     pub heap: HashMap<PengHeapPtr, PengColouredHeapValue>,
     pub name_pool: HashMap<PengNamePoolPtr, String>,
-
+    thread_ptrs: HashSet<PengHeapPtr>,
     garbage_collector_interval: std::time::Duration
 }
 
@@ -31,7 +32,8 @@ impl PengEnv {
             globals: HashMap::new(),
             heap: HashMap::new(),
             name_pool: HashMap::new(),
-            garbage_collector_interval: std::time::Duration::from_secs(10),
+            garbage_collector_interval: std::time::Duration::from_secs(5),
+            thread_ptrs: HashSet::new(),
         }
     }
 
@@ -104,7 +106,7 @@ impl PengEnv {
     }
 
     pub fn run(&mut self, init_ptr: PengHeapPtr) -> Result<PengBindedCell, PengError> {
-        let thread_ptr = self.create_thread(init_ptr, 0, Vec::new());
+        let thread_ptr = self.create_thread(init_ptr, 0, Vec::new(), PengThreadState::Running);
 
         let gc_interval = self.garbage_collector_interval;
         let mut last_gc = std::time::Instant::now();
@@ -271,9 +273,12 @@ impl PengEnv {
         procedure_ptr: PengHeapPtr,
         base: usize,
         params: Vec<PengBindedCell>,
+        state: PengThreadState,
     ) -> PengHeapPtr {
-        let t = PengHeapValue::Thread(PengThread::new(procedure_ptr, base, params));
-        self.create_heap_value(t)
+        let t = PengHeapValue::Thread(PengThread::new(procedure_ptr, base, params, state));
+        let tptr = self.create_heap_value(t);
+        self.thread_ptrs.insert(tptr);
+        tptr
     }
 
     pub fn push_thread_binded_stated_cell(

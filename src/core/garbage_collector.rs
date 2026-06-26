@@ -1,3 +1,4 @@
+use crate::core::thread::*;
 use crate::core::cell::*;
 use crate::core::colour::*;
 use crate::core::env::*;
@@ -35,14 +36,15 @@ fn collect_roots(env: &PengEnv) -> Vec<PengHeapPtr> {
 
     for (ptr, heap_value) in env.heap.iter() {
         if let PengHeapValue::Thread(thread) = &heap_value.value {
-            roots.push(*ptr);
+            match thread.state {
+                PengThreadState::Running
+                | PengThreadState::Paused
+                | PengThreadState::Waiting => {
+                    roots.push(*ptr);
+                }
 
-            for cell in thread.stack.iter() {
-                collect_cell_children(cell.value(), &mut roots);
-            }
-
-            for frame in thread.frames.iter() {
-                roots.push(frame.procedure_ptr);
+                PengThreadState::Finished
+                | PengThreadState::Cancelled => {}
             }
         }
     }
@@ -126,6 +128,9 @@ fn collect_heap_value_children(value: &PengHeapValue, children: &mut Vec<PengHea
             for frame in thread.frames.iter() {
                 children.push(frame.procedure_ptr);
             }
+            if let Ok(c) = &thread.result {
+                collect_cell_children(c, children);
+            }
         }
 
         PengHeapValue::Function(function) => match function {
@@ -136,6 +141,10 @@ fn collect_heap_value_children(value: &PengHeapValue, children: &mut Vec<PengHea
 
                 for constant in func.consts.iter() {
                     collect_value_children(constant, children);
+                }
+
+                for instruction in func.bytecode.iter() {
+                    collect_instruction_children(instruction, children);
                 }
             }
 
@@ -153,5 +162,17 @@ fn collect_heap_value_children(value: &PengHeapValue, children: &mut Vec<PengHea
         PengHeapValue::Operation(_) => {}
 
         PengHeapValue::Union(_) => {}
+    }
+}
+
+use crate::core::instruction::*;
+
+fn collect_instruction_children(instruction: &PengInstruction, children: &mut Vec<PengHeapPtr>) {
+    match instruction {
+        PengInstruction::PushHeap(ptr) => {
+            children.push(*ptr);
+        }
+
+        _ => {}
     }
 }
