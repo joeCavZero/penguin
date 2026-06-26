@@ -239,41 +239,142 @@ pub fn generate_try_expression(
     value: &PengPositionedExpression,
     elsing: Option<&PengPositionedExpression>,
 ) -> Result<(), PengError> {
-    let call = match &value.value {
-        PengExpression::FuncCall(call) => call,
+    match &value.value {
+        PengExpression::FuncCall(call) => {
+            match generate_expression(env, globals, context, &call.function) {
+                Ok(()) => {}
+                Err(e) => {
+                    return Err(e.push(PengError::InvalidState(
+                        "failed while generating try function call".to_string(),
+                    )));
+                }
+            }
+
+            let variadic_index =
+                match generate_function_call_args(env, globals, context, &call.args) {
+                    Ok(value) => value,
+                    Err(e) => {
+                        return Err(e.push(PengError::InvalidState(
+                            "failed while generating try function call args".to_string(),
+                        )));
+                    }
+                };
+
+            match variadic_index {
+                Some(index) => {
+                    context
+                        .bytecode
+                        .push(PengInstruction::TryFunctionCallSpread(index));
+                }
+
+                None => {
+                    context
+                        .bytecode
+                        .push(PengInstruction::TryFunctionCall(call.args.len()));
+                }
+            }
+        }
+
+        PengExpression::MethodCall(call) => {
+            match generate_expression(env, globals, context, &call.object) {
+                Ok(()) => {}
+                Err(e) => {
+                    return Err(e.push(PengError::InvalidState(
+                        "failed while generating try method call object".to_string(),
+                    )));
+                }
+            }
+
+            let object_local = context.create_temporary_local();
+
+            context
+                .bytecode
+                .push(PengInstruction::StoreLocal(object_local));
+
+            let method = env.ensure_pooled_name_ptr(call.method.value.clone());
+
+            context
+                .bytecode
+                .push(PengInstruction::PushLocal(object_local));
+
+            context
+                .bytecode
+                .push(PengInstruction::GetConstAttribute(method));
+
+            context
+                .bytecode
+                .push(PengInstruction::PushLocal(object_local));
+
+            let variadic_index =
+                match generate_function_call_args(env, globals, context, &call.args) {
+                    Ok(value) => value,
+                    Err(e) => {
+                        return Err(e.push(PengError::InvalidState(
+                            "failed while generating try method call args".to_string(),
+                        )));
+                    }
+                };
+
+            match variadic_index {
+                Some(index) => {
+                    context
+                        .bytecode
+                        .push(PengInstruction::TryFunctionCallSpread(index + 1));
+                }
+
+                None => {
+                    context
+                        .bytecode
+                        .push(PengInstruction::TryFunctionCall(call.args.len() + 1));
+                }
+            }
+        }
+
+        PengExpression::OperationCall {
+            left,
+            operation,
+            right,
+        } => {
+            match generate_expression(env, globals, context, operation) {
+                Ok(()) => {}
+                Err(e) => {
+                    return Err(e.push(PengError::InvalidState(
+                        "failed while generating try operation call operation".to_string(),
+                    )));
+                }
+            }
+
+            match generate_expression(env, globals, context, left) {
+                Ok(()) => {}
+                Err(e) => {
+                    return Err(e.push(PengError::InvalidState(
+                        "failed while generating try operation call left".to_string(),
+                    )));
+                }
+            }
+
+            match generate_expression(env, globals, context, right) {
+                Ok(()) => {}
+                Err(e) => {
+                    return Err(e.push(PengError::InvalidState(
+                        "failed while generating try operation call right".to_string(),
+                    )));
+                }
+            }
+
+            context.bytecode.push(PengInstruction::TryOperationCall);
+        }
+
         _ => {
             return Err(PengError::new_positioned_message(
-                "expected function call after try".to_string(),
+                "expected function, method or operation call after try".to_string(),
                 value.position.clone(),
             ));
         }
-    };
-
-    match generate_expression(env, globals, context, &call.function) {
-        Ok(()) => {}
-        Err(e) => {
-            return Err(e.push(PengError::InvalidState(
-                "failed while generating generate_expression".to_string(),
-            )));
-        }
-    };
-
-    for arg in &call.args {
-        match generate_expression(env, globals, context, &arg.value.expression) {
-            Ok(()) => {}
-            Err(e) => {
-                return Err(e.push(PengError::InvalidState(
-                    "failed while generating generate_expression".to_string(),
-                )));
-            }
-        };
     }
 
-    context
-        .bytecode
-        .push(PengInstruction::TryFunctionCall(call.args.len()));
-
     let success_jump = context.bytecode.len();
+
     context
         .bytecode
         .push(PengInstruction::JumpIfTrue(usize::MAX));
@@ -285,7 +386,7 @@ pub fn generate_try_expression(
             Ok(()) => {}
             Err(e) => {
                 return Err(e.push(PengError::InvalidState(
-                    "failed while generating generate_expression".to_string(),
+                    "failed while generating try else expression".to_string(),
                 )));
             }
         },

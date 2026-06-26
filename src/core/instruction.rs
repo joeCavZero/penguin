@@ -47,6 +47,7 @@ pub enum PengInstruction {
     LessEqualsThan,
 
     OperationCall,
+    TryOperationCall,
 
     FunctionCall(usize),  // ...|func|p0..pn| ---> ...|ret?|
     FunctionCallSpread(usize),

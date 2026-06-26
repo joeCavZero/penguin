@@ -66,6 +66,40 @@ pub fn step_thread(
                 (Some(func_ntv.clone()), false, PengInstruction::Add, None)
             }
         },
+        Some(PengHeapValue::Operation(operation)) => match operation {
+            PengOperation::Bytecode(operation_btc) => {
+                let instr = match operation_btc.bytecode.get(frame_program_counter) {
+                    Some(i) => i.clone(),
+                    None => {
+                        return Ok(None);
+                    }
+                };
+
+                let constant = match instr {
+                    PengInstruction::PushConst(const_index) => {
+                        match operation_btc.consts.get(const_index) {
+                            Some(v) => Some(v.clone()),
+                            None => {
+                                return Err(PengError::IndexOutOfBounds {
+                                    index: const_index,
+                                    len: operation_btc.consts.len(),
+                                });
+                            }
+                        }
+                    }
+
+                    _ => None,
+                };
+
+                (None, false, instr, constant)
+            }
+
+            PengOperation::Native(_) => {
+                return Err(PengError::NotImplemented(
+                    "native operations are not executable yet".to_string(),
+                ));
+            }
+        },
         Some(_) => {
             return Err(PengError::ExpectedFunction);
         }
@@ -3067,6 +3101,132 @@ pub fn execute_instruction(
 
                     match env.execute_try_function_call(thread_ptr, args_count) {
                         Ok(()) => return Ok(None),
+                        Err(e) => {
+                            return Err(e.push(PengError::InvalidInstruction(instruction)));
+                        }
+                    }
+                }
+
+                Err(e) => {
+                    return Err(e.push(PengError::InvalidInstruction(instruction)));
+                }
+            }
+        }
+
+        PengInstruction::TryOperationCall => {
+            match env
+                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .cloned()
+            {
+                Ok(right_cell) => {
+                    match env
+                        .get_thread_latest_binded_stated_cell(thread_ptr, 1)
+                        .cloned()
+                    {
+                        Ok(left_cell) => {
+                            match env
+                                .get_thread_latest_binded_stated_cell(thread_ptr, 2)
+                                .cloned()
+                            {
+                                Ok(operation_cell) => {
+                                    let operation_ptr = match operation_cell.value() {
+                                        PengStated::Initialized(PengCell::Reference(ptr)) => *ptr,
+
+                                        PengStated::Initialized(_) => {
+                                            return Err(PengError::ExpectedReference);
+                                        }
+
+                                        PengStated::Uninitialized => {
+                                            return Err(PengError::CannotReadUninitialized);
+                                        }
+                                    };
+
+                                    match env.get_heap(operation_ptr) {
+                                        Some(PengHeapValue::Operation(_)) => {}
+
+                                        Some(_) => {
+                                            return Err(PengError::ExpectedOperation);
+                                        }
+
+                                        None => {
+                                            return Err(PengError::HeapValueNotFound(
+                                                operation_ptr,
+                                            ));
+                                        }
+                                    }
+
+                                    match env.pop_thread_stack_n_times(thread_ptr, 3) {
+                                        Ok(()) => match env.get_thread_stack_len(thread_ptr) {
+                                            Ok(base) => {
+                                                match env.push_thread_binded_stated_cell(
+                                                    thread_ptr, left_cell,
+                                                ) {
+                                                    Ok(()) => {
+                                                        match env.push_thread_binded_stated_cell(
+                                                            thread_ptr, right_cell,
+                                                        ) {
+                                                            Ok(()) => {
+                                                                match env.push_thread_frame(
+                                                                    thread_ptr,
+                                                                    PengFrame::new_try(
+                                                                        operation_ptr,
+                                                                        base,
+                                                                        2,
+                                                                    ),
+                                                                ) {
+                                                                    Ok(()) => return Ok(None),
+
+                                                                    Err(e) => {
+                                                                        return Err(e.push(
+                                                                        PengError::InvalidInstruction(
+                                                                            instruction,
+                                                                        ),
+                                                                    ));
+                                                                    }
+                                                                }
+                                                            }
+
+                                                            Err(e) => {
+                                                                return Err(e.push(
+                                                                    PengError::InvalidInstruction(
+                                                                        instruction,
+                                                                    ),
+                                                                ));
+                                                            }
+                                                        }
+                                                    }
+
+                                                    Err(e) => {
+                                                        return Err(e.push(
+                                                            PengError::InvalidInstruction(
+                                                                instruction,
+                                                            ),
+                                                        ));
+                                                    }
+                                                }
+                                            }
+
+                                            Err(e) => {
+                                                return Err(e.push(PengError::InvalidInstruction(
+                                                    instruction,
+                                                )));
+                                            }
+                                        },
+
+                                        Err(e) => {
+                                            return Err(
+                                                e.push(PengError::InvalidInstruction(instruction))
+                                            );
+                                        }
+                                    }
+                                }
+
+                                Err(e) => {
+                                    return Err(e.push(PengError::InvalidInstruction(instruction)));
+                                }
+                            }
+                        }
+
                         Err(e) => {
                             return Err(e.push(PengError::InvalidInstruction(instruction)));
                         }

@@ -12,15 +12,6 @@ pub fn generate_script(
     let mut local_globals = global.clone();
     let mut context = PengGeneratorContext::new();
 
-    match allocate_script_globals(env, statements, &mut local_globals) {
-        Ok(()) => {}
-        Err(e) => {
-            return Err(e.push(PengError::InvalidState(
-                "failed while generating generate_script".to_string(),
-            )));
-        }
-    }
-
     match generate_statements(env, &mut local_globals, &mut context, statements) {
         Ok(()) => {}
         Err(e) => {

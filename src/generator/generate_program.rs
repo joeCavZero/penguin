@@ -72,43 +72,6 @@ fn allocate_program_globals(
     Ok(globals)
 }
 
-pub fn allocate_script_globals(
-    env: &mut PengEnv,
-    statements: &Vec<PengPositioned<PengStatement>>,
-    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
-) -> Result<(), PengError> {
-    for statement in statements {
-        match &statement.value {
-            PengStatement::Declaration(declaration) => {
-                let name = declaration_name(declaration);
-                let name_ptr = env.ensure_pooled_name_ptr(name);
-
-                if globals.contains_key(&name_ptr) {
-                    return Err(PengError::SyntaxError(
-                        "duplicated global declaration".to_string(),
-                    ));
-                }
-
-                let value_ptr = match declaration {
-                    PengBinded::Mutable(_) => {
-                        env.create_heap_value(PengHeapValue::Object(PengObject::new_empty()))
-                    }
-
-                    PengBinded::Immutable(_) => {
-                        env.create_heap_value(PengHeapValue::Object(PengObject::new_empty()))
-                    }
-                };
-
-                globals.insert(name_ptr, value_ptr);
-            }
-
-            _ => {}
-        }
-    }
-
-    Ok(())
-}
-
 pub fn get_allocated_global(
     env: &mut PengEnv,
     globals: &HashMap<PengNamePoolPtr, PengHeapPtr>,
