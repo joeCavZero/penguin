@@ -85,9 +85,9 @@ pub enum PengToken {
     Identifier(String),
 
     // ( all numbers discards '_' ; needs to start with numbers (no underline at start))
-    IntLiteral(isize), // 1i, 2i 4_0i (i suffix) (discards '_')
+    IntLiteral(isize),  // 1i, 2i 4_0i (i suffix) (discards '_')
     UintLiteral(usize), // 10u suffix u
-    ByteLiteral(u8), // 10b
+    ByteLiteral(u8),    // 10b
     // dotted numbers are f32 by default
     Float32Literal(f32), // 1_._0 (1.0), 3.14, 3.33f32 (f32 suffix), 1.0__f32
     Float64Literal(f64), // the same as f32, but with f64 suffix
@@ -104,7 +104,7 @@ impl PengToken {
             "nil" => Some(Self::Nil),
             "int" => Some(Self::Int),
             "uint" => Some(Self::Uint),
-        
+
             "f32" => Some(Self::Float32),
             "f64" => Some(Self::Float64),
 
@@ -196,7 +196,18 @@ impl PengToken {
 
         match Self::parse_number_literal(&source) {
             Ok(Some(number_token)) => Ok(number_token),
-            Ok(None) => Ok(Self::Identifier(source)),
+
+            Ok(None) => {
+                if Self::is_valid_identifier(&source) {
+                    Ok(Self::Identifier(source))
+                } else {
+                    Err(PengError::SyntaxError(format!(
+                        "invalid identifier: {}",
+                        source
+                    )))
+                }
+            }
+
             Err(e) => Err(e),
         }
     }
@@ -209,7 +220,10 @@ impl PengToken {
         let clean = source.replace('_', "");
 
         if clean.is_empty() {
-            return Err(PengError::SyntaxError(format!("invalid number literal: {}", source)));
+            return Err(PengError::SyntaxError(format!(
+                "invalid number literal: {}",
+                source
+            )));
         }
 
         if let Some(body) = clean.strip_suffix("f64") {
@@ -254,7 +268,7 @@ impl PengToken {
 
         Err(PengError::SyntaxError("invalid number literal".to_string()))
     }
-    
+
     fn parse_int<T>(body: &str, original: &str) -> Result<T, String>
     where
         T: std::str::FromStr,
@@ -269,7 +283,10 @@ impl PengToken {
 
     fn parse_float32(body: &str, original: &str) -> Result<Self, PengError> {
         if !Self::is_float_body(body) {
-            return Err(PengError::SyntaxError( format!("invalid number literal: {}", original)));
+            return Err(PengError::SyntaxError(format!(
+                "invalid number literal: {}",
+                original
+            )));
         }
 
         match body.parse::<f32>().map(Self::Float32Literal) {
@@ -280,7 +297,10 @@ impl PengToken {
 
     fn parse_float64(body: &str, original: &str) -> Result<Self, PengError> {
         if !Self::is_float_body(body) {
-            return Err(PengError::SyntaxError(format!("invalid number literal: {}", original)));
+            return Err(PengError::SyntaxError(format!(
+                "invalid number literal: {}",
+                original
+            )));
         }
 
         match body.parse::<f64>().map(Self::Float64Literal) {
@@ -303,5 +323,27 @@ impl PengToken {
 
     pub fn new_string(string: String) -> Self {
         Self::StringLiteral(string)
+    }
+
+    fn is_identifier_start(c: char) -> bool {
+        c == '_' || c.is_alphabetic()
+    }
+
+    fn is_identifier_continue(c: char) -> bool {
+        c == '_' || c.is_alphanumeric()
+    }
+
+    fn is_valid_identifier(source: &str) -> bool {
+        let mut chars = source.chars();
+
+        let Some(first) = chars.next() else {
+            return false;
+        };
+
+        if !Self::is_identifier_start(first) {
+            return false;
+        }
+
+        chars.all(Self::is_identifier_continue)
     }
 }
