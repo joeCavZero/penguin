@@ -2323,22 +2323,6 @@ pub fn execute_instruction(
                                 },
                             };
 
-                            let index = match index_value {
-                                PengValue::Cell(PengCell::Int(v)) => {
-                                    if v < 0 {
-                                        return Err(PengError::InvalidIndexTypeValue(index_value));
-                                    }
-
-                                    v as usize
-                                }
-
-                                PengValue::Cell(PengCell::Uint(v)) => v,
-
-                                _ => {
-                                    return Err(PengError::InvalidIndexTypeValue(index_value));
-                                }
-                            };
-
                             let object_ptr = match object_cell.value() {
                                 PengCell::Reference(ptr) => *ptr,
                                 _ => {
@@ -2346,8 +2330,39 @@ pub fn execute_instruction(
                                 }
                             };
 
+                            let vector_index = match index_value.clone() {
+                                PengValue::Cell(PengCell::Int(v)) => {
+                                    if v < 0 {
+                                        return Err(PengError::InvalidIndexTypeValue(index_value));
+                                    }
+
+                                    Some(v as usize)
+                                }
+
+                                PengValue::Cell(PengCell::Uint(v)) => Some(v),
+
+                                _ => None,
+                            };
+
+                            let object_key = match index_value.clone() {
+                                PengValue::Box(PengBox::String(key)) => {
+                                    Some(env.ensure_pooled_name_ptr(key))
+                                }
+
+                                _ => None,
+                            };
+
                             let value = match env.get_heap(object_ptr) {
                                 Some(PengValue::Box(PengBox::Vector(vector))) => {
+                                    let index = match vector_index {
+                                        Some(index) => index,
+                                        None => {
+                                            return Err(PengError::InvalidIndexTypeValue(
+                                                index_value,
+                                            ));
+                                        }
+                                    };
+
                                     match vector.values.get(index) {
                                         Some(value) => value.clone(),
                                         None => {
@@ -2359,9 +2374,51 @@ pub fn execute_instruction(
                                     }
                                 }
 
+                                Some(PengValue::Box(PengBox::Object(object))) => {
+                                    let name_ptr = match object_key {
+                                        Some(name_ptr) => name_ptr,
+                                        None => {
+                                            return Err(PengError::InvalidIndexTypeValue(
+                                                index_value,
+                                            ));
+                                        }
+                                    };
+
+                                    match object.fields.get(&name_ptr) {
+                                        Some(value) => value.clone(),
+                                        None => {
+                                            return Err(PengError::AttributeNotFound(name_ptr));
+                                        }
+                                    }
+                                }
+
+                                Some(PengValue::Box(PengBox::Type(PengType::Custom(
+                                    custom_type,
+                                )))) => {
+                                    let name_ptr = match object_key {
+                                        Some(name_ptr) => name_ptr,
+                                        None => {
+                                            return Err(PengError::InvalidIndexTypeValue(
+                                                index_value,
+                                            ));
+                                        }
+                                    };
+
+                                    match custom_type.fields.get(&name_ptr) {
+                                        Some(value) => value.clone(),
+                                        None => {
+                                            return Err(PengError::AttributeNotFound(name_ptr));
+                                        }
+                                    }
+                                }
+
+                                Some(PengValue::Box(PengBox::Type(_))) => {
+                                    return Err(PengError::ExpectedType);
+                                }
+
                                 Some(_) => {
                                     return Err(PengError::CannotIndexValue(
-                                        "non-vector heap value".to_string(),
+                                        "non-indexable heap value".to_string(),
                                     ));
                                 }
 
@@ -2413,6 +2470,7 @@ pub fn execute_instruction(
                                         Ok(()) => {}
                                         Err(e) => return Err(e),
                                     }
+
                                     let index_value = match index_cell.value() {
                                         cell => match env.get_value_from_cell(cell.clone()) {
                                             Ok(value) => value,
@@ -2424,26 +2482,6 @@ pub fn execute_instruction(
                                         },
                                     };
 
-                                    let index = match index_value {
-                                        PengValue::Cell(PengCell::Int(v)) => {
-                                            if v < 0 {
-                                                return Err(PengError::InvalidIndexTypeValue(
-                                                    index_value,
-                                                ));
-                                            }
-
-                                            v as usize
-                                        }
-
-                                        PengValue::Cell(PengCell::Uint(v)) => v,
-
-                                        _ => {
-                                            return Err(PengError::InvalidIndexTypeValue(
-                                                index_value,
-                                            ));
-                                        }
-                                    };
-
                                     let object_ptr = match object_cell.value() {
                                         PengCell::Reference(ptr) => *ptr,
                                         _ => {
@@ -2451,8 +2489,41 @@ pub fn execute_instruction(
                                         }
                                     };
 
+                                    let vector_index = match &index_value {
+                                        PengValue::Cell(PengCell::Int(v)) => {
+                                            if *v < 0 {
+                                                return Err(PengError::InvalidIndexTypeValue(
+                                                    index_value,
+                                                ));
+                                            }
+
+                                            Some(*v as usize)
+                                        }
+
+                                        PengValue::Cell(PengCell::Uint(v)) => Some(*v),
+
+                                        _ => None,
+                                    };
+
+                                    let object_key = match &index_value {
+                                        PengValue::Box(PengBox::String(key)) => {
+                                            Some(env.ensure_pooled_name_ptr(key.clone()))
+                                        }
+
+                                        _ => None,
+                                    };
+
                                     match env.get_heap_mut(object_ptr) {
                                         Some(PengValue::Box(PengBox::Vector(vector))) => {
+                                            let index = match vector_index {
+                                                Some(index) => index,
+                                                None => {
+                                                    return Err(PengError::InvalidIndexTypeValue(
+                                                        index_value,
+                                                    ));
+                                                }
+                                            };
+
                                             if index >= vector.values.len() {
                                                 return Err(PengError::IndexOutOfBounds {
                                                     index,
@@ -2463,9 +2534,41 @@ pub fn execute_instruction(
                                             vector.values[index] = value_cell;
                                         }
 
+                                        Some(PengValue::Box(PengBox::Object(object))) => {
+                                            let name_ptr = match object_key {
+                                                Some(name_ptr) => name_ptr,
+                                                None => {
+                                                    return Err(PengError::InvalidIndexTypeValue(
+                                                        index_value,
+                                                    ));
+                                                }
+                                            };
+
+                                            object.fields.insert(name_ptr, value_cell);
+                                        }
+
+                                        Some(PengValue::Box(PengBox::Type(PengType::Custom(
+                                            custom_type,
+                                        )))) => {
+                                            let name_ptr = match object_key {
+                                                Some(name_ptr) => name_ptr,
+                                                None => {
+                                                    return Err(PengError::InvalidIndexTypeValue(
+                                                        index_value,
+                                                    ));
+                                                }
+                                            };
+
+                                            custom_type.fields.insert(name_ptr, value_cell);
+                                        }
+
+                                        Some(PengValue::Box(PengBox::Type(_))) => {
+                                            return Err(PengError::ExpectedType);
+                                        }
+
                                         Some(_) => {
                                             return Err(PengError::CannotSetIndex(
-                                                "non-vector heap value".to_string(),
+                                                "non-indexable heap value".to_string(),
                                             ));
                                         }
 
