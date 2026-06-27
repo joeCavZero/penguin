@@ -1,9 +1,12 @@
-use crate::core::value::*;
-use crate::core::utils::*;
-use crate::core::instruction::*;
-use crate::core::env::*;
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use crate::core::cell::*;
+use crate::core::env::*;
 use crate::core::error::*;
+use crate::core::instruction::*;
+use crate::core::utils::*;
+use crate::core::value::*;
 
 #[derive(Debug, Clone)]
 pub enum PengOperation {
@@ -19,13 +22,19 @@ pub struct PengBytecodeOperation {
 }
 
 impl PengOperation {
-    pub fn new_native(f: fn((PengBindedCell, PengBindedCell),&mut PengEnv) -> Result<PengBindedCell, PengError>) -> Self{
-        Self::Native(
-            PengNativeOperation {
-                call: f
-            }
-        )
+    pub fn new_native<F>(f: F) -> Self
+    where
+        F: FnMut(
+                (PengBindedCell, PengBindedCell),
+                &mut PengEnv,
+            ) -> Result<PengBindedCell, PengError>
+            + 'static,
+    {
+        Self::Native(PengNativeOperation {
+            call: Rc::new(RefCell::new(f)),
+        })
     }
+
     pub fn equals(&self, rhs: &Self) -> bool {
         match (self, rhs) {
             (Self::Bytecode(left), Self::Bytecode(right)) => left.equals(right),
@@ -58,13 +67,16 @@ impl PengBytecodeOperation {
     }
 }
 
-
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct PengNativeOperation {
-    pub call: fn(
-        (PengBindedCell, PengBindedCell),
-        &mut PengEnv,
-    ) -> Result<PengBindedCell, PengError>,
+    pub call: Rc<
+        RefCell<
+            dyn FnMut(
+                (PengBindedCell, PengBindedCell),
+                &mut PengEnv,
+            ) -> Result<PengBindedCell, PengError>,
+        >,
+    >,
 }
 
 impl PengNativeOperation {
@@ -73,6 +85,12 @@ impl PengNativeOperation {
         args: (PengBindedCell, PengBindedCell),
         env: &mut PengEnv,
     ) -> Result<PengBindedCell, PengError> {
-        (self.call)(args, env)
+        (self.call.borrow_mut())(args, env)
+    }
+}
+
+impl std::fmt::Debug for PengNativeOperation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PengNativeOperation").finish()
     }
 }

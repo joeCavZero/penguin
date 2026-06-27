@@ -7,9 +7,9 @@ use crate::core::colour::*;
 use crate::core::error::*;
 use crate::core::frame::*;
 use crate::core::function::*;
-use crate::core::operation::*;
 use crate::core::garbage_collector::*;
 use crate::core::heap_value::*;
+use crate::core::operation::*;
 use crate::core::runtime::*;
 use crate::core::thread::*;
 use crate::core::utils::*;
@@ -141,7 +141,7 @@ impl PengEnv {
             for thread_ptr in threads {
                 let state = match self.get_thread(thread_ptr) {
                     Ok(v) => v.state.clone(),
-                    Err(e) => return Err(e),  
+                    Err(e) => return Err(e),
                 };
 
                 match state {
@@ -153,7 +153,7 @@ impl PengEnv {
                                 {
                                     let thread = match self.get_thread_mut(thread_ptr) {
                                         Ok(v) => v,
-                                        Err(e) => return Err(e),  
+                                        Err(e) => return Err(e),
                                     };
                                     thread.result = PengThreadResult::Returned(result.clone());
                                     thread.state = PengThreadState::Finished;
@@ -168,9 +168,9 @@ impl PengEnv {
 
                             Err(e) => {
                                 let thread = match self.get_thread_mut(thread_ptr) {
-                                        Ok(v) => v,
-                                        Err(e) => return Err(e),  
-                                    };
+                                    Ok(v) => v,
+                                    Err(e) => return Err(e),
+                                };
                                 thread.result = PengThreadResult::Failed(Box::new(e.clone()));
                                 thread.state = PengThreadState::Failed;
                             }
@@ -191,11 +191,10 @@ impl PengEnv {
         }
     }
 
-    pub fn register_native_function(
-        &mut self,
-        name: &str,
-        func: fn(Vec<PengBindedCell>, &mut PengEnv) -> Result<PengBindedCell, PengError>,
-    ) -> Result<(), PengError> {
+    pub fn register_native_function<F>(&mut self, name: &str, func: F) -> Result<(), PengError>
+    where
+        F: FnMut(Vec<PengBindedCell>, &mut PengEnv) -> Result<PengBindedCell, PengError> + 'static,
+    {
         let ptr = self.create_heap_value(PengHeapValue::Function(PengFunction::new_native(func)));
 
         let value = PengBindedCell::Immutable(PengCell::Reference(ptr));
@@ -203,18 +202,20 @@ impl PengEnv {
         self.set_global(name.to_string(), value)
     }
 
-    pub fn register_native_operation(
+    pub fn register_native_operation<F>(
         &mut self,
         name: &str,
-        op: fn((PengBindedCell, PengBindedCell), &mut PengEnv) -> Result<PengBindedCell, PengError>,
-    ) -> Result<(), PengError> {
+        op: F,
+    ) -> Result<(), PengError> 
+    where
+        F: FnMut((PengBindedCell,PengBindedCell), &mut PengEnv) -> Result<PengBindedCell, PengError> + 'static,
+    {
         let ptr = self.create_heap_value(PengHeapValue::Operation(PengOperation::new_native(op)));
 
         let value = PengBindedCell::Immutable(PengCell::Reference(ptr));
 
         self.set_global(name.to_string(), value)
     }
-
 
     fn next_name_ptr(&self) -> PengNamePoolPtr {
         self.name_pool

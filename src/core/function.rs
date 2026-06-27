@@ -1,9 +1,12 @@
-use crate::core::value::*;
-use crate::core::utils::*;
-use crate::core::instruction::*;
-use crate::core::env::*;
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use crate::core::cell::*;
+use crate::core::env::*;
 use crate::core::error::*;
+use crate::core::instruction::*;
+use crate::core::utils::*;
+use crate::core::value::*;
 
 #[derive(Debug, Clone)]
 pub enum PengFunction {
@@ -37,13 +40,15 @@ impl PengBytecodeFunctionParams {
 }
 
 impl PengFunction {
-    pub fn new_native(f: fn(Vec<PengBindedCell>,&mut PengEnv) -> Result<PengBindedCell, PengError>) -> Self{
-        Self::Native(
-            PengNativeFunction {
-                call: f
-            }
-        )
+    pub fn new_native<F>(f: F) -> Self
+    where
+        F: FnMut(Vec<PengBindedCell>, &mut PengEnv) -> Result<PengBindedCell, PengError> + 'static,
+    {
+        Self::Native(PengNativeFunction {
+            call: Rc::new(RefCell::new(f)),
+        })
     }
+
     pub fn equals(&self, rhs: &Self) -> bool {
         match (self, rhs) {
             (Self::Bytecode(left), Self::Bytecode(right)) => left.equals(right),
@@ -77,12 +82,11 @@ impl PengBytecodeFunction {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct PengNativeFunction {
-    pub call: fn(
-        Vec<PengBindedCell>,
-        &mut PengEnv,
-    ) -> Result<PengBindedCell, PengError>,
+    pub call: Rc<
+        RefCell<dyn FnMut(Vec<PengBindedCell>, &mut PengEnv) -> Result<PengBindedCell, PengError>>,
+    >,
 }
 
 impl PengNativeFunction {
@@ -91,6 +95,12 @@ impl PengNativeFunction {
         args: Vec<PengBindedCell>,
         env: &mut PengEnv,
     ) -> Result<PengBindedCell, PengError> {
-        (self.call)(args, env)
+        (self.call.borrow_mut())(args, env)
+    }
+}
+
+impl std::fmt::Debug for PengNativeFunction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PengNativeFunction").finish()
     }
 }
