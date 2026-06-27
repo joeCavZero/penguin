@@ -158,11 +158,6 @@ pub enum PengError {
         found: usize,
     },
 
-    TooFewArguments {
-        expected: usize,
-        found: usize,
-    },
-
     TooManyArguments {
         expected: usize,
         found: usize,

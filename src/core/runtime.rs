@@ -142,14 +142,17 @@ pub fn step_thread(
                     }
                 },
                 PengNativeCallable::Operation(ntv_oper) => {
-                    if args.len() != 2 {
-                        return Err(PengError::TooFewArguments {
-                            expected: 2,
-                            found: args.len(),
-                        });
-                    }
+                    let left = match args.get(0) {
+                        Some(arg) => arg.clone(),
+                        None => PengBinded::Mutable(PengCell::Nil),
+                    };
 
-                    match ntv_oper.call((args[0].clone(), args[1].clone()), env) {
+                    let right = match args.get(1) {
+                        Some(arg) => arg.clone(),
+                        None => PengBinded::Mutable(PengCell::Nil),
+                    };
+
+                    match ntv_oper.call((left, right), env) {
                         Ok(ret) => ret,
                         Err(e) => {
                             return Err(e.push(PengError::CannotCallValue(
@@ -398,12 +401,10 @@ pub fn execute_instruction(
             }
         },
 
-        PengInstruction::ReserveLocal(local) => {
-            match env.reserve_thread_local(thread, local) {
-                Ok(()) => {}
-                Err(e) => return Err(e.push(PengError::InvalidInstruction(instruction))),
-            }
-        }
+        PengInstruction::ReserveLocal(local) => match env.reserve_thread_local(thread, local) {
+            Ok(()) => {}
+            Err(e) => return Err(e.push(PengError::InvalidInstruction(instruction))),
+        },
 
         PengInstruction::StoreLocal(local) => {
             let stack_len = match env.get_thread_stack_len(thread) {
@@ -1028,186 +1029,14 @@ pub fn execute_instruction(
                 }
             }
         }
-
-        PengInstruction::FunctionCall(args_count) => match env.get_thread_stack_len(thread) {
-            Ok(stack_len) => {
-                if stack_len < args_count + 1 {
-                    return Err(PengError::TooFewArguments {
-                        expected: args_count + 1,
-                        found: stack_len,
-                    });
-                }
-
-                let function_index = stack_len - args_count - 1;
-
-                match env.get_thread_latest_binded_stated_cell(thread, args_count) {
-                    Ok(function_cell) => {
-                        let function_ptr = match function_cell.value() {
-                            PengCell::Reference(ptr) => *ptr,
-                            _ => return Err(PengError::ExpectedReference),
-                        };
-
-                        let function = match env.get_heap(function_ptr) {
-                            Some(PengValue::Box(PengBox::Function(function))) => function.clone(),
-                            Some(_) => return Err(PengError::ExpectedFunction),
-                            None => return Err(PengError::HeapValueNotFound(function_ptr)),
-                        };
-
-                        match function {
-                            PengFunction::Native(_) => {
-                                match env.pop_thread_stack_at(thread, args_count) {
-                                    Ok(_) => {
-                                        match env.push_thread_frame(
-                                            thread,
-                                            PengFrame::new(
-                                                function_ptr,
-                                                function_index,
-                                                args_count,
-                                            ),
-                                        ) {
-                                            Ok(()) => return Ok(None),
-                                            Err(e) => {
-                                                return Err(e.push(PengError::InvalidInstruction(
-                                                    instruction,
-                                                )));
-                                            }
-                                        }
-                                    }
-
-                                    Err(e) => {
-                                        return Err(
-                                            e.push(PengError::InvalidInstruction(instruction))
-                                        );
-                                    }
-                                }
-                            }
-
-                            PengFunction::Bytecode(func_btc) => match func_btc.params {
-                                PengBytecodeFunctionParams::Fixed(expected_count) => {
-                                    if args_count != expected_count {
-                                        return Err(PengError::TooFewArguments {
-                                            expected: expected_count,
-                                            found: args_count,
-                                        });
-                                    }
-
-                                    match env.pop_thread_stack_at(thread, args_count) {
-                                        Ok(_) => {
-                                            match env.push_thread_frame(
-                                                thread,
-                                                PengFrame::new(
-                                                    function_ptr,
-                                                    function_index,
-                                                    expected_count,
-                                                ),
-                                            ) {
-                                                Ok(()) => return Ok(None),
-                                                Err(e) => {
-                                                    return Err(e.push(
-                                                        PengError::InvalidInstruction(instruction),
-                                                    ));
-                                                }
-                                            }
-                                        }
-
-                                        Err(e) => {
-                                            return Err(
-                                                e.push(PengError::InvalidInstruction(instruction))
-                                            );
-                                        }
-                                    }
-                                }
-
-                                PengBytecodeFunctionParams::Variadic(fixed_count) => {
-                                    if args_count < fixed_count {
-                                        return Err(PengError::TooFewArguments {
-                                            expected: fixed_count,
-                                            found: args_count,
-                                        });
-                                    }
-
-                                    let args = match env
-                                        .get_thread_latest_n_binded_stated_cells_cloned(
-                                            thread, args_count,
-                                        ) {
-                                        Ok(args) => args,
-                                        Err(e) => {
-                                            return Err(
-                                                e.push(PengError::InvalidInstruction(instruction))
-                                            );
-                                        }
-                                    };
-
-                                    match env.pop_thread_stack_n_times(thread, args_count + 1) {
-                                        Ok(()) => {}
-                                        Err(e) => {
-                                            return Err(
-                                                e.push(PengError::InvalidInstruction(instruction))
-                                            );
-                                        }
-                                    }
-
-                                    for i in 0..fixed_count {
-                                        match env
-                                            .push_thread_binded_stated_cell(thread, args[i].clone())
-                                        {
-                                            Ok(()) => {}
-                                            Err(e) => {
-                                                return Err(e.push(PengError::InvalidInstruction(
-                                                    instruction,
-                                                )));
-                                            }
-                                        }
-                                    }
-
-                                    let rest = args[fixed_count..].to_vec();
-
-                                    let vector_ptr = env.create_heap_value(PengValue::Box(
-                                        PengBox::Vector(PengVector::new(rest)),
-                                    ));
-
-                                    match env.push_thread_binded_stated_cell(
-                                        thread,
-                                        PengBinded::Mutable(PengCell::Reference(vector_ptr)),
-                                    ) {
-                                        Ok(()) => {}
-                                        Err(e) => {
-                                            return Err(
-                                                e.push(PengError::InvalidInstruction(instruction))
-                                            );
-                                        }
-                                    }
-
-                                    match env.push_thread_frame(
-                                        thread,
-                                        PengFrame::new(
-                                            function_ptr,
-                                            function_index,
-                                            fixed_count + 1,
-                                        ),
-                                    ) {
-                                        Ok(()) => return Ok(None),
-                                        Err(e) => {
-                                            return Err(
-                                                e.push(PengError::InvalidInstruction(instruction))
-                                            );
-                                        }
-                                    }
-                                }
-                            },
-                        }
-                    }
-
-                    Err(e) => {
-                        return Err(e.push(PengError::InvalidInstruction(instruction)));
-                    }
+        PengInstruction::FunctionCall(args_count) => {
+            match env.execute_function_call(thread, args_count, false) {
+                Ok(()) => return Ok(None),
+                Err(e) => {
+                    return Err(e.push(PengError::InvalidInstruction(instruction)));
                 }
             }
-
-            Err(e) => {
-                return Err(e.push(PengError::InvalidInstruction(instruction)));
-            }
-        },
+        }
 
         PengInstruction::PushString(name_ptr) => {
             let heap_ptr = env.create_heap_value(PengValue::Box(PengBox::String(
@@ -2092,7 +1921,7 @@ pub fn execute_instruction(
         }
 
         PengInstruction::TryFunctionCall(args_count) => {
-            match env.execute_try_function_call(thread, args_count) {
+            match env.execute_function_call(thread, args_count, true) {
                 Ok(()) => return Ok(None),
                 Err(e) => {
                     return Err(e.push(PengError::InvalidInstruction(instruction)));
@@ -2677,10 +2506,7 @@ pub fn execute_instruction(
             match env.get_thread_stack_len(thread) {
                 Ok(stack_len) => {
                     if stack_len < fixed_args_count + 2 {
-                        return Err(PengError::TooFewArguments {
-                            expected: fixed_args_count + 2,
-                            found: stack_len,
-                        });
+                        return Err(PengError::InvalidInstruction(instruction));
                     }
 
                     let spread_cell =
@@ -2753,10 +2579,7 @@ pub fn execute_instruction(
             match env.get_thread_stack_len(thread) {
                 Ok(stack_len) => {
                     if stack_len < fixed_args_count + 2 {
-                        return Err(PengError::TooFewArguments {
-                            expected: fixed_args_count + 2,
-                            found: stack_len,
-                        });
+                        return Err(PengError::InvalidInstruction(instruction));
                     }
 
                     let spread_cell =
@@ -2805,7 +2628,7 @@ pub fn execute_instruction(
                         None => return Err(PengError::ArithmeticOverflow),
                     };
 
-                    match env.execute_try_function_call(thread, args_count) {
+                    match env.execute_function_call(thread, args_count, true) {
                         Ok(()) => return Ok(None),
                         Err(e) => {
                             return Err(e.push(PengError::InvalidInstruction(instruction)));

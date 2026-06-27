@@ -6,6 +6,7 @@ use crate::core::cell::*;
 use crate::core::colour::*;
 use crate::core::error::*;
 use crate::core::frame::*;
+use crate::core::function::*;
 use crate::core::garbage_collector::*;
 use crate::core::heap_value::*;
 use crate::core::runtime::*;
@@ -645,61 +646,172 @@ impl PengEnv {
         }
     }
 
-    pub fn execute_try_function_call(
+    fn push_call_frame(
+        &mut self,
+        thread: PengHeapPtr,
+        function_ptr: PengHeapPtr,
+        base: usize,
+        params_count: usize,
+        is_try: bool,
+    ) -> Result<(), PengError> {
+        let frame = if is_try {
+            PengFrame::new_try(function_ptr, base, params_count)
+        } else {
+            PengFrame::new(function_ptr, base, params_count)
+        };
+
+        self.push_thread_frame(thread, frame)
+    }
+
+    pub fn execute_function_call(
         &mut self,
         thread: PengHeapPtr,
         args_count: usize,
+        is_try: bool,
     ) -> Result<(), PengError> {
-        match self.get_thread_stack_len(thread) {
-            Ok(stack_len) => {
-                if stack_len < args_count + 1 {
-                    return Err(PengError::TooFewArguments {
-                        expected: args_count + 1,
-                        found: stack_len,
-                    });
-                }
+        let stack_len = match self.get_thread_stack_len(thread) {
+            Ok(v) => v,
+            Err(e) => return Err(e),
+        };
 
-                let function_index = stack_len - args_count - 1;
+        // Isso não é "argumento faltando" da linguagem.
+        // Isso é stack malformada: nem existe callee suficiente na stack.
+        if stack_len < args_count + 1 {
+            return Err(PengError::StackUnderflow);
+        }
 
-                match self.get_thread_latest_binded_stated_cell(thread, args_count) {
-                    Ok(function_cell) => {
-                        let function_ptr = match function_cell.value() {
-                            PengCell::Reference(ptr) => *ptr,
-                            _ => return Err(PengError::ExpectedReference),
+        let function_index = stack_len - args_count - 1;
+
+        let function_ptr = {
+            let function_cell = match self.get_thread_latest_binded_stated_cell(thread, args_count)
+            {
+                Ok(v) => v,
+                Err(e) => return Err(e),
+            };
+
+            match function_cell.value() {
+                PengCell::Reference(ptr) => *ptr,
+                _ => return Err(PengError::ExpectedReference),
+            }
+        };
+
+        let function = match self.get_heap(function_ptr) {
+            Some(PengValue::Box(PengBox::Function(function))) => function.clone(),
+            Some(_) => return Err(PengError::ExpectedFunction),
+            None => return Err(PengError::HeapValueNotFound(function_ptr)),
+        };
+
+        match function {
+            PengFunction::Native(_) => {
+                // Native ainda não tem metadado de quantidade esperada.
+                // Então mantém comportamento dinâmico: passa tudo que foi enviado.
+                match self.pop_thread_stack_at(thread, args_count) {
+                    Ok(_) => {}
+                    Err(e) => return Err(e),
+                };
+
+                match self.push_call_frame(thread, function_ptr, function_index, args_count, is_try)
+                {
+                    Ok(()) => {}
+                    Err(e) => return Err(e),
+                };
+
+                Ok(())
+            }
+
+            PengFunction::Bytecode(func_btc) => {
+                let args =
+                    match self.get_thread_latest_n_binded_stated_cells_cloned(thread, args_count) {
+                        Ok(v) => v,
+                        Err(e) => return Err(e),
+                    };
+
+                // Remove função + todos os argumentos reais.
+                match self.pop_thread_stack_n_times(thread, args_count + 1) {
+                    Ok(()) => {}
+                    Err(e) => return Err(e),
+                };
+
+                match func_btc.params {
+                    PengBytecodeFunctionParams::Fixed(expected_count) => {
+                        // Usa só os argumentos necessários.
+                        // Se faltar, completa com nil.
+                        for i in 0..expected_count {
+                            let arg = match args.get(i) {
+                                Some(arg) => arg.clone(),
+                                None => PengBinded::Mutable(PengCell::Nil),
+                            };
+
+                            match self.push_thread_binded_stated_cell(thread, arg) {
+                                Ok(()) => {}
+                                Err(e) => return Err(e),
+                            };
+                        }
+
+                        match self.push_call_frame(
+                            thread,
+                            function_ptr,
+                            function_index,
+                            expected_count,
+                            is_try,
+                        ) {
+                            Ok(()) => {}
+                            Err(e) => return Err(e),
                         };
 
-                        match self.pop_thread_stack_at(thread, args_count) {
-                            Ok(_) => {
-                                match self.push_thread_frame(
-                                    thread,
-                                    PengFrame::new_try(function_ptr, function_index, args_count),
-                                ) {
-                                    Ok(()) => Ok(()),
-                                    Err(e) => {
-                                        return Err(e.push(PengError::CannotCallValue(
-                                            "failed while preparing try function call".to_string(),
-                                        )));
-                                    }
-                                }
-                            }
-
-                            Err(e) => {
-                                return Err(e.push(PengError::CannotCallValue(
-                                    "failed while removing callee from stack".to_string(),
-                                )));
-                            }
-                        }
+                        Ok(())
                     }
 
-                    Err(e) => {
-                        return Err(e.push(PengError::CannotCallValue(
-                            "failed while reading try function callee".to_string(),
+                    PengBytecodeFunctionParams::Variadic(fixed_count) => {
+                        // Primeiro empilha os argumentos fixos.
+                        // Se faltar algum fixo, completa com nil.
+                        for i in 0..fixed_count {
+                            let arg = match args.get(i) {
+                                Some(arg) => arg.clone(),
+                                None => PengBinded::Mutable(PengCell::Nil),
+                            };
+
+                            match self.push_thread_binded_stated_cell(thread, arg) {
+                                Ok(()) => {}
+                                Err(e) => return Err(e),
+                            };
+                        }
+
+                        // O resto vira vetor.
+                        // Se não tiver resto, vira [].
+                        let rest = if args.len() > fixed_count {
+                            args[fixed_count..].to_vec()
+                        } else {
+                            Vec::new()
+                        };
+
+                        let vector_ptr = self.create_heap_value(PengValue::Box(PengBox::Vector(
+                            PengVector::new(rest),
                         )));
+
+                        match self.push_thread_binded_stated_cell(
+                            thread,
+                            PengBinded::Mutable(PengCell::Reference(vector_ptr)),
+                        ) {
+                            Ok(()) => {}
+                            Err(e) => return Err(e),
+                        };
+
+                        match self.push_call_frame(
+                            thread,
+                            function_ptr,
+                            function_index,
+                            fixed_count + 1,
+                            is_try,
+                        ) {
+                            Ok(()) => {}
+                            Err(e) => return Err(e),
+                        };
+
+                        Ok(())
                     }
                 }
             }
-
-            Err(e) => return Err(e.push(PengError::ThreadNotFound(thread))),
         }
     }
 
