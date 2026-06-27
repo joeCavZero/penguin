@@ -147,6 +147,8 @@ pub fn generate_method_call(
     context: &mut PengGeneratorContext,
     call: &PengMethodCallExpression,
 ) -> Result<(), PengError> {
+    let object_local = generate_reserved_temporary_local(env, context);
+
     match generate_expression(env, context, &call.object) {
         Ok(()) => {}
         Err(e) => {
@@ -155,15 +157,17 @@ pub fn generate_method_call(
             )));
         }
     };
-    let object_local = context.create_temporary_local();
+
     context
         .bytecode
         .push(PengInstruction::StoreLocal(object_local));
 
     let method = env.ensure_pooled_name_ptr(call.method.value.clone());
+
     context
         .bytecode
         .push(PengInstruction::PushLocal(object_local));
+
     context
         .bytecode
         .push(PengInstruction::GetAttribute(method));
@@ -271,6 +275,8 @@ pub fn generate_try_expression(
         }
 
         PengExpression::MethodCall(call) => {
+            let object_local = generate_reserved_temporary_local(env, context);
+
             match generate_expression(env, context, &call.object) {
                 Ok(()) => {}
                 Err(e) => {
@@ -279,8 +285,6 @@ pub fn generate_try_expression(
                     )));
                 }
             }
-
-            let object_local = context.create_temporary_local();
 
             context
                 .bytecode

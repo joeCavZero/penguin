@@ -153,6 +153,19 @@ impl PengGeneratorContext {
         local
     }
 
+    pub fn insert_local(&mut self, name: String, local: usize) {
+        match self.scopes.last_mut() {
+            Some(scope) => {
+                scope.insert(name, local);
+            }
+            None => {
+                let mut scope = HashMap::new();
+                scope.insert(name, local);
+                self.scopes.push(scope);
+            }
+        }
+    }
+
     pub fn push_scope(&mut self) {
         self.scopes.push(HashMap::new());
     }
@@ -437,6 +450,80 @@ pub fn generate_structured_local_type_declaration(
     Ok(())
 }
 
+pub fn generate_structured_global_type(
+    env: &mut PengEnv,
+    context: &mut PengGeneratorContext,
+    type_ptr: PengHeapPtr,
+    declaration: &PengPositionedTypeDeclaration,
+) -> Result<(), PengError> {
+    for super_type in &declaration.value.supers {
+        match generate_expression(env, context, super_type) {
+            Ok(()) => {}
+            Err(e) => {
+                return Err(e.push(PengError::InvalidState(
+                    "failed while generating structured global type super".to_string(),
+                )));
+            }
+        }
+    }
+
+    context
+        .bytecode
+        .push(PengInstruction::PushHeapRef(type_ptr));
+
+    context
+        .bytecode
+        .push(PengInstruction::CreateSuperType(declaration.value.supers.len()));
+
+    context.bytecode.push(PengInstruction::StoreHeap);
+
+    for field in &declaration.value.fields {
+        context.bytecode.push(PengInstruction::PushHeap(type_ptr));
+
+        let name = env.ensure_pooled_name_ptr(field.value.name.value.clone());
+
+        match &field.value.value {
+            Some(value) => {
+                match generate_expression(env, context, value) {
+                    Ok(()) => {}
+                    Err(e) => {
+                        return Err(e.push(PengError::InvalidState(
+                            "failed while generating structured global type field".to_string(),
+                        )));
+                    }
+                }
+            }
+
+            None => {
+                context.push_const_and_const_instruction(env, PengValue::Cell(PengCell::Nil));
+            }
+        }
+
+        context.bytecode.push(PengInstruction::SetAttribute(name));
+    }
+
+    for function in &declaration.value.functions {
+        context.bytecode.push(PengInstruction::PushHeap(type_ptr));
+
+        let name = env.ensure_pooled_name_ptr(function.value.name.value.clone());
+
+        let value = match generate_function_declaration_value(env, context, function) {
+            Ok(value) => value,
+            Err(e) => {
+                return Err(e.push(PengError::InvalidState(
+                    "failed while generating structured global type function".to_string(),
+                )));
+            }
+        };
+
+        context.push_const_and_const_instruction(env, PengValue::Box(value));
+
+        context.bytecode.push(PengInstruction::SetAttribute(name));
+    }
+
+    Ok(())
+}
+
 pub fn generate_assignment(
     env: &mut PengEnv,
 
@@ -644,6 +731,8 @@ pub fn generate_index_assignment(
         return Ok(());
     }
 
+    let object_local = generate_reserved_temporary_local(env, context);
+
     match generate_expression(env, context, &index.object) {
         Ok(()) => {}
         Err(e) => {
@@ -653,10 +742,11 @@ pub fn generate_index_assignment(
         }
     }
 
-    let object_local = context.create_temporary_local();
     context
         .bytecode
         .push(PengInstruction::StoreLocal(object_local));
+
+    let index_local = generate_reserved_temporary_local(env, context);
 
     match generate_expression(env, context, &index.index) {
         Ok(()) => {}
@@ -667,7 +757,6 @@ pub fn generate_index_assignment(
         }
     }
 
-    let index_local = context.create_temporary_local();
     context
         .bytecode
         .push(PengInstruction::StoreLocal(index_local));
@@ -739,6 +828,8 @@ pub fn generate_attribute_assignment(
         return Ok(());
     }
 
+    let object_local = generate_reserved_temporary_local(env, context);
+
     match generate_expression(env, context, &attribute.object) {
         Ok(()) => {}
         Err(e) => {
@@ -748,7 +839,6 @@ pub fn generate_attribute_assignment(
         }
     }
 
-    let object_local = context.create_temporary_local();
     context
         .bytecode
         .push(PengInstruction::StoreLocal(object_local));
@@ -841,6 +931,8 @@ pub fn generate_member_assignment(
         return Ok(());
     }
 
+    let object_local = generate_reserved_temporary_local(env, context);
+
     match generate_expression(env, context, &member.object) {
         Ok(()) => {}
         Err(e) => {
@@ -850,7 +942,6 @@ pub fn generate_member_assignment(
         }
     }
 
-    let object_local = context.create_temporary_local();
     context
         .bytecode
         .push(PengInstruction::StoreLocal(object_local));
@@ -1132,4 +1223,15 @@ pub fn generate_module_declaration_value(
     }
 
     Ok(())
+}
+
+pub fn generate_reserved_temporary_local(
+    _env: &mut PengEnv,
+    context: &mut PengGeneratorContext,
+) -> usize {
+    let local = context.create_temporary_local();
+
+    context.bytecode.push(PengInstruction::ReserveLocal(local));
+
+    local
 }

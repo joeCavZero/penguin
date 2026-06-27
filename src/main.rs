@@ -82,8 +82,8 @@ fn main() {
 
     if let PengValue::Box(b) = peng.get_heap_mut(unit.init().unwrap()).unwrap() {
         if let PengBox::Function(f) = b {
-            if let PengFunction::Bytecode(btc) = f {
-                println!("bytecode do init: \n {:#?}", btc.bytecode);
+            if let PengFunction::Bytecode(_btc) = f {
+                //println!("bytecode do init: \n {:#?}", btc.bytecode);
             }
         }
     }

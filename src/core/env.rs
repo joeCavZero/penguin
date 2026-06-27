@@ -548,6 +548,44 @@ impl PengEnv {
         }
     }
 
+    pub fn reserve_thread_local(
+        &mut self,
+        thread: PengHeapPtr,
+        local: usize,
+    ) -> Result<(), PengError> {
+        match self.get_heap_mut(thread) {
+            Some(PengValue::Box(PengBox::Thread(thread))) => {
+                let frame = match thread.frames.last_mut() {
+                    Some(frame) => frame,
+                    None => return Err(PengError::FrameNotFound),
+                };
+
+                if frame.reserved_locals.contains(&local) {
+                    return Ok(());
+                }
+
+                let index = match frame.base.checked_add(local) {
+                    Some(index) => index,
+                    None => return Err(PengError::InvalidFrame),
+                };
+
+                if index > thread.stack.len() {
+                    return Err(PengError::LocalNotFound(local));
+                }
+
+                thread
+                    .stack
+                    .insert(index, PengBinded::Mutable(PengCell::Nil));
+                frame.reserved_locals.push(local);
+
+                Ok(())
+            }
+
+            Some(_) => Err(PengError::ExpectedThread),
+            None => Err(PengError::ThreadNotFound(thread)),
+        }
+    }
+
     pub fn set_thread_program_counter(
         &mut self,
         thread: PengHeapPtr,

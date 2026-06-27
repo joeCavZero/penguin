@@ -1,7 +1,7 @@
 /target
 /.codex
 /.agents
-
+/tests
 /notes
 
 *.p

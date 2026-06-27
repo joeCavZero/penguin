@@ -6,6 +6,7 @@ pub enum PengInstruction {
     MakeImmutable,
 
     PushLocal(usize),   // ...| ---> ...|v| , v := *<usize>
+    ReserveLocal(usize),
     StoreLocal(usize),  // ...|v| ---> ...| , *<usize> := v
 
     PushHeap(PengHeapPtr), // ...| ---> ...|v| , v := *<PengValuePtr>
@@ -78,6 +79,7 @@ impl PengInstruction {
         match (self, rhs) {
             (Self::PushConst(left), Self::PushConst(right))
             | (Self::PushLocal(left), Self::PushLocal(right))
+            | (Self::ReserveLocal(left), Self::ReserveLocal(right))
             | (Self::StoreLocal(left), Self::StoreLocal(right))
             | (Self::CreateSuperType(left), Self::CreateSuperType(right))
             | (Self::CreateVector(left), Self::CreateVector(right))

@@ -8,6 +8,7 @@ pub struct PengFrame {
     pub procedure: PengHeapPtr,
     pub params_count: usize,
     pub is_try: bool,
+    pub reserved_locals: Vec<usize>,
 }
 
 impl PengFrame {
@@ -17,7 +18,8 @@ impl PengFrame {
             base,
             procedure,
             params_count,
-            is_try: false
+            is_try: false,
+            reserved_locals: Vec::new(),
         }
     }
     pub fn new_try(procedure: PengHeapPtr, base: usize, params_count: usize) -> Self {
@@ -26,7 +28,8 @@ impl PengFrame {
             base,
             procedure,
             params_count,
-            is_try: true
+            is_try: true,
+            reserved_locals: Vec::new(),
         }
     }
     pub fn equals(&self, rhs: &Self) -> bool {
@@ -34,5 +37,6 @@ impl PengFrame {
             && self.base == rhs.base
             && self.procedure == rhs.procedure
             && self.params_count == rhs.params_count
+            && self.reserved_locals == rhs.reserved_locals
     }
 }

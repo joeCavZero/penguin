@@ -204,6 +204,8 @@ pub fn generate_match_statement(
     context: &mut PengGeneratorContext,
     statement: &PengMatchStatement,
 ) -> Result<(), PengError> {
+    let matched_local = generate_reserved_temporary_local(env, context);
+
     match generate_expression(env, context, &statement.value) {
         Ok(()) => {}
         Err(e) => {
@@ -213,7 +215,6 @@ pub fn generate_match_statement(
         }
     }
 
-    let matched_local = context.create_temporary_local();
     context
         .bytecode
         .push(PengInstruction::StoreLocal(matched_local));
@@ -317,4 +318,3 @@ pub fn generate_binded_local_declaration(
         }
     }
 }
-
