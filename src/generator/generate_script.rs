@@ -19,10 +19,16 @@ pub fn generate_script_using(
         }
     }
 
+    let terminal_pos = match statements.last() {
+        Some(statement) => statement.position.clone(),
+        // An empty script has no source node to associate with its synthetic return.
+        None => PengPosition::new(0, 0, None),
+    };
     let script_function = create_anonymous_bytecode_function(
         env,
         context,
         PengBytecodeFunctionParams::Fixed(0),
+        terminal_pos,
     );
 
     Ok(PengUnit::empty(script_function))

@@ -35,8 +35,21 @@ pub fn generate_program_using(
 
     let globals = context.globals().clone();
 
-    let program_init =
-        create_anonymous_bytecode_function(env, context, PengBytecodeFunctionParams::Fixed(0));
+    let terminal_pos = match declarations.last() {
+        Some(declaration) => match declaration {
+            PengBinded::Mutable(declaration) | PengBinded::Immutable(declaration) => {
+                declaration_position(declaration)
+            }
+        },
+        // An empty program has no source node to associate with its synthetic return.
+        None => PengPosition::new(0, 0, None),
+    };
+    let program_init = create_anonymous_bytecode_function(
+        env,
+        context,
+        PengBytecodeFunctionParams::Fixed(0),
+        terminal_pos,
+    );
 
     Ok(PengUnit::new(program_init, globals))
 }
@@ -186,9 +199,10 @@ fn generate_global_variable(
         }
     };
 
-    context
-        .bytecode
-        .push(PengInstruction::PushHeapRef(value_ptr));
+    context.push_positioned_instruction(
+        PengInstruction::PushHeapRef(value_ptr),
+        declaration.position.clone(),
+    );
 
     match &declaration.value.value {
         Some(value) => match generate_expression(env, context, value) {
@@ -197,11 +211,15 @@ fn generate_global_variable(
         },
 
         None => {
-            context.push_const_and_const_instruction(env, PengValue::Cell(PengCell::Nil));
+            context.push_const_and_const_instruction(
+                env,
+                PengValue::Cell(PengCell::Nil),
+                declaration.position.clone(),
+            );
         }
     }
 
-    context.bytecode.push(PengInstruction::StoreHeap);
+    context.push_positioned_instruction(PengInstruction::StoreHeap, declaration.position.clone());
 
     Ok(())
 }
@@ -231,11 +249,16 @@ fn generate_global_operation(
         }
     };
 
-    context
-        .bytecode
-        .push(PengInstruction::PushHeapRef(value_ptr));
-    context.push_const_and_const_instruction(env, PengValue::Box(value));
-    context.bytecode.push(PengInstruction::StoreHeap);
+    context.push_positioned_instruction(
+        PengInstruction::PushHeapRef(value_ptr),
+        declaration.position.clone(),
+    );
+    context.push_const_and_const_instruction(
+        env,
+        PengValue::Box(value),
+        declaration.position.clone(),
+    );
+    context.push_positioned_instruction(PengInstruction::StoreHeap, declaration.position.clone());
 
     Ok(())
 }
@@ -265,11 +288,16 @@ fn generate_global_function(
         }
     };
 
-    context
-        .bytecode
-        .push(PengInstruction::PushHeapRef(value_ptr));
-    context.push_const_and_const_instruction(env, PengValue::Box(value));
-    context.bytecode.push(PengInstruction::StoreHeap);
+    context.push_positioned_instruction(
+        PengInstruction::PushHeapRef(value_ptr),
+        declaration.position.clone(),
+    );
+    context.push_const_and_const_instruction(
+        env,
+        PengValue::Box(value),
+        declaration.position.clone(),
+    );
+    context.push_positioned_instruction(PengInstruction::StoreHeap, declaration.position.clone());
 
     Ok(())
 }
@@ -289,11 +317,15 @@ fn generate_global_module(
         }
     };
 
-    context
-        .bytecode
-        .push(PengInstruction::PushHeapRef(module_ptr));
-    context.bytecode.push(PengInstruction::CreateEmptyModule);
-    context.bytecode.push(PengInstruction::StoreHeap);
+    context.push_positioned_instruction(
+        PengInstruction::PushHeapRef(module_ptr),
+        declaration.position.clone(),
+    );
+    context.push_positioned_instruction(
+        PengInstruction::CreateEmptyModule,
+        declaration.position.clone(),
+    );
+    context.push_positioned_instruction(PengInstruction::StoreHeap, declaration.position.clone());
 
     match generate_module_members_into_existing_module(
         env,
@@ -337,18 +369,17 @@ fn generate_module_members_into_existing_module_scope(
     body: &Vec<PengBindedDeclaration>,
 ) -> Result<(), PengError> {
     for binded_declaration in body {
-        let local = generate_reserved_temporary_local(env, context);
         let (declaration, immutable) = match binded_declaration {
             PengBinded::Mutable(declaration) => (declaration, false),
             PengBinded::Immutable(declaration) => (declaration, true),
         };
+        let pos = declaration_position(declaration);
+        let local = generate_reserved_temporary_local(env, context, pos.clone());
 
         let name = declaration_name(binded_declaration);
         let name_ptr = env.ensure_pooled_name_ptr(name.clone());
 
-        context
-            .bytecode
-            .push(PengInstruction::PushHeapRef(module_ptr));
+        context.push_positioned_instruction(PengInstruction::PushHeapRef(module_ptr), pos.clone());
 
         match declaration {
             PengDeclaration::Var(declaration) => match &declaration.value.value {
@@ -357,7 +388,11 @@ fn generate_module_members_into_existing_module_scope(
                     Err(e) => return Err(e),
                 },
                 None => {
-                    context.push_const_and_const_instruction(env, PengValue::Cell(PengCell::Nil));
+                    context.push_const_and_const_instruction(
+                        env,
+                        PengValue::Cell(PengCell::Nil),
+                        pos.clone(),
+                    );
                 }
             },
 
@@ -374,7 +409,7 @@ fn generate_module_members_into_existing_module_scope(
                     Err(e) => return Err(e),
                 };
 
-                context.push_const_and_const_instruction(env, PengValue::Box(value));
+                context.push_const_and_const_instruction(env, PengValue::Box(value), pos.clone());
             }
 
             PengDeclaration::Operation(declaration) => {
@@ -383,7 +418,7 @@ fn generate_module_members_into_existing_module_scope(
                     Err(e) => return Err(e),
                 };
 
-                context.push_const_and_const_instruction(env, PengValue::Box(value));
+                context.push_const_and_const_instruction(env, PengValue::Box(value), pos.clone());
             }
 
             PengDeclaration::Type(declaration) => match &declaration.value.value {
@@ -398,7 +433,7 @@ fn generate_module_members_into_existing_module_scope(
                         functions: declaration.value.functions.clone(),
                     };
 
-                    match generate_type_literal(env, context, &literal) {
+                    match generate_type_literal(env, context, &literal, pos.clone()) {
                         Ok(()) => {}
                         Err(e) => return Err(e),
                     }
@@ -413,10 +448,10 @@ fn generate_module_members_into_existing_module_scope(
             }
         }
 
-        generate_make_immutable_if_needed(context, immutable);
-        context.bytecode.push(PengInstruction::Duplicate);
-        context.bytecode.push(PengInstruction::StoreLocal(local));
-        context.bytecode.push(PengInstruction::SetMember(name_ptr));
+        generate_make_immutable_if_needed(context, immutable, pos.clone());
+        context.push_positioned_instruction(PengInstruction::Duplicate, pos.clone());
+        context.push_positioned_instruction(PengInstruction::StoreLocal(local), pos.clone());
+        context.push_positioned_instruction(PengInstruction::SetMember(name_ptr), pos);
         context.insert_local(name, local);
     }
 
@@ -440,9 +475,10 @@ fn generate_global_type(
 
     match &declaration.value.value {
         Some(value) => {
-            context
-                .bytecode
-                .push(PengInstruction::PushHeapRef(value_ptr));
+            context.push_positioned_instruction(
+                PengInstruction::PushHeapRef(value_ptr),
+                declaration.position.clone(),
+            );
 
             match generate_type_expression(env, context, value) {
                 Ok(()) => {}
@@ -453,19 +489,20 @@ fn generate_global_type(
                 }
             }
 
-            context.bytecode.push(PengInstruction::StoreHeap);
+            context.push_positioned_instruction(
+                PengInstruction::StoreHeap,
+                declaration.position.clone(),
+            );
         }
 
-        None => {
-            match generate_structured_global_type(env, context, value_ptr, declaration) {
-                Ok(()) => {}
-                Err(e) => {
-                    return Err(e.push(PengError::InvalidState(
-                        "failed while generating structured global type".to_string(),
-                    )));
-                }
+        None => match generate_structured_global_type(env, context, value_ptr, declaration) {
+            Ok(()) => {}
+            Err(e) => {
+                return Err(e.push(PengError::InvalidState(
+                    "failed while generating structured global type".to_string(),
+                )));
             }
-        }
+        },
     }
 
     Ok(())
@@ -486,9 +523,10 @@ fn generate_global_as(
         }
     };
 
-    context
-        .bytecode
-        .push(PengInstruction::PushHeapRef(value_ptr));
+    context.push_positioned_instruction(
+        PengInstruction::PushHeapRef(value_ptr),
+        declaration.position.clone(),
+    );
 
     match generate_expression(env, context, &declaration.value.value) {
         Ok(()) => {}
@@ -499,7 +537,7 @@ fn generate_global_as(
         }
     }
 
-    context.bytecode.push(PengInstruction::StoreHeap);
+    context.push_positioned_instruction(PengInstruction::StoreHeap, declaration.position.clone());
 
     Ok(())
 }

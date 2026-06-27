@@ -7,6 +7,7 @@ pub fn generate_while_statement(
 
     context: &mut PengGeneratorContext,
     statement: &PengWhileStatement,
+    pos: PengPosition,
 ) -> Result<(), PengError> {
     let condition_start = context.bytecode.len();
 
@@ -19,7 +20,7 @@ pub fn generate_while_statement(
         }
     }
 
-    let end_jump = context.emit_jump_if_false();
+    let end_jump = context.emit_jump_if_false(pos.clone());
     context.push_loop(Some(condition_start));
 
     let body_result = generate_scoped_statements(env, context, &statement.body);
@@ -34,9 +35,7 @@ pub fn generate_while_statement(
         }
     }
 
-    context
-        .bytecode
-        .push(PengInstruction::Jump(condition_start));
+    context.push_positioned_instruction(PengInstruction::Jump(condition_start), pos);
 
     let end = context.bytecode.len();
     context.patch_jump(end_jump, end);
@@ -61,6 +60,7 @@ pub fn generate_loop_statement(
 
     context: &mut PengGeneratorContext,
     body: &Vec<PengPositionedStatement>,
+    pos: PengPosition,
 ) -> Result<(), PengError> {
     let loop_start = context.bytecode.len();
     context.push_loop(Some(loop_start));
@@ -77,7 +77,7 @@ pub fn generate_loop_statement(
         }
     }
 
-    context.bytecode.push(PengInstruction::Jump(loop_start));
+    context.push_positioned_instruction(PengInstruction::Jump(loop_start), pos);
 
     let end = context.bytecode.len();
     let loop_context = match context.pop_loop() {
@@ -98,6 +98,7 @@ pub fn generate_for_statement(
 
     context: &mut PengGeneratorContext,
     statement: &PengForStatement,
+    pos: PengPosition,
 ) -> Result<(), PengError> {
     context.push_scope();
 
@@ -127,7 +128,7 @@ pub fn generate_for_statement(
                 }
             }
 
-            Some(context.emit_jump_if_false())
+            Some(context.emit_jump_if_false(pos.clone()))
         }
         None => None,
     };
@@ -163,9 +164,7 @@ pub fn generate_for_statement(
         None => {}
     }
 
-    context
-        .bytecode
-        .push(PengInstruction::Jump(condition_start));
+    context.push_positioned_instruction(PengInstruction::Jump(condition_start), pos);
 
     let end = context.bytecode.len();
 

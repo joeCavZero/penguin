@@ -1,4 +1,3 @@
-
 use crate::core::*;
 use crate::generator::*;
 use crate::parser::*;
@@ -10,9 +9,7 @@ pub fn generate_expression(
 ) -> Result<(), PengError> {
     match &expression.value {
         PengExpression::Literal(literal) => generate_literal(env, context, literal),
-        PengExpression::Identifier(identifier) => {
-            generate_identifier(env, context, identifier)
-        }
+        PengExpression::Identifier(identifier) => generate_identifier(env, context, identifier),
         PengExpression::Unary { operator, value } => {
             match generate_expression(env, context, value) {
                 Ok(()) => {}
@@ -25,10 +22,16 @@ pub fn generate_expression(
 
             match operator {
                 PengUnaryOperator::Negate => {
-                    context.bytecode.push(PengInstruction::Negate);
+                    context.push_positioned_instruction(
+                        PengInstruction::Negate,
+                        expression.position.clone(),
+                    );
                 }
                 PengUnaryOperator::Not => {
-                    context.bytecode.push(PengInstruction::Not);
+                    context.push_positioned_instruction(
+                        PengInstruction::Not,
+                        expression.position.clone(),
+                    );
                 }
             }
 
@@ -50,18 +53,27 @@ pub fn generate_expression(
 
             match operator {
                 PengBinaryOperator::ShortCircuitAnd | PengBinaryOperator::ShortCircuitOr => {
-                    context.bytecode.push(PengInstruction::Duplicate);
+                    context.push_positioned_instruction(
+                        PengInstruction::Duplicate,
+                        expression.position.clone(),
+                    );
                     let jump_index = context.bytecode.len();
-                    context.bytecode.push(match operator {
-                        PengBinaryOperator::ShortCircuitAnd => {
-                            PengInstruction::JumpIfFalse(usize::MAX)
-                        }
-                        PengBinaryOperator::ShortCircuitOr => {
-                            PengInstruction::JumpIfTrue(usize::MAX)
-                        }
-                        _ => unreachable!(),
-                    });
-                    context.bytecode.push(PengInstruction::Pop);
+                    context.push_positioned_instruction(
+                        match operator {
+                            PengBinaryOperator::ShortCircuitAnd => {
+                                PengInstruction::JumpIfFalse(usize::MAX)
+                            }
+                            PengBinaryOperator::ShortCircuitOr => {
+                                PengInstruction::JumpIfTrue(usize::MAX)
+                            }
+                            _ => unreachable!(),
+                        },
+                        expression.position.clone(),
+                    );
+                    context.push_positioned_instruction(
+                        PengInstruction::Pop,
+                        expression.position.clone(),
+                    );
 
                     match generate_expression(env, context, right) {
                         Ok(()) => {}
@@ -73,11 +85,7 @@ pub fn generate_expression(
                     };
 
                     let target = context.bytecode.len();
-                    context.bytecode[jump_index] = match operator {
-                        PengBinaryOperator::ShortCircuitAnd => PengInstruction::JumpIfFalse(target),
-                        PengBinaryOperator::ShortCircuitOr => PengInstruction::JumpIfTrue(target),
-                        _ => unreachable!(),
-                    };
+                    context.patch_jump(jump_index, target);
                 }
                 _ => {
                     match generate_expression(env, context, right) {
@@ -88,7 +96,7 @@ pub fn generate_expression(
                             )));
                         }
                     };
-                    generate_binary_operator(context, operator);
+                    generate_binary_operator(context, operator, expression.position.clone());
                 }
             }
 
@@ -97,8 +105,12 @@ pub fn generate_expression(
         PengExpression::Type(type_expression) => {
             generate_type_expression(env, context, type_expression)
         }
-        PengExpression::FuncCall(call) => generate_function_call(env, context, call),
-        PengExpression::MethodCall(call) => generate_method_call(env, context, call),
+        PengExpression::FuncCall(call) => {
+            generate_function_call(env, context, call, expression.position.clone())
+        }
+        PengExpression::MethodCall(call) => {
+            generate_method_call(env, context, call, expression.position.clone())
+        }
         PengExpression::AttributeAccess(attribute) => {
             match generate_expression(env, context, &attribute.object) {
                 Ok(()) => {}
@@ -109,9 +121,10 @@ pub fn generate_expression(
                 }
             };
             let name = env.ensure_pooled_name_ptr(attribute.name.value.clone());
-            context
-                .bytecode
-                .push(PengInstruction::GetAttribute(name));
+            context.push_positioned_instruction(
+                PengInstruction::GetAttribute(name),
+                expression.position.clone(),
+            );
             Ok(())
         }
         PengExpression::MemberAccess(member) => {
@@ -124,21 +137,37 @@ pub fn generate_expression(
                 }
             };
             let name = env.ensure_pooled_name_ptr(member.name.value.clone());
-            context.bytecode.push(PengInstruction::GetMember(name));
+            context.push_positioned_instruction(
+                PengInstruction::GetMember(name),
+                expression.position.clone(),
+            );
             Ok(())
         }
-        PengExpression::Index(index) => generate_index_expression(env, context, index),
+        PengExpression::Index(index) => {
+            generate_index_expression(env, context, index, expression.position.clone())
+        }
         PengExpression::ObjectConstruction(construction) => {
-            generate_object_construction(env, context, construction)
+            generate_object_construction(env, context, construction, expression.position.clone())
         }
         PengExpression::OperationCall {
             left,
             operation,
             right,
-        } => generate_operation_call(env, context, left, operation, right),
-        PengExpression::Try { value, elsing } => {
-            generate_try_expression(env, context, value, elsing.as_deref())
-        }
+        } => generate_operation_call(
+            env,
+            context,
+            left,
+            operation,
+            right,
+            expression.position.clone(),
+        ),
+        PengExpression::Try { value, elsing } => generate_try_expression(
+            env,
+            context,
+            value,
+            elsing.as_deref(),
+            expression.position.clone(),
+        ),
     }
 }
 
@@ -146,8 +175,9 @@ pub fn generate_method_call(
     env: &mut PengEnv,
     context: &mut PengGeneratorContext,
     call: &PengMethodCallExpression,
+    pos: PengPosition,
 ) -> Result<(), PengError> {
-    let object_local = generate_reserved_temporary_local(env, context);
+    let object_local = generate_reserved_temporary_local(env, context, pos.clone());
 
     match generate_expression(env, context, &call.object) {
         Ok(()) => {}
@@ -158,23 +188,13 @@ pub fn generate_method_call(
         }
     };
 
-    context
-        .bytecode
-        .push(PengInstruction::StoreLocal(object_local));
+    context.push_positioned_instruction(PengInstruction::StoreLocal(object_local), pos.clone());
 
     let method = env.ensure_pooled_name_ptr(call.method.value.clone());
 
-    context
-        .bytecode
-        .push(PengInstruction::PushLocal(object_local));
-
-    context
-        .bytecode
-        .push(PengInstruction::GetAttribute(method));
-
-    context
-        .bytecode
-        .push(PengInstruction::PushLocal(object_local));
+    context.push_positioned_instruction(PengInstruction::PushLocal(object_local), pos.clone());
+    context.push_positioned_instruction(PengInstruction::GetAttribute(method), pos.clone());
+    context.push_positioned_instruction(PengInstruction::PushLocal(object_local), pos.clone());
 
     for arg in &call.args {
         match generate_expression(env, context, &arg.value.expression) {
@@ -187,9 +207,7 @@ pub fn generate_method_call(
         }
     }
 
-    context
-        .bytecode
-        .push(PengInstruction::FunctionCall(call.args.len() + 1));
+    context.push_positioned_instruction(PengInstruction::FunctionCall(call.args.len() + 1), pos);
 
     Ok(())
 }
@@ -198,6 +216,7 @@ pub fn generate_object_construction(
     env: &mut PengEnv,
     context: &mut PengGeneratorContext,
     construction: &PengObjectConstructionExpression,
+    pos: PengPosition,
 ) -> Result<(), PengError> {
     match generate_expression(env, context, &construction.object_type) {
         Ok(()) => {}
@@ -208,10 +227,11 @@ pub fn generate_object_construction(
         }
     }
 
-    context.bytecode.push(PengInstruction::CreateTypedObject);
+    context.push_positioned_instruction(PengInstruction::CreateTypedObject, pos.clone());
 
     for field in &construction.fields {
-        context.bytecode.push(PengInstruction::Duplicate);
+        context
+            .push_positioned_instruction(PengInstruction::Duplicate, field.name.position.clone());
 
         let name = env.ensure_pooled_name_ptr(field.name.value.clone());
 
@@ -224,9 +244,10 @@ pub fn generate_object_construction(
             }
         }
 
-        context
-            .bytecode
-            .push(PengInstruction::SetAttribute(name));
+        context.push_positioned_instruction(
+            PengInstruction::SetAttribute(name),
+            field.name.position.clone(),
+        );
     }
 
     Ok(())
@@ -237,6 +258,7 @@ pub fn generate_try_expression(
     context: &mut PengGeneratorContext,
     value: &PengPositionedExpression,
     elsing: Option<&PengPositionedExpression>,
+    pos: PengPosition,
 ) -> Result<(), PengError> {
     match &value.value {
         PengExpression::FuncCall(call) => {
@@ -249,33 +271,34 @@ pub fn generate_try_expression(
                 }
             }
 
-            let variadic_index =
-                match generate_function_call_args(env, context, &call.args) {
-                    Ok(value) => value,
-                    Err(e) => {
-                        return Err(e.push(PengError::InvalidState(
-                            "failed while generating try function call args".to_string(),
-                        )));
-                    }
-                };
+            let variadic_index = match generate_function_call_args(env, context, &call.args) {
+                Ok(value) => value,
+                Err(e) => {
+                    return Err(e.push(PengError::InvalidState(
+                        "failed while generating try function call args".to_string(),
+                    )));
+                }
+            };
 
             match variadic_index {
                 Some(index) => {
-                    context
-                        .bytecode
-                        .push(PengInstruction::TryFunctionCallSpread(index));
+                    context.push_positioned_instruction(
+                        PengInstruction::TryFunctionCallSpread(index),
+                        pos.clone(),
+                    );
                 }
 
                 None => {
-                    context
-                        .bytecode
-                        .push(PengInstruction::TryFunctionCall(call.args.len()));
+                    context.push_positioned_instruction(
+                        PengInstruction::TryFunctionCall(call.args.len()),
+                        pos.clone(),
+                    );
                 }
             }
         }
 
         PengExpression::MethodCall(call) => {
-            let object_local = generate_reserved_temporary_local(env, context);
+            let object_local = generate_reserved_temporary_local(env, context, pos.clone());
 
             match generate_expression(env, context, &call.object) {
                 Ok(()) => {}
@@ -286,45 +309,41 @@ pub fn generate_try_expression(
                 }
             }
 
-            context
-                .bytecode
-                .push(PengInstruction::StoreLocal(object_local));
+            context.push_positioned_instruction(
+                PengInstruction::StoreLocal(object_local),
+                pos.clone(),
+            );
 
             let method = env.ensure_pooled_name_ptr(call.method.value.clone());
 
             context
-                .bytecode
-                .push(PengInstruction::PushLocal(object_local));
-
+                .push_positioned_instruction(PengInstruction::PushLocal(object_local), pos.clone());
+            context.push_positioned_instruction(PengInstruction::GetAttribute(method), pos.clone());
             context
-                .bytecode
-                .push(PengInstruction::GetAttribute(method));
+                .push_positioned_instruction(PengInstruction::PushLocal(object_local), pos.clone());
 
-            context
-                .bytecode
-                .push(PengInstruction::PushLocal(object_local));
-
-            let variadic_index =
-                match generate_function_call_args(env, context, &call.args) {
-                    Ok(value) => value,
-                    Err(e) => {
-                        return Err(e.push(PengError::InvalidState(
-                            "failed while generating try method call args".to_string(),
-                        )));
-                    }
-                };
+            let variadic_index = match generate_function_call_args(env, context, &call.args) {
+                Ok(value) => value,
+                Err(e) => {
+                    return Err(e.push(PengError::InvalidState(
+                        "failed while generating try method call args".to_string(),
+                    )));
+                }
+            };
 
             match variadic_index {
                 Some(index) => {
-                    context
-                        .bytecode
-                        .push(PengInstruction::TryFunctionCallSpread(index + 1));
+                    context.push_positioned_instruction(
+                        PengInstruction::TryFunctionCallSpread(index + 1),
+                        pos.clone(),
+                    );
                 }
 
                 None => {
-                    context
-                        .bytecode
-                        .push(PengInstruction::TryFunctionCall(call.args.len() + 1));
+                    context.push_positioned_instruction(
+                        PengInstruction::TryFunctionCall(call.args.len() + 1),
+                        pos.clone(),
+                    );
                 }
             }
         }
@@ -361,7 +380,7 @@ pub fn generate_try_expression(
                 }
             }
 
-            context.bytecode.push(PengInstruction::TryOperationCall);
+            context.push_positioned_instruction(PengInstruction::TryOperationCall, pos.clone());
         }
 
         _ => {
@@ -374,11 +393,8 @@ pub fn generate_try_expression(
 
     let success_jump = context.bytecode.len();
 
-    context
-        .bytecode
-        .push(PengInstruction::JumpIfTrue(usize::MAX));
-
-    context.bytecode.push(PengInstruction::Pop);
+    context.push_positioned_instruction(PengInstruction::JumpIfTrue(usize::MAX), pos.clone());
+    context.push_positioned_instruction(PengInstruction::Pop, pos.clone());
 
     match elsing {
         Some(elsing) => match generate_expression(env, context, elsing) {
@@ -391,12 +407,12 @@ pub fn generate_try_expression(
         },
 
         None => {
-            context.push_const_and_const_instruction(env, PengValue::Cell(PengCell::Nil));
+            context.push_const_and_const_instruction(env, PengValue::Cell(PengCell::Nil), pos);
         }
     }
 
     let end = context.bytecode.len();
-    context.bytecode[success_jump] = PengInstruction::JumpIfTrue(end);
+    context.patch_jump(success_jump, end);
 
     Ok(())
 }
@@ -405,6 +421,7 @@ pub fn generate_index_expression(
     env: &mut PengEnv,
     context: &mut PengGeneratorContext,
     index: &PengIndexExpression,
+    pos: PengPosition,
 ) -> Result<(), PengError> {
     match generate_expression(env, context, &index.object) {
         Ok(()) => {}
@@ -424,7 +441,7 @@ pub fn generate_index_expression(
         }
     }
 
-    context.bytecode.push(PengInstruction::GetIndex);
+    context.push_positioned_instruction(PengInstruction::GetIndex, pos);
     Ok(())
 }
 
@@ -446,16 +463,15 @@ pub fn generate_type_expression(
                 }
             }
 
-            context
-                .bytecode
-                .push(PengInstruction::CreateUnion(types.len()));
+            context.push_positioned_instruction(
+                PengInstruction::CreateUnion(types.len()),
+                type_expression.position.clone(),
+            );
 
             Ok(())
         }
 
-        PengTypeExpression::Custom(expression) => {
-            generate_expression(env, context, expression)
-        }
+        PengTypeExpression::Custom(expression) => generate_expression(env, context, expression),
 
         PengTypeExpression::Vector(inner) => {
             let inner_type = match static_type_from_expression(inner) {
@@ -468,15 +484,17 @@ pub fn generate_type_expression(
                 }
             };
 
-            context.push_const_and_const_instruction(env, PengValue::Box(PengBox::Type(
-                PengType::Vector(Box::new(inner_type)),
-            )));
+            context.push_const_and_const_instruction(
+                env,
+                PengValue::Box(PengBox::Type(PengType::Vector(Box::new(inner_type)))),
+                type_expression.position.clone(),
+            );
 
             Ok(())
         }
 
         PengTypeExpression::TypeLiteral(literal) => {
-            generate_type_literal(env, context, literal)
+            generate_type_literal(env, context, literal, type_expression.position.clone())
         }
 
         _ => {
@@ -490,7 +508,11 @@ pub fn generate_type_expression(
                 }
             };
 
-            context.push_const_and_const_instruction(env, PengValue::Box(PengBox::Type(typ)));
+            context.push_const_and_const_instruction(
+                env,
+                PengValue::Box(PengBox::Type(typ)),
+                type_expression.position.clone(),
+            );
 
             Ok(())
         }

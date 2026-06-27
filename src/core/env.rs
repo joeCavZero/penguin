@@ -58,18 +58,23 @@ impl PengEnv {
         &self.active_threads
     }
 
-    pub fn load_script_from_file(&mut self, path: &str) -> Result<PengUnit, PengError> {
+    pub fn load_script_from_file(
+        &mut self,
+        path: &str,
+        position_id: usize,
+    ) -> Result<PengUnit, PengError> {
         let using_unit = PengUnit::library();
 
-        self.load_script_from_file_using(path, &using_unit)
+        self.load_script_from_file_using(path, &using_unit, position_id)
     }
 
     pub fn load_script_from_file_using(
         &mut self,
         path: &str,
         using_unit: &PengUnit,
+        position_id: usize,
     ) -> Result<PengUnit, PengError> {
-        let tokens = match lex_file(path.to_string()) {
+        let tokens = match lex_file(path.to_string(), position_id) {
             Ok(v) => v,
             Err(e) => return Err(e),
         };
@@ -85,18 +90,23 @@ impl PengEnv {
         Ok(unit)
     }
 
-    pub fn load_script_from_source(&mut self, source: &str) -> Result<PengUnit, PengError> {
+    pub fn load_script_from_source(
+        &mut self,
+        position_id: usize,
+        source: &str,
+    ) -> Result<PengUnit, PengError> {
         let using_unit = PengUnit::library();
 
-        self.load_script_from_source_using(source, &using_unit)
+        self.load_script_from_source_using(source, &using_unit, position_id)
     }
 
     pub fn load_script_from_source_using(
         &mut self,
         source: &str,
         using_unit: &PengUnit,
+        position_id: usize,
     ) -> Result<PengUnit, PengError> {
-        let tokens = match lex_source(source.to_string()) {
+        let tokens = match lex_source(source.to_string(), position_id) {
             Ok(v) => v,
             Err(e) => return Err(e),
         };
@@ -112,18 +122,23 @@ impl PengEnv {
         Ok(unit)
     }
 
-    pub fn load_program_from_file(&mut self, path: &str) -> Result<PengUnit, PengError> {
+    pub fn load_program_from_file(
+        &mut self,
+        path: &str,
+        position_id: usize,
+    ) -> Result<PengUnit, PengError> {
         let using_unit = PengUnit::library();
 
-        self.load_program_from_file_using(path, &using_unit)
+        self.load_program_from_file_using(path, &using_unit, position_id)
     }
 
     pub fn load_program_from_file_using(
         &mut self,
         path: &str,
         using_unit: &PengUnit,
+        position_id: usize,
     ) -> Result<PengUnit, PengError> {
-        let tokens = match lex_file(path.to_string()) {
+        let tokens = match lex_file(path.to_string(), position_id) {
             Ok(v) => v,
             Err(e) => return Err(e),
         };
@@ -139,18 +154,23 @@ impl PengEnv {
         Ok(unit)
     }
 
-    pub fn load_program_from_source(&mut self, source: &str) -> Result<PengUnit, PengError> {
+    pub fn load_program_from_source(
+        &mut self,
+        source: &str,
+        position_id: usize,
+    ) -> Result<PengUnit, PengError> {
         let using_unit = PengUnit::library();
 
-        self.load_program_from_source_using(source, &using_unit)
+        self.load_program_from_source_using(source, &using_unit, position_id)
     }
 
     pub fn load_program_from_source_using(
         &mut self,
         source: &str,
         using_unit: &PengUnit,
+        position_id: usize,
     ) -> Result<PengUnit, PengError> {
-        let tokens = match lex_source(source.to_string()) {
+        let tokens = match lex_source(source.to_string(), position_id) {
             Ok(v) => v,
             Err(e) => return Err(e),
         };

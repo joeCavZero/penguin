@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use crate::core::position::*;
 use crate::core::cell::*;
 use crate::core::env::*;
 use crate::core::error::*;
@@ -17,6 +18,7 @@ pub enum PengFunction {
 #[derive(Debug, Clone)]
 pub struct PengBytecodeFunction {
     pub bytecode: Vec<PengInstruction>,
+    pub positions: Vec<PengPosition>,
     pub consts: Vec<PengValue>,
     pub using_values: Vec<PengHeapPtr>,
 

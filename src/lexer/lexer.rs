@@ -7,87 +7,53 @@ pub enum LexerCallbackResponse {
     String(String),
 }
 
-pub fn lex_file(
-    file_path: String,
-) -> Result<Vec<PengPositionedToken>, PengError> {
-
+pub fn lex_file(file_path: String, id: usize) -> Result<Vec<PengPositionedToken>, PengError> {
     let source = match std::fs::read_to_string(file_path) {
         Ok(src) => src,
-        Err(e) => return Err(
-            PengError::SyntaxError(e.to_string())
-        ),
+        Err(e) => return Err(PengError::SyntaxError(e.to_string())),
     };
 
     let mut ptokens: Vec<PengPositionedToken> = Vec::new();
     let mut err_to_return: Option<PengError> = None;
-    lex_source_fn(
-        source,
-        |res, line, column| {
-            let pos = PengPosition::new(
-                line,
-                column,
-            );
+    lex_source_fn(source, |res, line, column| {
+        let pos = PengPosition::new(id, line, column);
 
-            match res {
-                LexerCallbackResponse::Token(t) => {
-                    match PengPositioned::<PengToken>::from_string(t, pos.clone()) {
-                        Ok(ptk) => ptokens.push(ptk),
-                        Err(e) => {
-                            err_to_return = Some(
-                                PengError::new_positioned_error(
-                                    e,
-                                    pos.clone(),
-                                )
-                            )
-                        }
-                    }
-                }
-                LexerCallbackResponse::String(s) => {
-                    ptokens.push(PengPositioned::<PengToken>::new_string(s, pos))
+        match res {
+            LexerCallbackResponse::Token(t) => {
+                match PengPositioned::<PengToken>::from_string(t, pos.clone()) {
+                    Ok(ptk) => ptokens.push(ptk),
+                    Err(e) => err_to_return = Some(PengError::new_positioned_error(e, pos.clone())),
                 }
             }
+            LexerCallbackResponse::String(s) => {
+                ptokens.push(PengPositioned::<PengToken>::new_string(s, pos))
+            }
         }
-    );
+    });
     if let Some(err) = err_to_return {
         return Err(err);
     }
     Ok(ptokens)
 }
 
-pub fn lex_source(
-    source: String,
-) -> Result<Vec<PengPositionedToken>, PengError> {
-
+pub fn lex_source(source: String, id: usize) -> Result<Vec<PengPositionedToken>, PengError> {
     let mut ptokens: Vec<PengPositionedToken> = Vec::new();
     let mut err_to_return: Option<PengError> = None;
-    lex_source_fn(
-        source,
-        |res, line, column| {
-            let pos = PengPosition::new(
-                line,
-                column,
-            );
+    lex_source_fn(source, |res, line, column| {
+        let pos = PengPosition::new(id, line, column);
 
-            match res {
-                LexerCallbackResponse::Token(t) => {
-                    match PengPositioned::<PengToken>::from_string(t, pos.clone()) {
-                        Ok(ptk) => ptokens.push(ptk),
-                        Err(e) => {
-                            err_to_return = Some(
-                                PengError::new_positioned_error(
-                                    e,
-                                    pos.clone(),
-                                )
-                            )
-                        }
-                    }
-                }
-                LexerCallbackResponse::String(s) => {
-                    ptokens.push(PengPositioned::<PengToken>::new_string(s, pos))
+        match res {
+            LexerCallbackResponse::Token(t) => {
+                match PengPositioned::<PengToken>::from_string(t, pos.clone()) {
+                    Ok(ptk) => ptokens.push(ptk),
+                    Err(e) => err_to_return = Some(PengError::new_positioned_error(e, pos.clone())),
                 }
             }
+            LexerCallbackResponse::String(s) => {
+                ptokens.push(PengPositioned::<PengToken>::new_string(s, pos))
+            }
         }
-    );
+    });
     if let Some(err) = err_to_return {
         return Err(err);
     }
@@ -99,13 +65,9 @@ where
     F: FnMut(LexerCallbackResponse, usize, Option<usize>),
 {
     let mut special_tokens = vec![
-        "=", ".", "..", "...", ":", ";", ",",
-        "(", ")", "{", "}", "[", "]", 
-        "<", ">", "<=", ">=", "==", "!=", 
-        "+", "-", "*", "**", "/", "%", 
-        "+=", "-=", "*=", "**=", "/=", "%=", 
-        "&", "|", "&&", "||", "!", "?", "->",
-        "@",
+        "=", ".", "..", "...", ":", ";", ",", "(", ")", "{", "}", "[", "]", "<", ">", "<=", ">=",
+        "==", "!=", "+", "-", "*", "**", "/", "%", "+=", "-=", "*=", "**=", "/=", "%=", "&", "|",
+        "&&", "||", "!", "?", "->", "@",
     ];
     let mut string_separators = vec![("\"", "\""), ("#\"", "\"#")];
 
@@ -314,11 +276,7 @@ where
                     } else {
                         actual_column
                     };
-                    f(
-                        LexerCallbackResponse::Token(num.clone()),
-                        actual_line,
-                        col,
-                    );
+                    f(LexerCallbackResponse::Token(num.clone()), actual_line, col);
 
                     i += consumed;
                     bump_col(&mut actual_column, num.chars().count());
@@ -520,7 +478,6 @@ fn peek_char_at(s: &str, idx: usize) -> Option<char> {
     }
 }
 
-
 fn read_number_at(s: &str, start: usize) -> Option<(String, usize)> {
     let first = match peek_char_at(s, start) {
         Some(v) => v,
@@ -548,12 +505,10 @@ fn read_number_at(s: &str, start: usize) -> Option<(String, usize)> {
 
     // parte decimal: 1.0, 1_._0, 1.0__
     let has_decimal_dot = match peek_char_at(s, i) {
-        Some('.') => {
-            match peek_char_at(s, i + 1) {
-                Some('.') => false,
-                _ => true,
-            }
-        }
+        Some('.') => match peek_char_at(s, i + 1) {
+            Some('.') => false,
+            _ => true,
+        },
         _ => false,
     };
 

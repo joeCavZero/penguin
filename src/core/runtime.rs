@@ -28,15 +28,23 @@ pub fn step_thread(
             }
         };
 
-    let (ntv_opt, should_end_frame, instruction, constant): (
+    let (ntv_opt, should_end_frame, instruction, instruction_position, constant): (
         Option<PengNativeCallable>,
         bool,
         PengInstruction,
+        PengPosition,
         Option<PengValue>,
     ) = match env.get_heap(frame_function_ptr) {
         Some(PengValue::Box(PengBox::Function(func))) => match func {
             PengFunction::Bytecode(func_btc) => {
                 let instr = match func_btc.bytecode.get(frame_program_counter) {
+                    Some(i) => i.clone(),
+                    None => {
+                        return Ok(None);
+                    }
+                };
+
+                let instr_pos = match func_btc.positions.get(frame_program_counter) {
                     Some(i) => i.clone(),
                     None => {
                         return Ok(None);
@@ -59,19 +67,27 @@ pub fn step_thread(
                     _ => None,
                 };
 
-                (None, false, instr, constant)
+                (None, false, instr, instr_pos, constant)
             }
 
             PengFunction::Native(func_ntv) => (
                 Some(PengNativeCallable::Function(func_ntv.clone())),
                 false,
                 PengInstruction::Add,
+                PengPosition::new(0, 0, None),
                 None,
             ),
         },
         Some(PengValue::Box(PengBox::Operation(operation))) => match operation {
             PengOperation::Bytecode(operation_btc) => {
                 let instr = match operation_btc.bytecode.get(frame_program_counter) {
+                    Some(i) => i.clone(),
+                    None => {
+                        return Ok(None);
+                    }
+                };
+
+                let instr_pos = match operation_btc.positions.get(frame_program_counter) {
                     Some(i) => i.clone(),
                     None => {
                         return Ok(None);
@@ -94,13 +110,14 @@ pub fn step_thread(
                     _ => None,
                 };
 
-                (None, false, instr, constant)
+                (None, false, instr, instr_pos, constant)
             }
 
             PengOperation::Native(operation_ntv) => (
                 Some(PengNativeCallable::Operation(operation_ntv.clone())),
                 false,
                 PengInstruction::Add,
+                PengPosition::new(0, 0, None),
                 None,
             ),
         },
@@ -250,7 +267,10 @@ pub fn step_thread(
                         let frame = match env.pop_thread_frame(thread) {
                             Ok(frame) => frame,
                             Err(e) => {
-                                return Err(e.push(PengError::InvalidInstruction(instruction)));
+                                return Err(e.push(PengError::PositionedError {
+                                    error: Box::new(PengError::InvalidInstruction(instruction)),
+                                    position: instruction_position,
+                                }));
                             }
                         };
 
@@ -303,12 +323,22 @@ pub fn step_thread(
                 Err(e) => match env.recover_thread_try_error(thread) {
                     Ok(recovered) => {
                         if !recovered {
-                            return Err(e.push(PengError::InvalidInstruction(instruction)));
+                            return Err(
+                                PengError::PositionedError{
+                                    error: Box::new(e), 
+                                    position: instruction_position
+                                }
+                            );
                         }
                     }
 
                     Err(e) => {
-                        return Err(e.push(PengError::InvalidInstruction(instruction)));
+                        return Err(
+                            PengError::PositionedError{
+                                error: Box::new(e), 
+                                position: instruction_position
+                            }
+                        );
                     }
                 },
             };
@@ -2667,7 +2697,11 @@ pub fn execute_instruction(
                     ) {
                         Ok(value) => return Ok(value),
                         Err(e) => {
-                            return Err(e.push(PengError::InvalidInstruction(instruction)));
+                            return Err(
+                                e.push(
+                                    PengError::InvalidInstruction(instruction),
+                                )
+                            );
                         }
                     }
                 }

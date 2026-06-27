@@ -9,16 +9,16 @@ pub fn generate_literal(
 ) -> Result<(), PengError> {
     match &literal.value {
         PengLiteral::Type(type_literal) => {
-            return generate_type_literal(env, context, type_literal);
+            return generate_type_literal(env, context, type_literal, literal.position.clone());
         }
         PengLiteral::Module(module) => {
-            return generate_module_literal(env, context, module);
+            return generate_module_literal(env, context, module, literal.position.clone());
         }
         PengLiteral::Vector(values) => {
-            return generate_vector_literal(env, context, values);
+            return generate_vector_literal(env, context, values, literal.position.clone());
         }
         PengLiteral::Object(fields) => {
-            return generate_object_literal(env, context, fields);
+            return generate_object_literal(env, context, fields, literal.position.clone());
         }
         _ => {}
     }
@@ -34,7 +34,13 @@ pub fn generate_literal(
         PengLiteral::String(value) => PengValue::Box(PengBox::String(value.clone())),
         PengLiteral::Type(_) => unreachable!(),
         PengLiteral::Function(function) => {
-            match generate_function_value(env, context, &function.params, &function.body) {
+            match generate_function_value(
+                env,
+                context,
+                &function.params,
+                &function.body,
+                literal.position.clone(),
+            ) {
                 Ok(value) => PengValue::Box(value),
                 Err(e) => {
                     return Err(e.push(PengError::InvalidState(
@@ -46,7 +52,13 @@ pub fn generate_literal(
         PengLiteral::Module(_) => unreachable!(),
         PengLiteral::Vector(_) => unreachable!(),
         PengLiteral::Operation(operation) => {
-            match generate_operation_value(env, context, &operation.params, &operation.body) {
+            match generate_operation_value(
+                env,
+                context,
+                &operation.params,
+                &operation.body,
+                literal.position.clone(),
+            ) {
                 Ok(value) => PengValue::Box(value),
                 Err(e) => {
                     return Err(e.push(PengError::InvalidState(
@@ -58,7 +70,7 @@ pub fn generate_literal(
         PengLiteral::Object(_) => unreachable!(),
     };
 
-    context.push_const_and_const_instruction(env, value);
+    context.push_const_and_const_instruction(env, value, literal.position.clone());
     Ok(())
 }
 
@@ -66,8 +78,9 @@ pub fn generate_type_literal(
     env: &mut PengEnv,
     context: &mut PengGeneratorContext,
     literal: &PengTypeLiteral,
+    pos: PengPosition,
 ) -> Result<(), PengError> {
-    match generate_type_literal_after_base(env, context, literal) {
+    match generate_type_literal_after_base(env, context, literal, pos) {
         Ok(()) => Ok(()),
         Err(e) => Err(e),
     }
@@ -77,11 +90,13 @@ pub fn generate_object_literal(
     env: &mut PengEnv,
     context: &mut PengGeneratorContext,
     fields: &[PengObjectFieldLiteral],
+    pos: PengPosition,
 ) -> Result<(), PengError> {
-    context.bytecode.push(PengInstruction::CreateEmptyObject);
+    context.push_positioned_instruction(PengInstruction::CreateEmptyObject, pos);
 
     for field in fields {
-        context.bytecode.push(PengInstruction::Duplicate);
+        context
+            .push_positioned_instruction(PengInstruction::Duplicate, field.name.position.clone());
 
         let name = env.ensure_pooled_name_ptr(field.name.value.clone());
 
@@ -93,9 +108,10 @@ pub fn generate_object_literal(
                 )));
             }
         };
-        context
-            .bytecode
-            .push(PengInstruction::SetAttribute(name));
+        context.push_positioned_instruction(
+            PengInstruction::SetAttribute(name),
+            field.name.position.clone(),
+        );
     }
 
     Ok(())
@@ -105,6 +121,7 @@ pub fn generate_type_literal_after_base(
     env: &mut PengEnv,
     context: &mut PengGeneratorContext,
     literal: &PengTypeLiteral,
+    pos: PengPosition,
 ) -> Result<(), PengError> {
     for super_type in &literal.supers {
         match generate_expression(env, context, super_type) {
@@ -118,11 +135,10 @@ pub fn generate_type_literal_after_base(
     }
 
     context
-        .bytecode
-        .push(PengInstruction::CreateSuperType(literal.supers.len()));
+        .push_positioned_instruction(PengInstruction::CreateSuperType(literal.supers.len()), pos);
 
     for field in &literal.fields {
-        context.bytecode.push(PengInstruction::Duplicate);
+        context.push_positioned_instruction(PengInstruction::Duplicate, field.position.clone());
 
         let name = env.ensure_pooled_name_ptr(field.value.name.value.clone());
 
@@ -135,16 +151,21 @@ pub fn generate_type_literal_after_base(
                     )));
                 }
             },
-            None => context.push_const_and_const_instruction(env, PengValue::Cell(PengCell::Nil)),
+            None => context.push_const_and_const_instruction(
+                env,
+                PengValue::Cell(PengCell::Nil),
+                field.position.clone(),
+            ),
         }
 
-        context
-            .bytecode
-            .push(PengInstruction::SetAttribute(name));
+        context.push_positioned_instruction(
+            PengInstruction::SetAttribute(name),
+            field.position.clone(),
+        );
     }
 
     for function in &literal.functions {
-        context.bytecode.push(PengInstruction::Duplicate);
+        context.push_positioned_instruction(PengInstruction::Duplicate, function.position.clone());
 
         let name = env.ensure_pooled_name_ptr(function.value.name.value.clone());
 
@@ -157,11 +178,16 @@ pub fn generate_type_literal_after_base(
             }
         };
 
-        context.push_const_and_const_instruction(env, PengValue::Box(value));
+        context.push_const_and_const_instruction(
+            env,
+            PengValue::Box(value),
+            function.position.clone(),
+        );
 
-        context
-            .bytecode
-            .push(PengInstruction::SetAttribute(name));
+        context.push_positioned_instruction(
+            PengInstruction::SetAttribute(name),
+            function.position.clone(),
+        );
     }
 
     Ok(())
@@ -171,6 +197,7 @@ pub fn generate_vector_literal(
     env: &mut PengEnv,
     context: &mut PengGeneratorContext,
     values: &[PengPositionedExpression],
+    pos: PengPosition,
 ) -> Result<(), PengError> {
     for value in values {
         match generate_expression(env, context, value) {
@@ -183,9 +210,7 @@ pub fn generate_vector_literal(
         };
     }
 
-    context
-        .bytecode
-        .push(PengInstruction::CreateVector(values.len()));
+    context.push_positioned_instruction(PengInstruction::CreateVector(values.len()), pos);
 
     Ok(())
 }
@@ -194,8 +219,9 @@ pub fn generate_module_literal(
     env: &mut PengEnv,
     context: &mut PengGeneratorContext,
     module: &PengModuleLiteral,
+    pos: PengPosition,
 ) -> Result<(), PengError> {
-    context.bytecode.push(PengInstruction::CreateEmptyModule);
+    context.push_positioned_instruction(PengInstruction::CreateEmptyModule, pos);
 
     for binded_declaration in &module.body {
         let declaration = match binded_declaration {
@@ -213,7 +239,8 @@ pub fn generate_module_literal(
 
         let name_ptr = env.ensure_pooled_name_ptr(name);
 
-        context.bytecode.push(PengInstruction::Duplicate);
+        let member_pos = declaration_position(declaration);
+        context.push_positioned_instruction(PengInstruction::Duplicate, member_pos.clone());
 
         match declaration {
             PengDeclaration::Var(declaration) => match &declaration.value.value {
@@ -225,7 +252,11 @@ pub fn generate_module_literal(
                         )));
                     }
                 },
-                None => context.push_const_and_const_instruction(env, PengValue::Cell(PengCell::Nil)),
+                None => context.push_const_and_const_instruction(
+                    env,
+                    PengValue::Cell(PengCell::Nil),
+                    member_pos.clone(),
+                ),
             },
 
             PengDeclaration::As(declaration) => {
@@ -248,7 +279,11 @@ pub fn generate_module_literal(
                         )));
                     }
                 };
-                context.push_const_and_const_instruction(env, PengValue::Box(value));
+                context.push_const_and_const_instruction(
+                    env,
+                    PengValue::Box(value),
+                    member_pos.clone(),
+                );
             }
 
             PengDeclaration::Type(declaration) => match &declaration.value.value {
@@ -267,7 +302,7 @@ pub fn generate_module_literal(
                         functions: declaration.value.functions.clone(),
                     };
 
-                    match generate_type_literal(env, context, &literal) {
+                    match generate_type_literal(env, context, &literal, member_pos.clone()) {
                         Ok(()) => {}
                         Err(e) => {
                             return Err(e.push(PengError::InvalidState(
@@ -298,13 +333,15 @@ pub fn generate_module_literal(
                         )));
                     }
                 };
-                context.push_const_and_const_instruction(env, PengValue::Box(value));
+                context.push_const_and_const_instruction(
+                    env,
+                    PengValue::Box(value),
+                    member_pos.clone(),
+                );
             }
         }
 
-        context
-            .bytecode
-            .push(PengInstruction::SetMember(name_ptr));
+        context.push_positioned_instruction(PengInstruction::SetMember(name_ptr), member_pos);
     }
 
     Ok(())

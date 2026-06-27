@@ -61,11 +61,16 @@ pub fn generate_statement(
                     }
                 },
                 None => {
-                    context.push_const_and_const_instruction(env, PengValue::Cell(PengCell::Nil));
+                    context.push_const_and_const_instruction(
+                        env,
+                        PengValue::Cell(PengCell::Nil),
+                        statement.position.clone(),
+                    );
                 }
             }
 
-            context.bytecode.push(PengInstruction::Return);
+            context
+                .push_positioned_instruction(PengInstruction::Return, statement.position.clone());
             Ok(())
         }
 
@@ -81,30 +86,32 @@ pub fn generate_statement(
                 }
             }
 
-            context.bytecode.push(PengInstruction::Pop);
+            context.push_positioned_instruction(PengInstruction::Pop, statement.position.clone());
             Ok(())
         }
 
         PengStatement::If(if_statement) => {
-            generate_if_statement(env, context, if_statement)
+            generate_if_statement(env, context, if_statement, statement.position.clone())
         }
 
         PengStatement::Match(match_statement) => {
-            generate_match_statement(env, context, match_statement)
+            generate_match_statement(env, context, match_statement, statement.position.clone())
         }
 
         PengStatement::While(while_statement) => {
-            generate_while_statement(env, context, while_statement)
+            generate_while_statement(env, context, while_statement, statement.position.clone())
         }
 
         PengStatement::For(for_statement) => {
-            generate_for_statement(env, context, for_statement)
+            generate_for_statement(env, context, for_statement, statement.position.clone())
         }
 
-        PengStatement::Loop(body) => generate_loop_statement(env, context, body),
+        PengStatement::Loop(body) => {
+            generate_loop_statement(env, context, body, statement.position.clone())
+        }
 
         PengStatement::Break => {
-            if context.emit_break() {
+            if context.emit_break(statement.position.clone()) {
                 Ok(())
             } else {
                 Err(PengError::new_positioned_message(
@@ -115,7 +122,7 @@ pub fn generate_statement(
         }
 
         PengStatement::Continue => {
-            if context.emit_continue() {
+            if context.emit_continue(statement.position.clone()) {
                 Ok(())
             } else {
                 Err(PengError::new_positioned_message(
@@ -150,6 +157,7 @@ pub fn generate_if_statement(
 
     context: &mut PengGeneratorContext,
     statement: &PengIfStatement,
+    pos: PengPosition,
 ) -> Result<(), PengError> {
     match generate_expression(env, context, &statement.condition) {
         Ok(()) => {}
@@ -160,7 +168,7 @@ pub fn generate_if_statement(
         }
     }
 
-    let false_jump = context.emit_jump_if_false();
+    let false_jump = context.emit_jump_if_false(pos.clone());
 
     match generate_scoped_statements(env, context, &statement.then_branch) {
         Ok(()) => {}
@@ -173,7 +181,7 @@ pub fn generate_if_statement(
 
     match &statement.else_branch {
         Some(else_branch) => {
-            let end_jump = context.emit_jump();
+            let end_jump = context.emit_jump(pos.clone());
             let else_start = context.bytecode.len();
             context.patch_jump(false_jump, else_start);
 
@@ -203,8 +211,9 @@ pub fn generate_match_statement(
 
     context: &mut PengGeneratorContext,
     statement: &PengMatchStatement,
+    pos: PengPosition,
 ) -> Result<(), PengError> {
-    let matched_local = generate_reserved_temporary_local(env, context);
+    let matched_local = generate_reserved_temporary_local(env, context, pos.clone());
 
     match generate_expression(env, context, &statement.value) {
         Ok(()) => {}
@@ -215,16 +224,15 @@ pub fn generate_match_statement(
         }
     }
 
-    context
-        .bytecode
-        .push(PengInstruction::StoreLocal(matched_local));
+    context.push_positioned_instruction(PengInstruction::StoreLocal(matched_local), pos.clone());
 
     let mut end_jumps = Vec::new();
 
     for arm in &statement.arms {
-        context
-            .bytecode
-            .push(PengInstruction::PushLocal(matched_local));
+        context.push_positioned_instruction(
+            PengInstruction::PushLocal(matched_local),
+            arm.pattern.position.clone(),
+        );
 
         match generate_expression(env, context, &arm.pattern) {
             Ok(()) => {}
@@ -235,9 +243,9 @@ pub fn generate_match_statement(
             }
         }
 
-        context.bytecode.push(PengInstruction::Equals);
+        context.push_positioned_instruction(PengInstruction::Equals, arm.pattern.position.clone());
 
-        let next_arm_jump = context.emit_jump_if_false();
+        let next_arm_jump = context.emit_jump_if_false(pos.clone());
 
         match generate_scoped_statements(env, context, &arm.body) {
             Ok(()) => {}
@@ -248,7 +256,7 @@ pub fn generate_match_statement(
             }
         }
 
-        let end_jump = context.emit_jump();
+        let end_jump = context.emit_jump(pos.clone());
         end_jumps.push(end_jump);
 
         let next_arm = context.bytecode.len();
@@ -279,9 +287,10 @@ pub fn generate_match_statement(
 pub fn generate_make_immutable_if_needed(
     context: &mut PengGeneratorContext,
     immutable: bool,
+    pos: PengPosition,
 ) {
     if immutable {
-        context.bytecode.push(PengInstruction::MakeImmutable);
+        context.push_positioned_instruction(PengInstruction::MakeImmutable, pos);
     }
 }
 

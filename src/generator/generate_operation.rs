@@ -12,6 +12,7 @@ pub fn generate_operation_declaration_value(
         context,
         &declaration.value.params,
         &declaration.value.body,
+        declaration.position.clone(),
     )
 }
 
@@ -20,6 +21,7 @@ pub fn generate_operation_value(
     parent_context: &PengGeneratorContext,
     params: &Vec<PengPositionedFunctionParam>,
     body: &Vec<PengPositionedStatement>,
+    pos: PengPosition,
 ) -> Result<PengBox, PengError> {
     let mut context = parent_context.new_child_context();
 
@@ -36,12 +38,14 @@ pub fn generate_operation_value(
         }
     }
 
-    context.push_const_and_const_instruction(env, PengValue::Cell(PengCell::Nil));
-    context.bytecode.push(PengInstruction::Return);
+    context.push_const_and_const_instruction(env, PengValue::Cell(PengCell::Nil), pos.clone());
+    context.push_positioned_instruction(PengInstruction::Return, pos);
+    debug_assert_eq!(context.bytecode.len(), context.positions.len());
 
     Ok(PengBox::Operation(PengOperation::Bytecode(
         PengBytecodeOperation {
             bytecode: context.bytecode,
+            positions: context.positions,
             consts: context.consts,
             using_values: Vec::new(),
         },
@@ -55,6 +59,7 @@ pub fn generate_operation_call(
     left: &PengPositionedExpression,
     operation: &PengPositionedExpression,
     right: &PengPositionedExpression,
+    pos: PengPosition,
 ) -> Result<(), PengError> {
     match generate_expression(env, context, operation) {
         Ok(()) => {}
@@ -83,7 +88,7 @@ pub fn generate_operation_call(
         }
     }
 
-    context.bytecode.push(PengInstruction::OperationCall);
+    context.push_positioned_instruction(PengInstruction::OperationCall, pos);
 
     Ok(())
 }
@@ -104,10 +109,17 @@ pub fn generate_local_operation_declaration(
         }
     };
 
-    context.push_const_and_const_instruction(env, PengValue::Box(value));
-    generate_make_immutable_if_needed(context, immutable);
+    context.push_const_and_const_instruction(
+        env,
+        PengValue::Box(value),
+        declaration.position.clone(),
+    );
+    generate_make_immutable_if_needed(context, immutable, declaration.position.clone());
     let local = context.create_local(declaration.value.name.value.clone());
-    context.bytecode.push(PengInstruction::StoreLocal(local));
+    context.push_positioned_instruction(
+        PengInstruction::StoreLocal(local),
+        declaration.position.clone(),
+    );
 
     Ok(())
 }

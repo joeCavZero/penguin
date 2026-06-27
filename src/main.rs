@@ -85,7 +85,7 @@ fn main() {
     let load_start = Instant::now();
 
     let unit = peng
-        .load_program_from_file_using("main.peng", &pengstd)
+        .load_program_from_file_using("main.peng", &pengstd, 0)
         .unwrap();
 
     let load_time = load_start.elapsed();
@@ -98,7 +98,10 @@ fn main() {
 
     let main_start = Instant::now();
 
-    peng.run_function(&unit, "main", Vec::new()).unwrap();
+    match peng.run_function(&unit, "main", Vec::new()) {
+        Ok(_) => {}
+        Err(e) => println!("{:#?}", e),
+    };
 
     let main_time = main_start.elapsed();
     let total_time = total_start.elapsed();

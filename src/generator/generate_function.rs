@@ -1,4 +1,3 @@
-
 use crate::core::*;
 use crate::generator::*;
 use crate::parser::*;
@@ -7,8 +6,9 @@ pub fn create_anonymous_bytecode_function(
     env: &mut PengEnv,
     context: PengGeneratorContext,
     params: PengBytecodeFunctionParams,
+    pos: PengPosition,
 ) -> PengHeapPtr {
-    let function = create_bytecode_function_value(env, context, params);
+    let function = create_bytecode_function_value(env, context, params, pos);
 
     env.create_heap_value(PengValue::Box(function))
 }
@@ -17,12 +17,15 @@ pub fn create_bytecode_function_value(
     env: &mut PengEnv,
     mut context: PengGeneratorContext,
     params: PengBytecodeFunctionParams,
+    pos: PengPosition,
 ) -> PengBox {
-    context.push_const_and_const_instruction(env, PengValue::Cell(PengCell::Nil));
-    context.bytecode.push(PengInstruction::Return);
+    context.push_const_and_const_instruction(env, PengValue::Cell(PengCell::Nil), pos.clone());
+    context.push_positioned_instruction(PengInstruction::Return, pos);
+    debug_assert_eq!(context.bytecode.len(), context.positions.len());
 
     PengBox::Function(PengFunction::Bytecode(PengBytecodeFunction {
         bytecode: context.bytecode,
+        positions: context.positions,
         consts: context.consts,
         using_values: Vec::new(),
         params,
@@ -39,6 +42,7 @@ pub fn generate_function_declaration_value(
         context,
         &declaration.value.params,
         &declaration.value.body,
+        declaration.position.clone(),
     )
 }
 
@@ -47,6 +51,7 @@ pub fn generate_function_value(
     parent_context: &PengGeneratorContext,
     params: &Vec<PengPositionedFunctionParam>,
     body: &Vec<PengPositionedStatement>,
+    pos: PengPosition,
 ) -> Result<PengBox, PengError> {
     let mut context = parent_context.new_child_context();
 
@@ -91,13 +96,19 @@ pub fn generate_function_value(
         }
     }
 
-    Ok(create_bytecode_function_value(env, context, function_params))
+    Ok(create_bytecode_function_value(
+        env,
+        context,
+        function_params,
+        pos,
+    ))
 }
 
 pub fn generate_function_call(
     env: &mut PengEnv,
     context: &mut PengGeneratorContext,
     call: &PengFuncCallExpression,
+    pos: PengPosition,
 ) -> Result<(), PengError> {
     match generate_expression(env, context, &call.function) {
         Ok(()) => {}
@@ -119,15 +130,12 @@ pub fn generate_function_call(
 
     match variadic_index {
         Some(index) => {
-            context
-                .bytecode
-                .push(PengInstruction::FunctionCallSpread(index));
+            context.push_positioned_instruction(PengInstruction::FunctionCallSpread(index), pos);
         }
 
         None => {
             context
-                .bytecode
-                .push(PengInstruction::FunctionCall(call.args.len()));
+                .push_positioned_instruction(PengInstruction::FunctionCall(call.args.len()), pos);
         }
     }
 
@@ -153,13 +161,21 @@ pub fn generate_local_function_declaration(
                 }
             };
 
-            context
-                .bytecode
-                .push(PengInstruction::PushHeapRef(*value_ptr.value()));
+            context.push_positioned_instruction(
+                PengInstruction::PushHeapRef(*value_ptr.value()),
+                declaration.position.clone(),
+            );
 
-            context.push_const_and_const_instruction(env, PengValue::Box(value));
+            context.push_const_and_const_instruction(
+                env,
+                PengValue::Box(value),
+                declaration.position.clone(),
+            );
 
-            context.bytecode.push(PengInstruction::StoreHeap);
+            context.push_positioned_instruction(
+                PengInstruction::StoreHeap,
+                declaration.position.clone(),
+            );
 
             Ok(())
         }
@@ -174,13 +190,20 @@ pub fn generate_local_function_declaration(
                 }
             };
 
-            context.push_const_and_const_instruction(env, PengValue::Box(value));
+            context.push_const_and_const_instruction(
+                env,
+                PengValue::Box(value),
+                declaration.position.clone(),
+            );
 
-            generate_make_immutable_if_needed(context, immutable);
+            generate_make_immutable_if_needed(context, immutable, declaration.position.clone());
 
             let local = context.create_local(declaration.value.name.value.clone());
 
-            context.bytecode.push(PengInstruction::StoreLocal(local));
+            context.push_positioned_instruction(
+                PengInstruction::StoreLocal(local),
+                declaration.position.clone(),
+            );
 
             Ok(())
         }
