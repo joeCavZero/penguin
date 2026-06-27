@@ -2,16 +2,16 @@ use crate::core::*;
 
 pub fn step_thread(
     env: &mut PengEnv,
-    thread_ptr: PengHeapPtr,
+    thread: PengHeapPtr,
 ) -> Result<Option<PengBindedCell>, PengError> {
     let (frame_program_counter, frame_base, frame_function_ptr, frame_params_count) =
-        match env.get_heap(thread_ptr) {
+        match env.get_heap(thread) {
             Some(PengValue::Box(PengBox::Thread(thread))) => {
                 if let Some(last_frame) = thread.frames.last() {
                     (
                         last_frame.program_counter,
                         last_frame.base,
-                        last_frame.procedure_ptr,
+                        last_frame.procedure,
                         last_frame.params_count,
                     )
                 } else {
@@ -24,7 +24,7 @@ pub fn step_thread(
             }
 
             None => {
-                return Err(PengError::ThreadNotFound(thread_ptr));
+                return Err(PengError::ThreadNotFound(thread));
             }
         };
 
@@ -115,7 +115,7 @@ pub fn step_thread(
     match ntv_opt {
         Some(ntv_call) => {
             let args = match env
-                .get_thread_latest_n_binded_stated_cells_cloned(thread_ptr, frame_params_count)
+                .get_thread_latest_n_binded_stated_cells_cloned(thread, frame_params_count)
             {
                 Ok(args) => {
                     let mut fargs: Vec<PengBindedCell> = Vec::new();
@@ -160,14 +160,14 @@ pub fn step_thread(
                 }
             };
 
-            let frame = match env.pop_thread_frame(thread_ptr) {
+            let frame = match env.pop_thread_frame(thread) {
                 Ok(frame) => frame,
                 Err(e) => {
                     return Err(e.push(PengError::ExpectedFunction));
                 }
             };
 
-            match env.truncate_thread_stack(thread_ptr, frame.base) {
+            match env.truncate_thread_stack(thread, frame.base) {
                 Ok(()) => {}
                 Err(e) => {
                     return Err(e.push(PengError::InvalidState(
@@ -176,7 +176,7 @@ pub fn step_thread(
                 }
             }
 
-            match env.get_thread_frames_len(thread_ptr) {
+            match env.get_thread_frames_len(thread) {
                 Ok(frames_len) => {
                     let r = match ret {
                         PengBinded::Immutable(c) => PengBinded::Immutable(c),
@@ -186,7 +186,7 @@ pub fn step_thread(
                         return Ok(Some(r));
                     }
 
-                    match env.push_thread_binded_stated_cell(thread_ptr, r) {
+                    match env.push_thread_binded_stated_cell(thread, r) {
                         Ok(()) => {}
                         Err(e) => {
                             return Err(e.push(PengError::InvalidState(
@@ -197,7 +197,7 @@ pub fn step_thread(
 
                     if frame.is_try {
                         match env.push_thread_binded_stated_cell(
-                            thread_ptr,
+                            thread,
                             PengBinded::Mutable(PengCell::Bool(true)),
                         ) {
                             Ok(()) => {}
@@ -225,7 +225,7 @@ pub fn step_thread(
                 return Ok(None);
             }
 
-            match env.get_heap_mut(thread_ptr) {
+            match env.get_heap_mut(thread) {
                 Some(PengValue::Box(PengBox::Thread(thread))) => {
                     if let Some(last_frame) = thread.frames.last_mut() {
                         last_frame.program_counter = match last_frame.program_counter.checked_add(1)
@@ -238,33 +238,33 @@ pub fn step_thread(
                     }
                 }
                 Some(_) => return Err(PengError::ExpectedThread),
-                None => return Err(PengError::ThreadNotFound(thread_ptr)),
+                None => return Err(PengError::ThreadNotFound(thread)),
             }
 
-            match execute_instruction(instruction.clone(), constant, thread_ptr, frame_base, env) {
+            match execute_instruction(instruction.clone(), constant, thread, frame_base, env) {
                 Ok(res) => match res {
                     Some(ret) => {
-                        let frame = match env.pop_thread_frame(thread_ptr) {
+                        let frame = match env.pop_thread_frame(thread) {
                             Ok(frame) => frame,
                             Err(e) => {
                                 return Err(e.push(PengError::InvalidInstruction(instruction)));
                             }
                         };
 
-                        match env.truncate_thread_stack(thread_ptr, frame.base) {
+                        match env.truncate_thread_stack(thread, frame.base) {
                             Ok(()) => {}
                             Err(e) => {
                                 return Err(e.push(PengError::InvalidInstruction(instruction)));
                             }
                         }
 
-                        match env.get_thread_frames_len(thread_ptr) {
+                        match env.get_thread_frames_len(thread) {
                             Ok(frames_len) => {
                                 if frames_len == 0 {
                                     return Ok(Some(ret));
                                 }
 
-                                match env.push_thread_binded_stated_cell(thread_ptr, ret) {
+                                match env.push_thread_binded_stated_cell(thread, ret) {
                                     Ok(()) => {}
                                     Err(e) => {
                                         return Err(
@@ -275,7 +275,7 @@ pub fn step_thread(
 
                                 if frame.is_try {
                                     match env.push_thread_binded_stated_cell(
-                                        thread_ptr,
+                                        thread,
                                         PengBinded::Mutable(PengCell::Bool(true)),
                                     ) {
                                         Ok(()) => {}
@@ -297,7 +297,7 @@ pub fn step_thread(
                     None => {}
                 },
 
-                Err(e) => match env.recover_thread_try_error(thread_ptr) {
+                Err(e) => match env.recover_thread_try_error(thread) {
                     Ok(recovered) => {
                         if !recovered {
                             return Err(e.push(PengError::InvalidInstruction(instruction)));
@@ -323,14 +323,14 @@ enum PengNativeCallable {
 pub fn execute_instruction(
     instruction: PengInstruction,
     constant: Option<PengValue>,
-    thread_ptr: PengHeapPtr,
+    thread: PengHeapPtr,
     frame_base: usize,
     env: &mut PengEnv,
 ) -> Result<Option<PengBindedCell>, PengError> {
     match instruction {
         PengInstruction::MakeImmutable => {
             let cell = match env
-                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .get_thread_latest_binded_stated_cell(thread, 0)
                 .cloned()
             {
                 Ok(cell) => cell,
@@ -344,14 +344,14 @@ pub fn execute_instruction(
                 PengBinded::Immutable(value) => PengBinded::Immutable(value),
             };
 
-            match env.pop_thread_stack_n_times(thread_ptr, 1) {
+            match env.pop_thread_stack_n_times(thread, 1) {
                 Ok(()) => {}
                 Err(e) => {
                     return Err(e.push(PengError::InvalidInstruction(instruction)));
                 }
             }
 
-            match env.push_thread_binded_stated_cell(thread_ptr, immutable) {
+            match env.push_thread_binded_stated_cell(thread, immutable) {
                 Ok(()) => {}
                 Err(e) => {
                     return Err(e.push(PengError::InvalidInstruction(instruction)));
@@ -367,7 +367,7 @@ pub fn execute_instruction(
 
             match constant {
                 PengValue::Cell(cell) => {
-                    match env.push_thread_binded_stated_cell(thread_ptr, PengBinded::Mutable(cell))
+                    match env.push_thread_binded_stated_cell(thread, PengBinded::Mutable(cell))
                     {
                         Ok(()) => {}
                         Err(e) => {
@@ -380,7 +380,7 @@ pub fn execute_instruction(
                     let ptr = env.create_heap_value(PengValue::Box(value));
                     let cell = PengCell::Reference(ptr);
 
-                    match env.push_thread_binded_stated_cell(thread_ptr, PengBinded::Mutable(cell))
+                    match env.push_thread_binded_stated_cell(thread, PengBinded::Mutable(cell))
                     {
                         Ok(()) => {}
                         Err(e) => {
@@ -391,9 +391,9 @@ pub fn execute_instruction(
             }
         }
 
-        PengInstruction::PushLocal(local) => match env.get_thread_local(thread_ptr, local).cloned()
+        PengInstruction::PushLocal(local) => match env.get_thread_local(thread, local).cloned()
         {
-            Ok(cell) => match env.push_thread_binded_stated_cell(thread_ptr, cell.clone()) {
+            Ok(cell) => match env.push_thread_binded_stated_cell(thread, cell.clone()) {
                 Ok(()) => {}
                 Err(e) => {
                     return Err(e.push(PengError::InvalidInstruction(instruction)));
@@ -405,7 +405,7 @@ pub fn execute_instruction(
         },
 
         PengInstruction::StoreLocal(local) => {
-            let stack_len = match env.get_thread_stack_len(thread_ptr) {
+            let stack_len = match env.get_thread_stack_len(thread) {
                 Ok(len) => len,
                 Err(e) => return Err(e.push(PengError::InvalidInstruction(instruction))),
             };
@@ -426,7 +426,7 @@ pub fn execute_instruction(
                 return Ok(None);
             }
 
-            let current = match env.get_thread_local(thread_ptr, local).cloned() {
+            let current = match env.get_thread_local(thread, local).cloned() {
                 Ok(current) => current,
                 Err(e) => return Err(e.push(PengError::InvalidInstruction(instruction))),
             };
@@ -440,19 +440,19 @@ pub fn execute_instruction(
             }
 
             let value = match env
-                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .get_thread_latest_binded_stated_cell(thread, 0)
                 .cloned()
             {
                 Ok(value) => value,
                 Err(e) => return Err(e.push(PengError::InvalidInstruction(instruction))),
             };
 
-            match env.set_thread_local(thread_ptr, local, value) {
+            match env.set_thread_local(thread, local, value) {
                 Ok(()) => {}
                 Err(e) => return Err(e.push(PengError::InvalidInstruction(instruction))),
             }
 
-            match env.pop_thread_stack_n_times(thread_ptr, 1) {
+            match env.pop_thread_stack_n_times(thread, 1) {
                 Ok(()) => {}
                 Err(e) => return Err(e.push(PengError::InvalidInstruction(instruction))),
             }
@@ -471,7 +471,7 @@ pub fn execute_instruction(
                 }
             };
 
-            match env.push_thread_binded_stated_cell(thread_ptr, PengBinded::Mutable(cell)) {
+            match env.push_thread_binded_stated_cell(thread, PengBinded::Mutable(cell)) {
                 Ok(()) => {}
                 Err(e) => {
                     return Err(e.push(PengError::InvalidInstruction(instruction)));
@@ -481,7 +481,7 @@ pub fn execute_instruction(
 
         PengInstruction::PushHeapRef(ptr) => {
             match env.push_thread_binded_stated_cell(
-                thread_ptr,
+                thread,
                 PengBinded::Mutable(PengCell::Reference(ptr)),
             ) {
                 Ok(()) => {}
@@ -493,11 +493,11 @@ pub fn execute_instruction(
 
         PengInstruction::StoreHeap => {
             match env
-                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .get_thread_latest_binded_stated_cell(thread, 0)
                 .cloned()
             {
                 Ok(value_cell) => match env
-                    .get_thread_latest_binded_stated_cell(thread_ptr, 1)
+                    .get_thread_latest_binded_stated_cell(thread, 1)
                     .cloned()
                 {
                     Ok(ref_cell) => {
@@ -513,7 +513,7 @@ pub fn execute_instruction(
                             }
                         };
 
-                        match env.pop_thread_stack_n_times(thread_ptr, 2) {
+                        match env.pop_thread_stack_n_times(thread, 2) {
                             Ok(()) => match env.assign_heap(ptr, value) {
                                 Ok(()) => {}
                                 Err(e) => {
@@ -540,7 +540,7 @@ pub fn execute_instruction(
                 env.create_heap_value(PengValue::Box(PengBox::Object(PengObject::new_empty())));
 
             match env.push_thread_binded_stated_cell(
-                thread_ptr,
+                thread,
                 PengBinded::Mutable(PengCell::Reference(heap_ptr)),
             ) {
                 Ok(()) => {}
@@ -555,7 +555,7 @@ pub fn execute_instruction(
                 env.create_heap_value(PengValue::Box(PengBox::Module(PengModule::new_empty())));
 
             match env.push_thread_binded_stated_cell(
-                thread_ptr,
+                thread,
                 PengBinded::Mutable(PengCell::Reference(heap_ptr)),
             ) {
                 Ok(()) => {}
@@ -566,15 +566,15 @@ pub fn execute_instruction(
         }
 
         PengInstruction::CreateVector(size) => {
-            match env.get_thread_latest_n_binded_stated_cells_cloned(thread_ptr, size) {
-                Ok(cells) => match env.pop_thread_stack_n_times(thread_ptr, size) {
+            match env.get_thread_latest_n_binded_stated_cells_cloned(thread, size) {
+                Ok(cells) => match env.pop_thread_stack_n_times(thread, size) {
                     Ok(()) => {
                         let heap_ptr = env.create_heap_value(PengValue::Box(PengBox::Vector(
                             PengVector::new(cells),
                         )));
 
                         match env.push_thread_binded_stated_cell(
-                            thread_ptr,
+                            thread,
                             PengBinded::Mutable(PengCell::Reference(heap_ptr)),
                         ) {
                             Ok(()) => {}
@@ -596,7 +596,7 @@ pub fn execute_instruction(
         }
 
         PengInstruction::CreateSuperType(types_count) => {
-            match env.get_thread_latest_n_binded_stated_cells_cloned(thread_ptr, types_count) {
+            match env.get_thread_latest_n_binded_stated_cells_cloned(thread, types_count) {
                 Ok(cells) => {
                     let mut custom_types = Vec::new();
 
@@ -618,14 +618,14 @@ pub fn execute_instruction(
                         }
                     }
 
-                    match env.pop_thread_stack_n_times(thread_ptr, types_count) {
+                    match env.pop_thread_stack_n_times(thread, types_count) {
                         Ok(()) => {
                             let heap_ptr = env.create_heap_value(PengValue::Box(PengBox::Type(
                                 PengType::Custom(PengCustomType::new_super_type(custom_types)),
                             )));
 
                             match env.push_thread_binded_stated_cell(
-                                thread_ptr,
+                                thread,
                                 PengBinded::Mutable(PengCell::Reference(heap_ptr)),
                             ) {
                                 Ok(()) => {}
@@ -649,7 +649,7 @@ pub fn execute_instruction(
 
         PengInstruction::CreateTypedObject => {
             match env
-                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .get_thread_latest_binded_stated_cell(thread, 0)
                 .cloned()
             {
                 Ok(cell) => {
@@ -667,14 +667,14 @@ pub fn execute_instruction(
                         }
                     };
 
-                    match env.pop_thread_stack_n_times(thread_ptr, 1) {
+                    match env.pop_thread_stack_n_times(thread, 1) {
                         Ok(()) => {
                             let heap_ptr = env.create_heap_value(PengValue::Box(PengBox::Object(
                                 PengObject::new(custom_type.fields),
                             )));
 
                             match env.push_thread_binded_stated_cell(
-                                thread_ptr,
+                                thread,
                                 PengBinded::Mutable(PengCell::Reference(heap_ptr)),
                             ) {
                                 Ok(()) => {}
@@ -698,10 +698,10 @@ pub fn execute_instruction(
 
         PengInstruction::Duplicate => {
             match env
-                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .get_thread_latest_binded_stated_cell(thread, 0)
                 .cloned()
             {
-                Ok(cell) => match env.push_thread_binded_stated_cell(thread_ptr, cell.clone()) {
+                Ok(cell) => match env.push_thread_binded_stated_cell(thread, cell.clone()) {
                     Ok(()) => {}
                     Err(e) => {
                         return Err(e.push(PengError::InvalidInstruction(instruction)));
@@ -714,7 +714,7 @@ pub fn execute_instruction(
             }
         }
 
-        PengInstruction::Pop => match env.pop_thread_stack_n_times(thread_ptr, 1) {
+        PengInstruction::Pop => match env.pop_thread_stack_n_times(thread, 1) {
             Ok(()) => {}
             Err(e) => {
                 return Err(e.push(PengError::InvalidInstruction(instruction)));
@@ -723,10 +723,10 @@ pub fn execute_instruction(
 
         PengInstruction::SetAttribute(name_ptr) => {
             match env
-                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .get_thread_latest_binded_stated_cell(thread, 0)
                 .cloned()
             {
-                Ok(value_cell) => match env.get_thread_latest_binded_stated_cell(thread_ptr, 1) {
+                Ok(value_cell) => match env.get_thread_latest_binded_stated_cell(thread, 1) {
                     Ok(object_cell) => {
                         match ensure_mutable_base(object_cell) {
                             Ok(()) => {}
@@ -761,7 +761,7 @@ pub fn execute_instruction(
                             }
                         }
 
-                        match env.pop_thread_stack_n_times(thread_ptr, 2) {
+                        match env.pop_thread_stack_n_times(thread, 2) {
                             Ok(()) => {}
                             Err(e) => {
                                 return Err(e.push(PengError::InvalidInstruction(instruction)));
@@ -782,7 +782,7 @@ pub fn execute_instruction(
 
         PengInstruction::GetAttribute(name_ptr) => {
             match env
-                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .get_thread_latest_binded_stated_cell(thread, 0)
                 .cloned()
             {
                 Ok(object_cell) => {
@@ -823,11 +823,11 @@ pub fn execute_instruction(
                         }
                     };
 
-                    match env.pop_thread_stack_n_times(thread_ptr, 1) {
+                    match env.pop_thread_stack_n_times(thread, 1) {
                         Ok(()) => {
                             let value = inherit_binding_from_base(&object_cell, value);
 
-                            match env.push_thread_binded_stated_cell(thread_ptr, value) {
+                            match env.push_thread_binded_stated_cell(thread, value) {
                                 Ok(()) => {}
                                 Err(e) => {
                                     return Err(e.push(PengError::InvalidInstruction(instruction)));
@@ -849,10 +849,10 @@ pub fn execute_instruction(
 
         PengInstruction::SetMember(name_ptr) => {
             match env
-                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .get_thread_latest_binded_stated_cell(thread, 0)
                 .cloned()
             {
-                Ok(value_cell) => match env.get_thread_latest_binded_stated_cell(thread_ptr, 1) {
+                Ok(value_cell) => match env.get_thread_latest_binded_stated_cell(thread, 1) {
                     Ok(module_cell) => {
                         match ensure_mutable_base(module_cell) {
                             Ok(()) => {}
@@ -879,7 +879,7 @@ pub fn execute_instruction(
                             }
                         }
 
-                        match env.pop_thread_stack_n_times(thread_ptr, 2) {
+                        match env.pop_thread_stack_n_times(thread, 2) {
                             Ok(()) => {}
                             Err(e) => {
                                 return Err(e.push(PengError::InvalidInstruction(instruction)));
@@ -900,7 +900,7 @@ pub fn execute_instruction(
 
         PengInstruction::GetMember(name_ptr) => {
             match env
-                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .get_thread_latest_binded_stated_cell(thread, 0)
                 .cloned()
             {
                 Ok(module_cell) => {
@@ -928,10 +928,10 @@ pub fn execute_instruction(
                         }
                     };
 
-                    match env.pop_thread_stack_n_times(thread_ptr, 1) {
+                    match env.pop_thread_stack_n_times(thread, 1) {
                         Ok(()) => {
                             let value = inherit_binding_from_base(&module_cell, value);
-                            match env.push_thread_binded_stated_cell(thread_ptr, value) {
+                            match env.push_thread_binded_stated_cell(thread, value) {
                                 Ok(()) => {}
                                 Err(e) => {
                                     return Err(e.push(PengError::InvalidInstruction(instruction)));
@@ -951,7 +951,7 @@ pub fn execute_instruction(
             }
         }
 
-        PengInstruction::Jump(target) => match env.set_thread_program_counter(thread_ptr, target) {
+        PengInstruction::Jump(target) => match env.set_thread_program_counter(thread, target) {
             Ok(()) => {}
             Err(e) => {
                 return Err(e.push(PengError::InvalidInstruction(instruction)));
@@ -960,7 +960,7 @@ pub fn execute_instruction(
 
         PengInstruction::JumpIfTrue(address) => {
             match env
-                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .get_thread_latest_binded_stated_cell(thread, 0)
                 .cloned()
             {
                 Ok(condition_cell) => {
@@ -971,10 +971,10 @@ pub fn execute_instruction(
                         }
                     };
 
-                    match env.pop_thread_stack_n_times(thread_ptr, 1) {
+                    match env.pop_thread_stack_n_times(thread, 1) {
                         Ok(()) => {
                             if condition {
-                                match env.set_thread_program_counter(thread_ptr, address) {
+                                match env.set_thread_program_counter(thread, address) {
                                     Ok(()) => {}
                                     Err(e) => {
                                         return Err(
@@ -999,7 +999,7 @@ pub fn execute_instruction(
 
         PengInstruction::JumpIfFalse(address) => {
             match env
-                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .get_thread_latest_binded_stated_cell(thread, 0)
                 .cloned()
             {
                 Ok(condition_cell) => {
@@ -1010,10 +1010,10 @@ pub fn execute_instruction(
                         }
                     };
 
-                    match env.pop_thread_stack_n_times(thread_ptr, 1) {
+                    match env.pop_thread_stack_n_times(thread, 1) {
                         Ok(()) => {
                             if !condition {
-                                match env.set_thread_program_counter(thread_ptr, address) {
+                                match env.set_thread_program_counter(thread, address) {
                                     Ok(()) => {}
                                     Err(e) => {
                                         return Err(
@@ -1038,7 +1038,7 @@ pub fn execute_instruction(
 
         PengInstruction::Return => {
             match env
-                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .get_thread_latest_binded_stated_cell(thread, 0)
                 .cloned()
             {
                 Ok(value) => {
@@ -1051,7 +1051,7 @@ pub fn execute_instruction(
             }
         }
 
-        PengInstruction::FunctionCall(args_count) => match env.get_thread_stack_len(thread_ptr) {
+        PengInstruction::FunctionCall(args_count) => match env.get_thread_stack_len(thread) {
             Ok(stack_len) => {
                 if stack_len < args_count + 1 {
                     return Err(PengError::TooFewArguments {
@@ -1062,7 +1062,7 @@ pub fn execute_instruction(
 
                 let function_index = stack_len - args_count - 1;
 
-                match env.get_thread_latest_binded_stated_cell(thread_ptr, args_count) {
+                match env.get_thread_latest_binded_stated_cell(thread, args_count) {
                     Ok(function_cell) => {
                         let function_ptr = match function_cell.value() {
                             PengCell::Reference(ptr) => *ptr,
@@ -1077,10 +1077,10 @@ pub fn execute_instruction(
 
                         match function {
                             PengFunction::Native(_) => {
-                                match env.pop_thread_stack_at(thread_ptr, args_count) {
+                                match env.pop_thread_stack_at(thread, args_count) {
                                     Ok(_) => {
                                         match env.push_thread_frame(
-                                            thread_ptr,
+                                            thread,
                                             PengFrame::new(
                                                 function_ptr,
                                                 function_index,
@@ -1113,10 +1113,10 @@ pub fn execute_instruction(
                                         });
                                     }
 
-                                    match env.pop_thread_stack_at(thread_ptr, args_count) {
+                                    match env.pop_thread_stack_at(thread, args_count) {
                                         Ok(_) => {
                                             match env.push_thread_frame(
-                                                thread_ptr,
+                                                thread,
                                                 PengFrame::new(
                                                     function_ptr,
                                                     function_index,
@@ -1150,7 +1150,7 @@ pub fn execute_instruction(
 
                                     let args = match env
                                         .get_thread_latest_n_binded_stated_cells_cloned(
-                                            thread_ptr, args_count,
+                                            thread, args_count,
                                         ) {
                                         Ok(args) => args,
                                         Err(e) => {
@@ -1160,7 +1160,7 @@ pub fn execute_instruction(
                                         }
                                     };
 
-                                    match env.pop_thread_stack_n_times(thread_ptr, args_count + 1) {
+                                    match env.pop_thread_stack_n_times(thread, args_count + 1) {
                                         Ok(()) => {}
                                         Err(e) => {
                                             return Err(
@@ -1171,7 +1171,7 @@ pub fn execute_instruction(
 
                                     for i in 0..fixed_count {
                                         match env.push_thread_binded_stated_cell(
-                                            thread_ptr,
+                                            thread,
                                             args[i].clone(),
                                         ) {
                                             Ok(()) => {}
@@ -1190,7 +1190,7 @@ pub fn execute_instruction(
                                     ));
 
                                     match env.push_thread_binded_stated_cell(
-                                        thread_ptr,
+                                        thread,
                                         PengBinded::Mutable(PengCell::Reference(vector_ptr)),
                                     ) {
                                         Ok(()) => {}
@@ -1202,7 +1202,7 @@ pub fn execute_instruction(
                                     }
 
                                     match env.push_thread_frame(
-                                        thread_ptr,
+                                        thread,
                                         PengFrame::new(
                                             function_ptr,
                                             function_index,
@@ -1243,7 +1243,7 @@ pub fn execute_instruction(
             )));
 
             match env.push_thread_binded_stated_cell(
-                thread_ptr,
+                thread,
                 PengBinded::Mutable(PengCell::Reference(heap_ptr)),
             ) {
                 Ok(()) => {}
@@ -1254,7 +1254,7 @@ pub fn execute_instruction(
         }
 
         PengInstruction::CreateUnion(count) => {
-            match env.get_thread_latest_n_binded_stated_cells_cloned(thread_ptr, count) {
+            match env.get_thread_latest_n_binded_stated_cells_cloned(thread, count) {
                 Ok(cells) => {
                     let mut values = Vec::new();
 
@@ -1278,7 +1278,7 @@ pub fn execute_instruction(
                         }
                     }
 
-                    match env.pop_thread_stack_n_times(thread_ptr, count) {
+                    match env.pop_thread_stack_n_times(thread, count) {
                         Ok(()) => {
                             let heap_ptr =
                                 env.create_heap_value(PengValue::Box(PengBox::Union(PengUnion {
@@ -1286,7 +1286,7 @@ pub fn execute_instruction(
                                 })));
 
                             match env.push_thread_binded_stated_cell(
-                                thread_ptr,
+                                thread,
                                 PengBinded::Mutable(PengCell::Reference(heap_ptr)),
                             ) {
                                 Ok(()) => {}
@@ -1310,12 +1310,12 @@ pub fn execute_instruction(
 
         PengInstruction::Convert => {
             match env
-                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .get_thread_latest_binded_stated_cell(thread, 0)
                 .cloned()
             {
                 Ok(target_cell) => {
                     match env
-                        .get_thread_latest_binded_stated_cell(thread_ptr, 1)
+                        .get_thread_latest_binded_stated_cell(thread, 1)
                         .cloned()
                     {
                         Ok(value_cell) => {
@@ -1360,10 +1360,10 @@ pub fn execute_instruction(
                                 }
                             };
 
-                            match env.pop_thread_stack_n_times(thread_ptr, 2) {
+                            match env.pop_thread_stack_n_times(thread, 2) {
                                 Ok(()) => {
                                     match env.push_thread_binded_stated_cell(
-                                        thread_ptr,
+                                        thread,
                                         PengBinded::Mutable(cell),
                                     ) {
                                         Ok(()) => {}
@@ -1394,7 +1394,7 @@ pub fn execute_instruction(
         }
 
         PengInstruction::Add => {
-            match env.get_thread_2_latests_binded_stated_cell_cloned(thread_ptr) {
+            match env.get_thread_2_latests_binded_stated_cell_cloned(thread) {
                 Ok((a, b)) => {
                     let res: PengCell = match (a.value(), b.value()) {
                         (aa, bb) => match (aa, bb) {
@@ -1433,10 +1433,10 @@ pub fn execute_instruction(
                             }
                         },
                     };
-                    match env.pop_thread_stack_n_times(thread_ptr, 2) {
+                    match env.pop_thread_stack_n_times(thread, 2) {
                         Ok(()) => {
                             match env.push_thread_binded_stated_cell(
-                                thread_ptr,
+                                thread,
                                 PengBinded::Mutable(res),
                             ) {
                                 Ok(()) => {}
@@ -1457,7 +1457,7 @@ pub fn execute_instruction(
         }
 
         PengInstruction::Subtract => {
-            match env.get_thread_2_latests_binded_stated_cell_cloned(thread_ptr) {
+            match env.get_thread_2_latests_binded_stated_cell_cloned(thread) {
                 Ok((a, b)) => {
                     let res: PengCell = match (a.value(), b.value()) {
                         (aa, bb) => match (aa, bb) {
@@ -1496,10 +1496,10 @@ pub fn execute_instruction(
                             }
                         },
                     };
-                    match env.pop_thread_stack_n_times(thread_ptr, 2) {
+                    match env.pop_thread_stack_n_times(thread, 2) {
                         Ok(()) => {
                             match env.push_thread_binded_stated_cell(
-                                thread_ptr,
+                                thread,
                                 PengBinded::Mutable(res),
                             ) {
                                 Ok(()) => {}
@@ -1520,7 +1520,7 @@ pub fn execute_instruction(
         }
 
         PengInstruction::Multiply => {
-            match env.get_thread_2_latests_binded_stated_cell_cloned(thread_ptr) {
+            match env.get_thread_2_latests_binded_stated_cell_cloned(thread) {
                 Ok((a, b)) => {
                     let res: PengCell = match (a.value(), b.value()) {
                         (aa, bb) => match (aa, bb) {
@@ -1559,10 +1559,10 @@ pub fn execute_instruction(
                             }
                         },
                     };
-                    match env.pop_thread_stack_n_times(thread_ptr, 2) {
+                    match env.pop_thread_stack_n_times(thread, 2) {
                         Ok(()) => {
                             match env.push_thread_binded_stated_cell(
-                                thread_ptr,
+                                thread,
                                 PengBinded::Mutable(res),
                             ) {
                                 Ok(()) => {}
@@ -1583,7 +1583,7 @@ pub fn execute_instruction(
         }
 
         PengInstruction::Divide => {
-            match env.get_thread_2_latests_binded_stated_cell_cloned(thread_ptr) {
+            match env.get_thread_2_latests_binded_stated_cell_cloned(thread) {
                 Ok((a, b)) => {
                     let res: PengCell = match (a.value(), b.value()) {
                         (aa, bb) => match (aa, bb) {
@@ -1621,10 +1621,10 @@ pub fn execute_instruction(
                             }
                         },
                     };
-                    match env.pop_thread_stack_n_times(thread_ptr, 2) {
+                    match env.pop_thread_stack_n_times(thread, 2) {
                         Ok(()) => {
                             match env.push_thread_binded_stated_cell(
-                                thread_ptr,
+                                thread,
                                 PengBinded::Mutable(res),
                             ) {
                                 Ok(()) => {}
@@ -1645,7 +1645,7 @@ pub fn execute_instruction(
         }
 
         PengInstruction::Power => {
-            match env.get_thread_2_latests_binded_stated_cell_cloned(thread_ptr) {
+            match env.get_thread_2_latests_binded_stated_cell_cloned(thread) {
                 Ok((a, b)) => {
                     let res: PengCell = match (a.value(), b.value()) {
                         (aa, bb) => match (aa, bb) {
@@ -1683,10 +1683,10 @@ pub fn execute_instruction(
                             }
                         },
                     };
-                    match env.pop_thread_stack_n_times(thread_ptr, 2) {
+                    match env.pop_thread_stack_n_times(thread, 2) {
                         Ok(()) => {
                             match env.push_thread_binded_stated_cell(
-                                thread_ptr,
+                                thread,
                                 PengBinded::Mutable(res),
                             ) {
                                 Ok(()) => {}
@@ -1707,7 +1707,7 @@ pub fn execute_instruction(
         }
 
         PengInstruction::Remainder => {
-            match env.get_thread_2_latests_binded_stated_cell_cloned(thread_ptr) {
+            match env.get_thread_2_latests_binded_stated_cell_cloned(thread) {
                 Ok((a, b)) => {
                     let res: PengCell = match (a.value(), b.value()) {
                         (aa, bb) => match (aa, bb) {
@@ -1745,10 +1745,10 @@ pub fn execute_instruction(
                             }
                         },
                     };
-                    match env.pop_thread_stack_n_times(thread_ptr, 2) {
+                    match env.pop_thread_stack_n_times(thread, 2) {
                         Ok(()) => {
                             match env.push_thread_binded_stated_cell(
-                                thread_ptr,
+                                thread,
                                 PengBinded::Mutable(res),
                             ) {
                                 Ok(()) => {}
@@ -1769,7 +1769,7 @@ pub fn execute_instruction(
         }
         PengInstruction::Negate => {
             match env
-                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .get_thread_latest_binded_stated_cell(thread, 0)
                 .cloned()
             {
                 Ok(cell) => {
@@ -1784,10 +1784,10 @@ pub fn execute_instruction(
                         },
                     };
 
-                    match env.pop_thread_stack_n_times(thread_ptr, 1) {
+                    match env.pop_thread_stack_n_times(thread, 1) {
                         Ok(()) => {
                             match env.push_thread_binded_stated_cell(
-                                thread_ptr,
+                                thread,
                                 PengBinded::Mutable(value),
                             ) {
                                 Ok(()) => {}
@@ -1811,12 +1811,12 @@ pub fn execute_instruction(
 
         PengInstruction::Concat => {
             match env
-                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .get_thread_latest_binded_stated_cell(thread, 0)
                 .cloned()
             {
                 Ok(right_cell) => {
                     match env
-                        .get_thread_latest_binded_stated_cell(thread_ptr, 1)
+                        .get_thread_latest_binded_stated_cell(thread, 1)
                         .cloned()
                     {
                         Ok(left_cell) => {
@@ -1860,10 +1860,10 @@ pub fn execute_instruction(
                                 }
                             };
 
-                            match env.pop_thread_stack_n_times(thread_ptr, 2) {
+                            match env.pop_thread_stack_n_times(thread, 2) {
                                 Ok(()) => {
                                     match env.push_thread_binded_stated_cell(
-                                        thread_ptr,
+                                        thread,
                                         PengBinded::Mutable(cell),
                                     ) {
                                         Ok(()) => {}
@@ -1895,12 +1895,12 @@ pub fn execute_instruction(
 
         PengInstruction::And => {
             match env
-                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .get_thread_latest_binded_stated_cell(thread, 0)
                 .cloned()
             {
                 Ok(right_cell) => {
                     match env
-                        .get_thread_latest_binded_stated_cell(thread_ptr, 1)
+                        .get_thread_latest_binded_stated_cell(thread, 1)
                         .cloned()
                     {
                         Ok(left_cell) => {
@@ -1918,10 +1918,10 @@ pub fn execute_instruction(
                                 }
                             };
 
-                            match env.pop_thread_stack_n_times(thread_ptr, 2) {
+                            match env.pop_thread_stack_n_times(thread, 2) {
                                 Ok(()) => {
                                     match env.push_thread_binded_stated_cell(
-                                        thread_ptr,
+                                        thread,
                                         PengBinded::Mutable(PengCell::Bool(left && right)),
                                     ) {
                                         Ok(()) => {}
@@ -1953,12 +1953,12 @@ pub fn execute_instruction(
 
         PengInstruction::Or => {
             match env
-                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .get_thread_latest_binded_stated_cell(thread, 0)
                 .cloned()
             {
                 Ok(right_cell) => {
                     match env
-                        .get_thread_latest_binded_stated_cell(thread_ptr, 1)
+                        .get_thread_latest_binded_stated_cell(thread, 1)
                         .cloned()
                     {
                         Ok(left_cell) => {
@@ -1976,10 +1976,10 @@ pub fn execute_instruction(
                                 }
                             };
 
-                            match env.pop_thread_stack_n_times(thread_ptr, 2) {
+                            match env.pop_thread_stack_n_times(thread, 2) {
                                 Ok(()) => {
                                     match env.push_thread_binded_stated_cell(
-                                        thread_ptr,
+                                        thread,
                                         PengBinded::Mutable(PengCell::Bool(left || right)),
                                     ) {
                                         Ok(()) => {}
@@ -2011,7 +2011,7 @@ pub fn execute_instruction(
 
         PengInstruction::Not => {
             match env
-                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .get_thread_latest_binded_stated_cell(thread, 0)
                 .cloned()
             {
                 Ok(cell) => {
@@ -2022,10 +2022,10 @@ pub fn execute_instruction(
                         }
                     };
 
-                    match env.pop_thread_stack_n_times(thread_ptr, 1) {
+                    match env.pop_thread_stack_n_times(thread, 1) {
                         Ok(()) => {
                             match env.push_thread_binded_stated_cell(
-                                thread_ptr,
+                                thread,
                                 PengBinded::Mutable(PengCell::Bool(!value)),
                             ) {
                                 Ok(()) => {}
@@ -2049,12 +2049,12 @@ pub fn execute_instruction(
 
         PengInstruction::Equals => {
             match env
-                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .get_thread_latest_binded_stated_cell(thread, 0)
                 .cloned()
             {
                 Ok(right_cell) => {
                     match env
-                        .get_thread_latest_binded_stated_cell(thread_ptr, 1)
+                        .get_thread_latest_binded_stated_cell(thread, 1)
                         .cloned()
                     {
                         Ok(left_cell) => {
@@ -2080,10 +2080,10 @@ pub fn execute_instruction(
                                 },
                             };
 
-                            match env.pop_thread_stack_n_times(thread_ptr, 2) {
+                            match env.pop_thread_stack_n_times(thread, 2) {
                                 Ok(()) => {
                                     match env.push_thread_binded_stated_cell(
-                                        thread_ptr,
+                                        thread,
                                         PengBinded::Mutable(PengCell::Bool(left.equals(&right))),
                                     ) {
                                         Ok(()) => {}
@@ -2115,12 +2115,12 @@ pub fn execute_instruction(
 
         PengInstruction::NotEquals => {
             match env
-                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .get_thread_latest_binded_stated_cell(thread, 0)
                 .cloned()
             {
                 Ok(right_cell) => {
                     match env
-                        .get_thread_latest_binded_stated_cell(thread_ptr, 1)
+                        .get_thread_latest_binded_stated_cell(thread, 1)
                         .cloned()
                     {
                         Ok(left_cell) => {
@@ -2146,10 +2146,10 @@ pub fn execute_instruction(
                                 },
                             };
 
-                            match env.pop_thread_stack_n_times(thread_ptr, 2) {
+                            match env.pop_thread_stack_n_times(thread, 2) {
                                 Ok(()) => {
                                     match env.push_thread_binded_stated_cell(
-                                        thread_ptr,
+                                        thread,
                                         PengBinded::Mutable(PengCell::Bool(!left.equals(&right))),
                                     ) {
                                         Ok(()) => {}
@@ -2180,7 +2180,7 @@ pub fn execute_instruction(
         }
 
         PengInstruction::TryFunctionCall(args_count) => {
-            match env.execute_try_function_call(thread_ptr, args_count) {
+            match env.execute_try_function_call(thread, args_count) {
                 Ok(()) => return Ok(None),
                 Err(e) => {
                     return Err(e.push(PengError::InvalidInstruction(instruction)));
@@ -2190,12 +2190,12 @@ pub fn execute_instruction(
 
         PengInstruction::GreaterThan => {
             match env
-                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .get_thread_latest_binded_stated_cell(thread, 0)
                 .cloned()
             {
                 Ok(right_cell) => {
                     match env
-                        .get_thread_latest_binded_stated_cell(thread_ptr, 1)
+                        .get_thread_latest_binded_stated_cell(thread, 1)
                         .cloned()
                     {
                         Ok(left_cell) => {
@@ -2228,10 +2228,10 @@ pub fn execute_instruction(
                                 }
                             };
 
-                            match env.pop_thread_stack_n_times(thread_ptr, 2) {
+                            match env.pop_thread_stack_n_times(thread, 2) {
                                 Ok(()) => {
                                     match env.push_thread_binded_stated_cell(
-                                        thread_ptr,
+                                        thread,
                                         PengBinded::Mutable(PengCell::Bool(result)),
                                     ) {
                                         Ok(()) => {}
@@ -2263,12 +2263,12 @@ pub fn execute_instruction(
 
         PengInstruction::GreaterEqualsThan => {
             match env
-                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .get_thread_latest_binded_stated_cell(thread, 0)
                 .cloned()
             {
                 Ok(right_cell) => {
                     match env
-                        .get_thread_latest_binded_stated_cell(thread_ptr, 1)
+                        .get_thread_latest_binded_stated_cell(thread, 1)
                         .cloned()
                     {
                         Ok(left_cell) => {
@@ -2301,10 +2301,10 @@ pub fn execute_instruction(
                                 }
                             };
 
-                            match env.pop_thread_stack_n_times(thread_ptr, 2) {
+                            match env.pop_thread_stack_n_times(thread, 2) {
                                 Ok(()) => {
                                     match env.push_thread_binded_stated_cell(
-                                        thread_ptr,
+                                        thread,
                                         PengBinded::Mutable(PengCell::Bool(result)),
                                     ) {
                                         Ok(()) => {}
@@ -2336,12 +2336,12 @@ pub fn execute_instruction(
 
         PengInstruction::LessThan => {
             match env
-                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .get_thread_latest_binded_stated_cell(thread, 0)
                 .cloned()
             {
                 Ok(right_cell) => {
                     match env
-                        .get_thread_latest_binded_stated_cell(thread_ptr, 1)
+                        .get_thread_latest_binded_stated_cell(thread, 1)
                         .cloned()
                     {
                         Ok(left_cell) => {
@@ -2374,10 +2374,10 @@ pub fn execute_instruction(
                                 }
                             };
 
-                            match env.pop_thread_stack_n_times(thread_ptr, 2) {
+                            match env.pop_thread_stack_n_times(thread, 2) {
                                 Ok(()) => {
                                     match env.push_thread_binded_stated_cell(
-                                        thread_ptr,
+                                        thread,
                                         PengBinded::Mutable(PengCell::Bool(result)),
                                     ) {
                                         Ok(()) => {}
@@ -2409,12 +2409,12 @@ pub fn execute_instruction(
 
         PengInstruction::LessEqualsThan => {
             match env
-                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .get_thread_latest_binded_stated_cell(thread, 0)
                 .cloned()
             {
                 Ok(right_cell) => {
                     match env
-                        .get_thread_latest_binded_stated_cell(thread_ptr, 1)
+                        .get_thread_latest_binded_stated_cell(thread, 1)
                         .cloned()
                     {
                         Ok(left_cell) => {
@@ -2447,10 +2447,10 @@ pub fn execute_instruction(
                                 }
                             };
 
-                            match env.pop_thread_stack_n_times(thread_ptr, 2) {
+                            match env.pop_thread_stack_n_times(thread, 2) {
                                 Ok(()) => {
                                     match env.push_thread_binded_stated_cell(
-                                        thread_ptr,
+                                        thread,
                                         PengBinded::Mutable(PengCell::Bool(result)),
                                     ) {
                                         Ok(()) => {}
@@ -2482,17 +2482,17 @@ pub fn execute_instruction(
 
         PengInstruction::OperationCall => {
             match env
-                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .get_thread_latest_binded_stated_cell(thread, 0)
                 .cloned()
             {
                 Ok(right_cell) => {
                     match env
-                        .get_thread_latest_binded_stated_cell(thread_ptr, 1)
+                        .get_thread_latest_binded_stated_cell(thread, 1)
                         .cloned()
                     {
                         Ok(left_cell) => {
                             match env
-                                .get_thread_latest_binded_stated_cell(thread_ptr, 2)
+                                .get_thread_latest_binded_stated_cell(thread, 2)
                                 .cloned()
                             {
                                 Ok(operation_cell) => {
@@ -2521,21 +2521,21 @@ pub fn execute_instruction(
                                         }
                                     }
 
-                                    match env.pop_thread_stack_n_times(thread_ptr, 3) {
+                                    match env.pop_thread_stack_n_times(thread, 3) {
                                         Ok(()) => {
-                                            match env.get_thread_stack_len(thread_ptr) {
+                                            match env.get_thread_stack_len(thread) {
                                                 Ok(base) => {
                                                     match env.push_thread_binded_stated_cell(
-                                                        thread_ptr, left_cell,
+                                                        thread, left_cell,
                                                     ) {
                                                         Ok(()) => {
                                                             match env
                                                                 .push_thread_binded_stated_cell(
-                                                                    thread_ptr, right_cell,
+                                                                    thread, right_cell,
                                                                 ) {
                                                                 Ok(()) => {
                                                                     match env.push_thread_frame(
-                                                                        thread_ptr,
+                                                                        thread,
                                                                         PengFrame::new(
                                                                             operation_ptr,
                                                                             base,
@@ -2601,12 +2601,12 @@ pub fn execute_instruction(
 
         PengInstruction::GetIndex => {
             match env
-                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .get_thread_latest_binded_stated_cell(thread, 0)
                 .cloned()
             {
                 Ok(index_cell) => {
                     match env
-                        .get_thread_latest_binded_stated_cell(thread_ptr, 1)
+                        .get_thread_latest_binded_stated_cell(thread, 1)
                         .cloned()
                     {
                         Ok(object_cell) => {
@@ -2668,11 +2668,11 @@ pub fn execute_instruction(
                                 }
                             };
 
-                            match env.pop_thread_stack_n_times(thread_ptr, 2) {
+                            match env.pop_thread_stack_n_times(thread, 2) {
                                 Ok(()) => {
                                     let value = inherit_binding_from_base(&object_cell, value);
 
-                                    match env.push_thread_binded_stated_cell(thread_ptr, value) {
+                                    match env.push_thread_binded_stated_cell(thread, value) {
                                         Ok(()) => {}
                                         Err(e) => {
                                             return Err(
@@ -2702,17 +2702,17 @@ pub fn execute_instruction(
 
         PengInstruction::SetIndex => {
             match env
-                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .get_thread_latest_binded_stated_cell(thread, 0)
                 .cloned()
             {
                 Ok(value_cell) => {
                     match env
-                        .get_thread_latest_binded_stated_cell(thread_ptr, 1)
+                        .get_thread_latest_binded_stated_cell(thread, 1)
                         .cloned()
                     {
                         Ok(index_cell) => {
                             match env
-                                .get_thread_latest_binded_stated_cell(thread_ptr, 2)
+                                .get_thread_latest_binded_stated_cell(thread, 2)
                                 .cloned()
                             {
                                 Ok(object_cell) => {
@@ -2781,7 +2781,7 @@ pub fn execute_instruction(
                                         }
                                     }
 
-                                    match env.pop_thread_stack_n_times(thread_ptr, 3) {
+                                    match env.pop_thread_stack_n_times(thread, 3) {
                                         Ok(()) => {}
                                         Err(e) => {
                                             return Err(
@@ -2810,7 +2810,7 @@ pub fn execute_instruction(
         }
 
         PengInstruction::FunctionCallSpread(fixed_args_count) => {
-            match env.get_thread_stack_len(thread_ptr) {
+            match env.get_thread_stack_len(thread) {
                 Ok(stack_len) => {
                     if stack_len < fixed_args_count + 2 {
                         return Err(PengError::TooFewArguments {
@@ -2820,7 +2820,7 @@ pub fn execute_instruction(
                     }
 
                     let spread_cell = match env
-                        .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                        .get_thread_latest_binded_stated_cell(thread, 0)
                         .cloned()
                     {
                         Ok(cell) => cell,
@@ -2846,7 +2846,7 @@ pub fn execute_instruction(
                         }
                     };
 
-                    match env.pop_thread_stack_n_times(thread_ptr, 1) {
+                    match env.pop_thread_stack_n_times(thread, 1) {
                         Ok(()) => {}
                         Err(e) => {
                             return Err(e.push(PengError::InvalidInstruction(instruction)));
@@ -2854,7 +2854,7 @@ pub fn execute_instruction(
                     }
 
                     for value in &spread_values {
-                        match env.push_thread_binded_stated_cell(thread_ptr, value.clone()) {
+                        match env.push_thread_binded_stated_cell(thread, value.clone()) {
                             Ok(()) => {}
                             Err(e) => {
                                 return Err(e.push(PengError::InvalidInstruction(instruction)));
@@ -2870,7 +2870,7 @@ pub fn execute_instruction(
                     match execute_instruction(
                         PengInstruction::FunctionCall(args_count),
                         None,
-                        thread_ptr,
+                        thread,
                         frame_base,
                         env,
                     ) {
@@ -2888,7 +2888,7 @@ pub fn execute_instruction(
         }
 
         PengInstruction::TryFunctionCallSpread(fixed_args_count) => {
-            match env.get_thread_stack_len(thread_ptr) {
+            match env.get_thread_stack_len(thread) {
                 Ok(stack_len) => {
                     if stack_len < fixed_args_count + 2 {
                         return Err(PengError::TooFewArguments {
@@ -2898,7 +2898,7 @@ pub fn execute_instruction(
                     }
 
                     let spread_cell = match env
-                        .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                        .get_thread_latest_binded_stated_cell(thread, 0)
                         .cloned()
                     {
                         Ok(cell) => cell,
@@ -2924,7 +2924,7 @@ pub fn execute_instruction(
                         }
                     };
 
-                    match env.pop_thread_stack_n_times(thread_ptr, 1) {
+                    match env.pop_thread_stack_n_times(thread, 1) {
                         Ok(()) => {}
                         Err(e) => {
                             return Err(e.push(PengError::InvalidInstruction(instruction)));
@@ -2932,7 +2932,7 @@ pub fn execute_instruction(
                     }
 
                     for value in &spread_values {
-                        match env.push_thread_binded_stated_cell(thread_ptr, value.clone()) {
+                        match env.push_thread_binded_stated_cell(thread, value.clone()) {
                             Ok(()) => {}
                             Err(e) => {
                                 return Err(e.push(PengError::InvalidInstruction(instruction)));
@@ -2945,7 +2945,7 @@ pub fn execute_instruction(
                         None => return Err(PengError::ArithmeticOverflow),
                     };
 
-                    match env.execute_try_function_call(thread_ptr, args_count) {
+                    match env.execute_try_function_call(thread, args_count) {
                         Ok(()) => return Ok(None),
                         Err(e) => {
                             return Err(e.push(PengError::InvalidInstruction(instruction)));
@@ -2961,17 +2961,17 @@ pub fn execute_instruction(
 
         PengInstruction::TryOperationCall => {
             match env
-                .get_thread_latest_binded_stated_cell(thread_ptr, 0)
+                .get_thread_latest_binded_stated_cell(thread, 0)
                 .cloned()
             {
                 Ok(right_cell) => {
                     match env
-                        .get_thread_latest_binded_stated_cell(thread_ptr, 1)
+                        .get_thread_latest_binded_stated_cell(thread, 1)
                         .cloned()
                     {
                         Ok(left_cell) => {
                             match env
-                                .get_thread_latest_binded_stated_cell(thread_ptr, 2)
+                                .get_thread_latest_binded_stated_cell(thread, 2)
                                 .cloned()
                             {
                                 Ok(operation_cell) => {
@@ -2997,19 +2997,19 @@ pub fn execute_instruction(
                                         }
                                     }
 
-                                    match env.pop_thread_stack_n_times(thread_ptr, 3) {
-                                        Ok(()) => match env.get_thread_stack_len(thread_ptr) {
+                                    match env.pop_thread_stack_n_times(thread, 3) {
+                                        Ok(()) => match env.get_thread_stack_len(thread) {
                                             Ok(base) => {
                                                 match env.push_thread_binded_stated_cell(
-                                                    thread_ptr, left_cell,
+                                                    thread, left_cell,
                                                 ) {
                                                     Ok(()) => {
                                                         match env.push_thread_binded_stated_cell(
-                                                            thread_ptr, right_cell,
+                                                            thread, right_cell,
                                                         ) {
                                                             Ok(()) => {
                                                                 match env.push_thread_frame(
-                                                                    thread_ptr,
+                                                                    thread,
                                                                     PengFrame::new_try(
                                                                         operation_ptr,
                                                                         base,

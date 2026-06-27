@@ -22,6 +22,7 @@ pub use crate::core::{
     colour::*,
     value::*,
     garbage_collector::*,
+    unit::*,
 };
 pub use crate::lexer::*;
 pub use crate::parser::*;

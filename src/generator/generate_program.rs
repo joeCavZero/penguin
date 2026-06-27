@@ -6,7 +6,18 @@ pub fn generate_program(
     env: &mut PengEnv,
     declarations: &Vec<PengBindedDeclaration>,
 ) -> Result<PengUnit, PengError> {
+    let using_unit = PengUnit::library();
+
+    generate_program_using(env, declarations, &using_unit)
+}
+
+pub fn generate_program_using(
+    env: &mut PengEnv,
+    declarations: &Vec<PengBindedDeclaration>,
+    using_unit: &PengUnit,
+) -> Result<PengUnit, PengError> {
     let mut context = PengGeneratorContext::new();
+    context.use_globals(env, using_unit.globals().clone());
 
     match allocate_program_globals(env, declarations, &mut context) {
         Ok(()) => {}
@@ -24,11 +35,8 @@ pub fn generate_program(
 
     let globals = context.globals().clone();
 
-    let program_init = create_anonymous_bytecode_function(
-        env,
-        context,
-        PengBytecodeFunctionParams::Fixed(0),
-    );
+    let program_init =
+        create_anonymous_bytecode_function(env, context, PengBytecodeFunctionParams::Fixed(0));
 
     Ok(PengUnit::new(program_init, globals))
 }
@@ -45,13 +53,9 @@ fn allocate_program_globals(
         let heap_ptr = env.create_heap_value(PengValue::Cell(PengCell::Nil));
 
         let value = match declaration {
-            PengBinded::Mutable(_) => {
-                PengBinded::Mutable(heap_ptr)
-            }
+            PengBinded::Mutable(_) => PengBinded::Mutable(heap_ptr),
 
-            PengBinded::Immutable(_) => {
-                PengBinded::Immutable(heap_ptr)
-            }
+            PengBinded::Immutable(_) => PengBinded::Immutable(heap_ptr),
         };
 
         context.insert_global(name_ptr, value);
@@ -101,6 +105,16 @@ fn generate_program_initialization(
         };
 
         match declaration {
+            PengDeclaration::Var(variable) => {
+                match generate_global_variable(env, context, variable) {
+                    Ok(()) => {}
+                    Err(e) => {
+                        return Err(e.push(PengError::InvalidState(
+                            "failed while generating global variable".to_string(),
+                        )));
+                    }
+                }
+            }
             PengDeclaration::Function(function) => {
                 match generate_global_function(env, context, function) {
                     Ok(()) => {}
@@ -139,6 +153,41 @@ fn generate_program_initialization(
             _ => {}
         }
     }
+
+    Ok(())
+}
+
+fn generate_global_variable(
+    env: &mut PengEnv,
+    context: &mut PengGeneratorContext,
+    declaration: &PengPositionedVariableDeclaration,
+) -> Result<(), PengError> {
+    let value_ptr = match get_allocated_global(env, context, &declaration.value.name.value) {
+        Some(value) => *value.value(),
+        None => {
+            return Err(PengError::new_positioned_message(
+                "global variable was not allocated".to_string(),
+                declaration.value.name.position.clone(),
+            ));
+        }
+    };
+
+    context.bytecode.push(PengInstruction::PushHeapRef(value_ptr));
+
+    match &declaration.value.value {
+        Some(value) => {
+            match generate_expression(env, context, value) {
+                Ok(()) => {}
+                Err(e) => return Err(e),
+            }
+        }
+
+        None => {
+            context.push_const_and_const_instruction(env, PengValue::Cell(PengCell::Nil));
+        }
+    }
+
+    context.bytecode.push(PengInstruction::StoreHeap);
 
     Ok(())
 }

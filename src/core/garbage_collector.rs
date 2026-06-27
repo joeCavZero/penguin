@@ -29,7 +29,7 @@ impl PengGarbageCollectable for PengEnv {
 }
 
 fn paint_all_red(env: &mut PengEnv) {
-    for (_, heap_value) in env.heap.iter_mut() {
+    for (_, heap_value) in env.heap_mut().iter_mut() {
         heap_value.colour = PengColour::Red;
     }
 }
@@ -37,22 +37,12 @@ fn paint_all_red(env: &mut PengEnv) {
 fn collect_roots(env: &PengEnv) -> Vec<PengHeapPtr> {
     let mut roots = Vec::new();
 
-    for (ptr, heap_value) in env.heap.iter() {
-        if let PengValue::Box(PengBox::Thread(thread)) = &heap_value.value {
-            match thread.state {
-                PengThreadState::Running | PengThreadState::Paused | PengThreadState::Waiting => {
-                    roots.push(*ptr);
-                }
-
-                PengThreadState::Finished
-                | PengThreadState::Failed
-                | PengThreadState::Cancelled => {}
-            }
-        }
+    for ptr in env.pinned().iter() {
+        roots.push(*ptr);
     }
 
-    for (_, global) in env.globals.iter() {
-        roots.push(*global.value());
+    for ptr in env.active_threads().iter() {
+        roots.push(*ptr);
     }
 
     roots
@@ -88,7 +78,7 @@ fn collect_children(value: &PengValue) -> Vec<PengHeapPtr> {
 }
 
 fn sweep(env: &mut PengEnv) {
-    env.heap
+    env.heap_mut()
         .retain(|_, heap_value| heap_value.colour == PengColour::Black);
 }
 
@@ -132,7 +122,7 @@ fn collect_box_children(value: &PengBox, children: &mut Vec<PengHeapPtr>) {
             }
 
             for frame in thread.frames.iter() {
-                children.push(frame.procedure_ptr);
+                children.push(frame.procedure);
             }
 
             match &thread.result {

@@ -2,8 +2,9 @@ use penguin::prelude::*;
 
 fn main() {
     let mut peng = PengEnv::new();
+    let mut pengstd = PengUnit::library();
 
-    peng.register_native_function("print", move |args, env| {
+    pengstd.register_native_function(&mut peng, "print", move |args, env| {
         for arg in args {
             match arg.value() {
                 PengCell::Bool(v) => print!("{}", v),
@@ -35,7 +36,7 @@ fn main() {
         return Ok(PengBindedCell::Mutable(PengCell::Nil));
     })
     .unwrap();
-    peng.register_native_function("len", move |args, env| {
+    pengstd.register_native_function(&mut peng, "len", move |args, env| {
         for arg in args {
             match arg.value() {
                 PengCell::Reference(ptr) => {
@@ -66,13 +67,20 @@ fn main() {
         return Ok(PengBindedCell::Mutable(PengCell::Nil));
     })
     .unwrap();
-    peng.register_native_operation("test_op", move |(a, b), _env| {
+    pengstd.register_native_operation(&mut peng, "test_op", move |(a, b), _env| {
         println!("{:?} doing things on {:?}", a, b);
         return Ok(PengBindedCell::Mutable(PengCell::Nil));
     }).unwrap();
 
 
 
-    let init = peng.load_script_from_file("main.peng").unwrap();
-    peng.run(init.init()).unwrap();
+    let unit = peng
+        .load_program_from_file_using("main.peng", &pengstd)
+        .unwrap();
+    
+    println!("globals: {:#?}", unit.globals());
+    
+    peng.run(unit.require_init().unwrap()).unwrap();
+
+    peng.run_function(&unit, "main", Vec::new()).unwrap();
 }

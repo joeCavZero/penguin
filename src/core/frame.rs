@@ -5,26 +5,26 @@ use crate::core::*;
 pub struct PengFrame {
     pub program_counter: usize,
     pub base: usize,
-    pub procedure_ptr: PengHeapPtr,
+    pub procedure: PengHeapPtr,
     pub params_count: usize,
     pub is_try: bool,
 }
 
 impl PengFrame {
-    pub fn new(procedure_ptr: PengHeapPtr, base: usize, params_count: usize) -> Self {
+    pub fn new(procedure: PengHeapPtr, base: usize, params_count: usize) -> Self {
         PengFrame {
             program_counter: 0,
             base,
-            procedure_ptr,
+            procedure,
             params_count,
             is_try: false
         }
     }
-    pub fn new_try(procedure_ptr: PengHeapPtr, base: usize, params_count: usize) -> Self {
+    pub fn new_try(procedure: PengHeapPtr, base: usize, params_count: usize) -> Self {
         PengFrame {
             program_counter: 0,
             base,
-            procedure_ptr,
+            procedure,
             params_count,
             is_try: true
         }
@@ -32,7 +32,7 @@ impl PengFrame {
     pub fn equals(&self, rhs: &Self) -> bool {
         self.program_counter == rhs.program_counter
             && self.base == rhs.base
-            && self.procedure_ptr == rhs.procedure_ptr
+            && self.procedure == rhs.procedure
             && self.params_count == rhs.params_count
     }
 }

@@ -2,11 +2,13 @@ use crate::core::*;
 use crate::generator::*;
 use crate::parser::*;
 
-pub fn generate_script(
+pub fn generate_script_using(
     env: &mut PengEnv,
     statements: &Vec<PengPositioned<PengStatement>>,
+    using_unit: &PengUnit,
 ) -> Result<PengUnit, PengError> {
     let mut context = PengGeneratorContext::new();
+    context.use_globals(env, using_unit.globals().clone());
 
     match generate_statements(env, &mut context, statements) {
         Ok(()) => {}

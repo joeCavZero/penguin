@@ -76,10 +76,12 @@ impl PengGeneratorContext {
 
     pub fn use_globals(
         &mut self,
+        env: &mut PengEnv,
         globals: HashMap<PengNamePoolPtr, PengBindedHeapPtr>,
     ) {
         for (name, value) in globals {
-            self.using_globals.insert(name, value);
+            self.using_globals.insert(name, value.clone());
+            env.pinned_mut().insert(*value.value());
         }
     }
 

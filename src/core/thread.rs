@@ -30,12 +30,12 @@ pub struct PengThread {
 }
 
 impl PengThread {
-    pub fn new(function_ptr: PengHeapPtr, base: usize, params: Vec<PengBindedCell>, state: PengThreadState) -> Self {
+    pub fn new(function: PengHeapPtr, base: usize, params: Vec<PengBindedCell>, state: PengThreadState) -> Self {
         
         let mut frames = Vec::new();
 
         frames.push(
-            PengFrame::new(function_ptr, base, params.len())
+            PengFrame::new(function, base, params.len())
         );
         
         let mut thread = PengThread {

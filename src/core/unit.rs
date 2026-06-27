@@ -4,8 +4,8 @@ use crate::core::*;
 
 #[derive(Debug, Clone)]
 pub struct PengUnit {
-    pub init: PengHeapPtr,
-    pub globals: HashMap<PengNamePoolPtr, PengBindedHeapPtr>,
+    init: Option<PengHeapPtr>,
+    globals: HashMap<PengNamePoolPtr, PengBindedHeapPtr>,
 }
 
 impl PengUnit {
@@ -14,20 +14,36 @@ impl PengUnit {
         globals: HashMap<PengNamePoolPtr, PengBindedHeapPtr>,
     ) -> Self {
         Self {
-            init,
+            init: Some(init),
             globals,
         }
     }
 
     pub fn empty(init: PengHeapPtr) -> Self {
         Self {
-            init,
+            init: Some(init),
             globals: HashMap::new(),
         }
     }
 
-    pub fn init(&self) -> PengHeapPtr {
+    pub fn library() -> Self {
+        Self {
+            init: None,
+            globals: HashMap::new(),
+        }
+    }
+
+    pub fn init(&self) -> Option<PengHeapPtr> {
         self.init
+    }
+
+    pub fn require_init(&self) -> Result<PengHeapPtr, PengError> {
+        match self.init {
+            Some(init) => Ok(init),
+            None => Err(PengError::InvalidState(
+                "unit has no init function".to_string(),
+            )),
+        }
     }
 
     pub fn globals(&self) -> &HashMap<PengNamePoolPtr, PengBindedHeapPtr> {
@@ -59,6 +75,54 @@ impl PengUnit {
         value: PengBindedHeapPtr,
     ) {
         self.globals.insert(name, value);
+    }
+
+    pub fn use_unit(&mut self, unit: &PengUnit) {
+        for (name, value) in unit.globals.iter() {
+            self.globals.insert(*name, value.clone());
+        }
+    }
+
+    pub fn register_native_function<F>(
+        &mut self,
+        env: &mut PengEnv,
+        name: &str,
+        function: F,
+    ) -> Result<(), PengError>
+    where
+        F: FnMut(Vec<PengBindedCell>, &mut PengEnv) -> Result<PengBindedCell, PengError> + 'static,
+    {
+        let name_ptr = env.ensure_pooled_name_ptr(name.to_string());
+        let ptr = env.create_heap_value(PengValue::Box(PengBox::Function(
+            PengFunction::new_native(function),
+        )));
+
+        self.insert_global(name_ptr, PengBinded::Immutable(ptr));
+
+        Ok(())
+    }
+
+    pub fn register_native_operation<F>(
+        &mut self,
+        env: &mut PengEnv,
+        name: &str,
+        operation: F,
+    ) -> Result<(), PengError>
+    where
+        F: FnMut(
+                (PengBindedCell, PengBindedCell),
+                &mut PengEnv,
+            ) -> Result<PengBindedCell, PengError>
+            + 'static,
+    {
+        let name_ptr = env.ensure_pooled_name_ptr(name.to_string());
+        let ptr = env.create_heap_value(PengValue::Box(PengBox::Operation(
+            PengOperation::new_native(operation),
+        )));
+
+        self.insert_global(name_ptr, PengBinded::Immutable(ptr));
+
+        Ok(())
     }
 
     pub fn remove_global(&mut self, name: PengNamePoolPtr) -> Option<PengBindedHeapPtr> {
