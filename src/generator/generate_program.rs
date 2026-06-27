@@ -139,7 +139,7 @@ fn generate_program_initialization(
 
             PengDeclaration::Type(declaration) => {
                 if declaration.value.value.is_some() {
-                    match generate_global_type_value(env, context, declaration) {
+                    match generate_global_type(env, context, declaration) {
                         Ok(()) => {}
                         Err(e) => {
                             return Err(e.push(PengError::InvalidState(
@@ -149,8 +149,25 @@ fn generate_program_initialization(
                     }
                 }
             }
+            PengDeclaration::Module(module) => match generate_global_module(env, context, module) {
+                Ok(()) => {}
+                Err(e) => {
+                    return Err(e.push(PengError::InvalidState(
+                        "failed while generating generate_program".to_string(),
+                    )));
+                }
+            },
+            PengDeclaration::As(declaration) => {
+    match generate_global_as(env, context, declaration) {
+        Ok(()) => {}
+        Err(e) => {
+            return Err(e.push(PengError::InvalidState(
+                "failed while generating global as".to_string(),
+            )));
+        }
+    }
+}
 
-            _ => {}
         }
     }
 
@@ -172,15 +189,15 @@ fn generate_global_variable(
         }
     };
 
-    context.bytecode.push(PengInstruction::PushHeapRef(value_ptr));
+    context
+        .bytecode
+        .push(PengInstruction::PushHeapRef(value_ptr));
 
     match &declaration.value.value {
-        Some(value) => {
-            match generate_expression(env, context, value) {
-                Ok(()) => {}
-                Err(e) => return Err(e),
-            }
-        }
+        Some(value) => match generate_expression(env, context, value) {
+            Ok(()) => {}
+            Err(e) => return Err(e),
+        },
 
         None => {
             context.push_const_and_const_instruction(env, PengValue::Cell(PengCell::Nil));
@@ -189,49 +206,6 @@ fn generate_global_variable(
 
     context.bytecode.push(PengInstruction::StoreHeap);
 
-    Ok(())
-}
-
-fn generate_global_type_value(
-    env: &mut PengEnv,
-
-    context: &mut PengGeneratorContext,
-    declaration: &PengPositionedTypeDeclaration,
-) -> Result<(), PengError> {
-    let value_ptr = match get_allocated_global(env, context, &declaration.value.name.value) {
-        Some(value) => *value.value(),
-        None => {
-            return Err(PengError::new_positioned_message(
-                "global type value was not allocated".to_string(),
-                declaration.value.name.position.clone(),
-            ));
-        }
-    };
-
-    let value = match &declaration.value.value {
-        Some(value) => value,
-        None => {
-            return Err(PengError::new_positioned_message(
-                "expected type declaration value".to_string(),
-                declaration.position.clone(),
-            ));
-        }
-    };
-
-    context
-        .bytecode
-        .push(PengInstruction::PushHeapRef(value_ptr));
-
-    match generate_type_expression(env, context, value) {
-        Ok(()) => {}
-        Err(e) => {
-            return Err(e.push(PengError::InvalidState(
-                "failed while generating generate_program".to_string(),
-            )));
-        }
-    }
-
-    context.bytecode.push(PengInstruction::StoreHeap);
     Ok(())
 }
 
@@ -298,6 +272,122 @@ fn generate_global_function(
         .bytecode
         .push(PengInstruction::PushHeapRef(value_ptr));
     context.push_const_and_const_instruction(env, PengValue::Box(value));
+    context.bytecode.push(PengInstruction::StoreHeap);
+
+    Ok(())
+}
+
+fn generate_global_module(
+    env: &mut PengEnv,
+    context: &mut PengGeneratorContext,
+    declaration: &PengPositionedModuleDeclaration,
+) -> Result<(), PengError> {
+    let value_ptr = match get_allocated_global(env, context, &declaration.value.name.value) {
+        Some(value) => *value.value(),
+        None => {
+            return Err(PengError::new_positioned_message(
+                "global module was not allocated".to_string(),
+                declaration.value.name.position.clone(),
+            ));
+        }
+    };
+
+    context
+        .bytecode
+        .push(PengInstruction::PushHeapRef(value_ptr));
+
+    match generate_module_declaration_value(env, context, declaration) {
+        Ok(()) => {}
+        Err(e) => {
+            return Err(e.push(PengError::InvalidState(
+                "failed while generating global module".to_string(),
+            )));
+        }
+    }
+
+    context.bytecode.push(PengInstruction::StoreHeap);
+
+    Ok(())
+}
+
+fn generate_global_type(
+    env: &mut PengEnv,
+    context: &mut PengGeneratorContext,
+    declaration: &PengPositionedTypeDeclaration,
+) -> Result<(), PengError> {
+    let value_ptr = match get_allocated_global(env, context, &declaration.value.name.value) {
+        Some(value) => *value.value(),
+        None => {
+            return Err(PengError::new_positioned_message(
+                "global type was not allocated".to_string(),
+                declaration.value.name.position.clone(),
+            ));
+        }
+    };
+
+    context.bytecode.push(PengInstruction::PushHeapRef(value_ptr));
+
+    match &declaration.value.value {
+        Some(value) => {
+            match generate_type_expression(env, context, value) {
+                Ok(()) => {}
+                Err(e) => {
+                    return Err(e.push(PengError::InvalidState(
+                        "failed while generating global type".to_string(),
+                    )));
+                }
+            }
+        }
+
+        None => {
+            let literal = PengTypeLiteral {
+                supers: declaration.value.supers.clone(),
+                fields: declaration.value.fields.clone(),
+                functions: declaration.value.functions.clone(),
+            };
+
+            match generate_type_literal(env, context, &literal) {
+                Ok(()) => {}
+                Err(e) => {
+                    return Err(e.push(PengError::InvalidState(
+                        "failed while generating global type".to_string(),
+                    )));
+                }
+            }
+        }
+    }
+
+    context.bytecode.push(PengInstruction::StoreHeap);
+
+    Ok(())
+}
+
+fn generate_global_as(
+    env: &mut PengEnv,
+    context: &mut PengGeneratorContext,
+    declaration: &PengPositionedAsDeclaration,
+) -> Result<(), PengError> {
+    let value_ptr = match get_allocated_global(env, context, &declaration.value.name.value) {
+        Some(value) => *value.value(),
+        None => {
+            return Err(PengError::new_positioned_message(
+                "global as was not allocated".to_string(),
+                declaration.value.name.position.clone(),
+            ));
+        }
+    };
+
+    context.bytecode.push(PengInstruction::PushHeapRef(value_ptr));
+
+    match generate_expression(env, context, &declaration.value.value) {
+        Ok(()) => {}
+        Err(e) => {
+            return Err(e.push(PengError::InvalidState(
+                "failed while generating global as".to_string(),
+            )));
+        }
+    }
+
     context.bytecode.push(PengInstruction::StoreHeap);
 
     Ok(())

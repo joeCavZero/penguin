@@ -79,6 +79,14 @@ fn main() {
         .unwrap();
     
     println!("globals: {:#?}", unit.globals());
+
+    if let PengValue::Box(b) = peng.get_heap_mut(unit.init().unwrap()).unwrap() {
+        if let PengBox::Function(f) = b {
+            if let PengFunction::Bytecode(btc) = f {
+                println!("bytecode do init: \n {:#?}", btc.bytecode);
+            }
+        }
+    }
     
     peng.run(unit.require_init().unwrap()).unwrap();
 
