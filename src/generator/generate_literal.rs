@@ -34,7 +34,7 @@ pub fn generate_literal(
         PengLiteral::String(value) => PengValue::Box(PengBox::String(value.clone())),
         PengLiteral::Type(_) => unreachable!(),
         PengLiteral::Function(function) => {
-            match generate_function_value(env, &function.params, &function.body) {
+            match generate_function_value(env, context, &function.params, &function.body) {
                 Ok(value) => PengValue::Box(value),
                 Err(e) => {
                     return Err(e.push(PengError::InvalidState(
@@ -46,7 +46,7 @@ pub fn generate_literal(
         PengLiteral::Module(_) => unreachable!(),
         PengLiteral::Vector(_) => unreachable!(),
         PengLiteral::Operation(operation) => {
-            match generate_operation_value(env, &operation.params, &operation.body) {
+            match generate_operation_value(env, context, &operation.params, &operation.body) {
                 Ok(value) => PengValue::Box(value),
                 Err(e) => {
                     return Err(e.push(PengError::InvalidState(
@@ -148,7 +148,7 @@ pub fn generate_type_literal_after_base(
 
         let name = env.ensure_pooled_name_ptr(function.value.name.value.clone());
 
-        let value = match generate_function_declaration_value(env, function) {
+        let value = match generate_function_declaration_value(env, context, function) {
             Ok(value) => value,
             Err(e) => {
                 return Err(e.push(PengError::InvalidState(
@@ -240,7 +240,7 @@ pub fn generate_module_literal(
             }
 
             PengDeclaration::Function(declaration) => {
-                let value = match generate_function_declaration_value(env, declaration) {
+                let value = match generate_function_declaration_value(env, context, declaration) {
                     Ok(v) => v,
                     Err(e) => {
                         return Err(e.push(PengError::InvalidState(
@@ -290,7 +290,7 @@ pub fn generate_module_literal(
             }
 
             PengDeclaration::Operation(declaration) => {
-                let value = match generate_operation_declaration_value(env, declaration) {
+                let value = match generate_operation_declaration_value(env, context, declaration) {
                     Ok(v) => v,
                     Err(e) => {
                         return Err(e.push(PengError::InvalidState(

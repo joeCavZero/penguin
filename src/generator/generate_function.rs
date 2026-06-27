@@ -31,10 +31,12 @@ pub fn create_bytecode_function_value(
 
 pub fn generate_function_declaration_value(
     env: &mut PengEnv,
+    context: &PengGeneratorContext,
     declaration: &PengPositionedFunctionDeclaration,
 ) -> Result<PengBox, PengError> {
     generate_function_value(
         env,
+        context,
         &declaration.value.params,
         &declaration.value.body,
     )
@@ -138,11 +140,11 @@ pub fn generate_local_function_declaration(
     declaration: &PengPositionedFunctionDeclaration,
     immutable: bool,
 ) -> Result<(), PengError> {
-    let global = get_allocated_global(env, &declaration.value.name.value);
+    let global = get_allocated_global(env, context, &declaration.value.name.value);
 
     match global {
         Some(value_ptr) => {
-            let value = match generate_function_declaration_value(env, declaration) {
+            let value = match generate_function_declaration_value(env, context, declaration) {
                 Ok(value) => value,
                 Err(e) => {
                     return Err(e.push(PengError::InvalidState(
@@ -153,7 +155,7 @@ pub fn generate_local_function_declaration(
 
             context
                 .bytecode
-                .push(PengInstruction::PushHeapRef(value_ptr));
+                .push(PengInstruction::PushHeapRef(*value_ptr.value()));
 
             context.push_const_and_const_instruction(env, PengValue::Box(value));
 
@@ -163,7 +165,7 @@ pub fn generate_local_function_declaration(
         }
 
         None => {
-            let value = match generate_function_declaration_value(env, declaration) {
+            let value = match generate_function_declaration_value(env, context, declaration) {
                 Ok(value) => value,
                 Err(e) => {
                     return Err(e.push(PengError::InvalidState(

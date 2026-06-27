@@ -4,11 +4,12 @@ use crate::parser::*;
 
 pub fn generate_operation_declaration_value(
     env: &mut PengEnv,
-
+    context: &PengGeneratorContext,
     declaration: &PengPositionedOperationDeclaration,
 ) -> Result<PengBox, PengError> {
     generate_operation_value(
         env,
+        context,
         &declaration.value.params,
         &declaration.value.body,
     )
@@ -16,11 +17,11 @@ pub fn generate_operation_declaration_value(
 
 pub fn generate_operation_value(
     env: &mut PengEnv,
-
+    parent_context: &PengGeneratorContext,
     params: &Vec<PengPositionedFunctionParam>,
     body: &Vec<PengPositionedStatement>,
 ) -> Result<PengBox, PengError> {
-    let mut context = PengGeneratorContext::new();
+    let mut context = parent_context.new_child_context();
 
     for param in params {
         context.create_local(param.value.name.value.clone());
@@ -94,7 +95,7 @@ pub fn generate_local_operation_declaration(
     declaration: &PengPositionedOperationDeclaration,
     immutable: bool,
 ) -> Result<(), PengError> {
-    let value = match generate_operation_declaration_value(env, declaration) {
+    let value = match generate_operation_declaration_value(env, context, declaration) {
         Ok(value) => value,
         Err(e) => {
             return Err(e.push(PengError::InvalidState(

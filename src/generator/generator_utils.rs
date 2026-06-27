@@ -54,6 +54,10 @@ impl PengGeneratorContext {
         self.globals
     }
 
+    pub fn globals(&self) -> &HashMap<PengNamePoolPtr, PengBindedHeapPtr> {
+        &self.globals
+    }
+
     pub fn insert_global(
         &mut self,
         name: PengNamePoolPtr,
@@ -287,11 +291,11 @@ pub fn generate_identifier(
 
     let name_ptr = env.ensure_pooled_name_ptr(identifier.value.clone());
 
-    match context.get_global(name_ptr) {
+    match context.get_global(name_ptr).cloned() {
         Some(value) => {
             context.bytecode.push(PengInstruction::PushHeap(*value.value()));
 
-            match value {
+            match &value {
                 PengBinded::Immutable(_) => {
                     context.bytecode.push(PengInstruction::MakeImmutable);
                 }
@@ -520,16 +524,19 @@ pub fn generate_assignment_value(
 
     let local = context.get_local(&identifier.value);
     let global = if local.is_none() {
-        get_allocated_global(env, &identifier.value)
+        get_allocated_global(env, context, &identifier.value)
     } else {
         None
     };
 
-    match global {
-        Some(value_ptr) => {
+    match &global {
+        Some(PengBinded::Mutable(value_ptr)) => {
             context
                 .bytecode
-                .push(PengInstruction::PushHeapRef(value_ptr));
+                .push(PengInstruction::PushHeapRef(*value_ptr));
+        }
+        Some(PengBinded::Immutable(_)) => {
+            return Err(PengError::CannotMutateImmutable);
         }
         None => {}
     }
@@ -540,9 +547,12 @@ pub fn generate_assignment_value(
                 Some(local) => {
                     context.bytecode.push(PengInstruction::PushLocal(local));
                 }
-                None => match global {
-                    Some(value_ptr) => {
-                        context.bytecode.push(PengInstruction::PushHeap(value_ptr));
+                None => match &global {
+                    Some(PengBinded::Mutable(value_ptr)) => {
+                        context.bytecode.push(PengInstruction::PushHeap(*value_ptr));
+                    }
+                    Some(PengBinded::Immutable(_)) => {
+                        return Err(PengError::CannotMutateImmutable);
                     }
                     None => {
                         return Err(PengError::new_positioned_message(
@@ -579,7 +589,7 @@ pub fn generate_assignment_value(
             context.bytecode.push(PengInstruction::StoreLocal(local));
             Ok(())
         }
-        None => match global {
+        None => match &global {
             Some(_) => {
                 context.bytecode.push(PengInstruction::StoreHeap);
                 Ok(())
@@ -928,7 +938,7 @@ pub fn generate_local_module_declaration(
             }
 
             PengDeclaration::Function(declaration) => {
-                let value = match generate_function_declaration_value(env, declaration) {
+                let value = match generate_function_declaration_value(env, context, declaration) {
                     Ok(v) => v,
                     Err(e) => {
                         return Err(e.push(PengError::InvalidState(
@@ -940,7 +950,7 @@ pub fn generate_local_module_declaration(
             }
 
             PengDeclaration::Operation(declaration) => {
-                let value = match generate_operation_declaration_value(env, declaration) {
+                let value = match generate_operation_declaration_value(env, context, declaration) {
                     Ok(v) => v,
                     Err(e) => {
                         return Err(e.push(PengError::InvalidState(
@@ -1054,7 +1064,7 @@ pub fn generate_module_declaration_value(
             }
 
             PengDeclaration::Function(declaration) => {
-                let value = match generate_function_declaration_value(env, declaration) {
+                let value = match generate_function_declaration_value(env, context, declaration) {
                     Ok(v) => v,
                     Err(e) => {
                         return Err(e.push(PengError::InvalidState(
@@ -1066,7 +1076,7 @@ pub fn generate_module_declaration_value(
             }
 
             PengDeclaration::Operation(declaration) => {
-                let value = match generate_operation_declaration_value(env, declaration) {
+                let value = match generate_operation_declaration_value(env, context, declaration) {
                     Ok(v) => v,
                     Err(e) => {
                         return Err(e.push(PengError::InvalidState(

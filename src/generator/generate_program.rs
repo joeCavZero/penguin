@@ -22,13 +22,15 @@ pub fn generate_program(
         Err(e) => return Err(e),
     };
 
+    let globals = context.globals().clone();
+
     let program_init = create_anonymous_bytecode_function(
         env,
         context,
         PengBytecodeFunctionParams::Fixed(0),
     );
 
-    Ok(PengUnit::new(program_init, context.into_globals()))
+    Ok(PengUnit::new(program_init, globals))
 }
 
 fn allocate_program_globals(
@@ -147,8 +149,8 @@ fn generate_global_type_value(
     context: &mut PengGeneratorContext,
     declaration: &PengPositionedTypeDeclaration,
 ) -> Result<(), PengError> {
-    let value_ptr = match get_allocated_global(env, &declaration.value.name.value) {
-        Some(value_ptr) => value_ptr,
+    let value_ptr = match get_allocated_global(env, context, &declaration.value.name.value) {
+        Some(value) => *value.value(),
         None => {
             return Err(PengError::new_positioned_message(
                 "global type value was not allocated".to_string(),
@@ -190,8 +192,8 @@ fn generate_global_operation(
     context: &mut PengGeneratorContext,
     declaration: &PengPositionedOperationDeclaration,
 ) -> Result<(), PengError> {
-    let value_ptr = match get_allocated_global(env, &declaration.value.name.value) {
-        Some(value_ptr) => value_ptr,
+    let value_ptr = match get_allocated_global(env, context, &declaration.value.name.value) {
+        Some(value) => *value.value(),
         None => {
             return Err(PengError::new_positioned_message(
                 "global operation was not allocated".to_string(),
@@ -200,7 +202,7 @@ fn generate_global_operation(
         }
     };
 
-    let value = match generate_operation_declaration_value(env, declaration) {
+    let value = match generate_operation_declaration_value(env, context, declaration) {
         Ok(value) => value,
         Err(e) => {
             return Err(e.push(PengError::InvalidState(
@@ -224,8 +226,8 @@ fn generate_global_function(
     context: &mut PengGeneratorContext,
     declaration: &PengPositionedFunctionDeclaration,
 ) -> Result<(), PengError> {
-    let value_ptr = match get_allocated_global(env, &declaration.value.name.value) {
-        Some(value_ptr) => value_ptr,
+    let value_ptr = match get_allocated_global(env, context, &declaration.value.name.value) {
+        Some(value) => *value.value(),
         None => {
             return Err(PengError::new_positioned_message(
                 "global function was not allocated".to_string(),
@@ -234,7 +236,7 @@ fn generate_global_function(
         }
     };
 
-    let value = match generate_function_declaration_value(env, declaration) {
+    let value = match generate_function_declaration_value(env, context, declaration) {
         Ok(value) => value,
         Err(e) => {
             return Err(e.push(PengError::InvalidState(

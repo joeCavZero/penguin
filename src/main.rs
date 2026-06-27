@@ -16,15 +16,16 @@ fn main() {
                 PengCell::Reference(ptr) => {
                     if let Some(h) = env.get_heap(*ptr) {
                         match h {
-                            PengBox::Function(_) => print!("<function>"),
-                            PengBox::Module(_) => print!("<module>"),
-                            PengBox::Object(_) => print!("<object>"),
-                            PengBox::Operation(_) => print!("<operation>"),
-                            PengBox::String(s) => print!("{}", s),
-                            PengBox::Thread(_) => print!("<thread>"),
-                            PengBox::Type(_) => print!("<type>"),
-                            PengBox::Vector(_) => print!("<vector>"),
-                            PengBox::Union(_) => print!("<union>"),
+                            PengValue::Box(PengBox::Function(_)) => print!("<function>"),
+                            PengValue::Box(PengBox::Module(_)) => print!("<module>"),
+                            PengValue::Box(PengBox::Object(_)) => print!("<object>"),
+                            PengValue::Box(PengBox::Operation(_)) => print!("<operation>"),
+                            PengValue::Box(PengBox::String(s)) => print!("{}", s),
+                            PengValue::Box(PengBox::Thread(_)) => print!("<thread>"),
+                            PengValue::Box(PengBox::Type(_)) => print!("<type>"),
+                            PengValue::Box(PengBox::Vector(_)) => print!("<vector>"),
+                            PengValue::Box(PengBox::Union(_)) => print!("<union>"),
+                            PengValue::Cell(cell) => print!("{:?}", cell),
                         }
                     }
                 }
@@ -40,10 +41,10 @@ fn main() {
                 PengCell::Reference(ptr) => {
                     if let Some(h) = env.get_heap(*ptr) {
                         match h {
-                            PengBox::String(s) => {
+                            PengValue::Box(PengBox::String(s)) => {
                                 return Ok(PengBinded::Mutable(PengCell::Uint(s.len())));
                             }
-                            PengBox::Vector(v) => {
+                            PengValue::Box(PengBox::Vector(v)) => {
                                 return Ok(PengBinded::Mutable(PengCell::Uint(v.len())));
                             }
                             _ => {
@@ -73,5 +74,5 @@ fn main() {
 
 
     let init = peng.load_script_from_file("main.peng").unwrap();
-    peng.run(init).unwrap();
+    peng.run(init.init()).unwrap();
 }
