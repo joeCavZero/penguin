@@ -30,7 +30,7 @@ impl PengGeneratorContext {
     }
 
     pub fn push_const_and_const_instruction(&mut self, env: &mut PengEnv, value: PengValue) {
-        if let PengValue::Heap(PengHeapValue::String(s)) = value {
+        if let PengValue::Box(PengBox::String(s)) = value {
             let name_ptr = env.ensure_pooled_name_ptr(s);
             self.bytecode.push(PengInstruction::PushString(name_ptr));
             return;
@@ -862,7 +862,7 @@ pub fn generate_local_module_declaration(
                         )));
                     }
                 };
-                context.push_const_and_const_instruction(env, PengValue::Heap(value));
+                context.push_const_and_const_instruction(env, PengValue::Box(value));
             }
 
             PengDeclaration::Operation(declaration) => {
@@ -874,7 +874,7 @@ pub fn generate_local_module_declaration(
                         )));
                     }
                 };
-                context.push_const_and_const_instruction(env, PengValue::Heap(value));
+                context.push_const_and_const_instruction(env, PengValue::Box(value));
             }
 
             PengDeclaration::Type(declaration) => match &declaration.value.value {
@@ -988,7 +988,7 @@ pub fn generate_module_declaration_value(
                         )));
                     }
                 };
-                context.push_const_and_const_instruction(env, PengValue::Heap(value));
+                context.push_const_and_const_instruction(env, PengValue::Box(value));
             }
 
             PengDeclaration::Operation(declaration) => {
@@ -1000,7 +1000,7 @@ pub fn generate_module_declaration_value(
                         )));
                     }
                 };
-                context.push_const_and_const_instruction(env, PengValue::Heap(value));
+                context.push_const_and_const_instruction(env, PengValue::Box(value));
             }
 
             PengDeclaration::Type(declaration) => match &declaration.value.value {

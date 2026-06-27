@@ -17,11 +17,11 @@ pub fn create_bytecode_function_value(
     env: &mut PengEnv,
     mut context: PengGeneratorContext,
     params: PengBytecodeFunctionParams,
-) -> PengHeapValue {
+) -> PengBox {
     context.push_const_and_const_instruction(env, PengValue::Cell(PengCell::Nil));
     context.bytecode.push(PengInstruction::Return);
 
-    PengHeapValue::Function(PengFunction::Bytecode(PengBytecodeFunction {
+    PengBox::Function(PengFunction::Bytecode(PengBytecodeFunction {
         bytecode: context.bytecode,
         consts: context.consts,
         using_values: Vec::new(),
@@ -32,7 +32,7 @@ pub fn create_bytecode_function_value(
 pub fn generate_function_declaration_value(
     env: &mut PengEnv,
     declaration: &PengPositionedFunctionDeclaration,
-) -> Result<PengHeapValue, PengError> {
+) -> Result<PengBox, PengError> {
     generate_function_value(
         env,
         &declaration.value.params,
@@ -44,7 +44,7 @@ pub fn generate_function_value(
     env: &mut PengEnv,
     params: &Vec<PengPositionedFunctionParam>,
     body: &Vec<PengPositionedStatement>,
-) -> Result<PengHeapValue, PengError> {
+) -> Result<PengBox, PengError> {
     let mut context = PengGeneratorContext::new();
 
     let mut variadic_index: Option<usize> = None;
@@ -154,7 +154,7 @@ pub fn generate_local_function_declaration(
                 .bytecode
                 .push(PengInstruction::PushHeapRef(value_ptr));
 
-            context.push_const_and_const_instruction(env, PengValue::Heap(value));
+            context.push_const_and_const_instruction(env, PengValue::Box(value));
 
             context.bytecode.push(PengInstruction::StoreHeap);
 
@@ -171,7 +171,7 @@ pub fn generate_local_function_declaration(
                 }
             };
 
-            context.push_const_and_const_instruction(env, PengValue::Heap(value));
+            context.push_const_and_const_instruction(env, PengValue::Box(value));
 
             generate_make_immutable_if_needed(context, immutable);
 

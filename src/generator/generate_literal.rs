@@ -31,11 +31,11 @@ pub fn generate_literal(
         PengLiteral::Float32(value) => PengValue::Cell(PengCell::Float32(*value)),
         PengLiteral::Float64(value) => PengValue::Cell(PengCell::Float64(*value)),
         PengLiteral::Bool(value) => PengValue::Cell(PengCell::Bool(*value)),
-        PengLiteral::String(value) => PengValue::Heap(PengHeapValue::String(value.clone())),
+        PengLiteral::String(value) => PengValue::Box(PengBox::String(value.clone())),
         PengLiteral::Type(_) => unreachable!(),
         PengLiteral::Function(function) => {
             match generate_function_value(env, &function.params, &function.body) {
-                Ok(value) => PengValue::Heap(value),
+                Ok(value) => PengValue::Box(value),
                 Err(e) => {
                     return Err(e.push(PengError::InvalidState(
                         "failed while generating generate_literal".to_string(),
@@ -47,7 +47,7 @@ pub fn generate_literal(
         PengLiteral::Vector(_) => unreachable!(),
         PengLiteral::Operation(operation) => {
             match generate_operation_value(env, &operation.params, &operation.body) {
-                Ok(value) => PengValue::Heap(value),
+                Ok(value) => PengValue::Box(value),
                 Err(e) => {
                     return Err(e.push(PengError::InvalidState(
                         "failed while generating generate_literal".to_string(),
@@ -157,7 +157,7 @@ pub fn generate_type_literal_after_base(
             }
         };
 
-        context.push_const_and_const_instruction(env, PengValue::Heap(value));
+        context.push_const_and_const_instruction(env, PengValue::Box(value));
 
         context
             .bytecode
@@ -248,7 +248,7 @@ pub fn generate_module_literal(
                         )));
                     }
                 };
-                context.push_const_and_const_instruction(env, PengValue::Heap(value));
+                context.push_const_and_const_instruction(env, PengValue::Box(value));
             }
 
             PengDeclaration::Type(declaration) => match &declaration.value.value {
@@ -298,7 +298,7 @@ pub fn generate_module_literal(
                         )));
                     }
                 };
-                context.push_const_and_const_instruction(env, PengValue::Heap(value));
+                context.push_const_and_const_instruction(env, PengValue::Box(value));
             }
         }
 

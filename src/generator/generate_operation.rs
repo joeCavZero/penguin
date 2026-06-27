@@ -6,7 +6,7 @@ pub fn generate_operation_declaration_value(
     env: &mut PengEnv,
 
     declaration: &PengPositionedOperationDeclaration,
-) -> Result<PengHeapValue, PengError> {
+) -> Result<PengBox, PengError> {
     generate_operation_value(
         env,
         &declaration.value.params,
@@ -19,7 +19,7 @@ pub fn generate_operation_value(
 
     params: &Vec<PengPositionedFunctionParam>,
     body: &Vec<PengPositionedStatement>,
-) -> Result<PengHeapValue, PengError> {
+) -> Result<PengBox, PengError> {
     let mut context = PengGeneratorContext::new();
 
     for param in params {
@@ -38,7 +38,7 @@ pub fn generate_operation_value(
     context.push_const_and_const_instruction(env, PengValue::Cell(PengCell::Nil));
     context.bytecode.push(PengInstruction::Return);
 
-    Ok(PengHeapValue::Operation(PengOperation::Bytecode(
+    Ok(PengBox::Operation(PengOperation::Bytecode(
         PengBytecodeOperation {
             bytecode: context.bytecode,
             consts: context.consts,
@@ -103,7 +103,7 @@ pub fn generate_local_operation_declaration(
         }
     };
 
-    context.push_const_and_const_instruction(env, PengValue::Heap(value));
+    context.push_const_and_const_instruction(env, PengValue::Box(value));
     generate_make_immutable_if_needed(context, immutable);
     let local = context.create_local(declaration.value.name.value.clone());
     context.bytecode.push(PengInstruction::StoreLocal(local));

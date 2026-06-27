@@ -37,7 +37,7 @@ fn allocate_program_globals(
         let name_ptr = env.ensure_pooled_name_ptr(name);
 
         let heap_ptr = env.create_heap_value(
-            PengHeapValue::Object(PengObject::new_empty()),
+            PengBox::Object(PengBox::new_empty()),
         );
 
         let value = match declaration {
@@ -60,7 +60,7 @@ pub fn get_allocated_global(
     env: &mut PengEnv,
     name: &str,
 ) -> Option<PengHeapPtr> {
-    match env.get_global_by_name_str(name) {
+    match env.get_global_by_str(name) {
         Some(cell) => match cell.value() {
             PengCell::Reference(ptr) => Some(*ptr),
             _ => None,
@@ -210,7 +210,7 @@ fn generate_global_operation(
     context
         .bytecode
         .push(PengInstruction::PushHeapRef(value_ptr));
-    context.push_const_and_const_instruction(env, PengValue::Heap(value));
+    context.push_const_and_const_instruction(env, PengValue::Box(value));
     context.bytecode.push(PengInstruction::StoreHeap);
 
     Ok(())
@@ -244,7 +244,7 @@ fn generate_global_function(
     context
         .bytecode
         .push(PengInstruction::PushHeapRef(value_ptr));
-    context.push_const_and_const_instruction(env, PengValue::Heap(value));
+    context.push_const_and_const_instruction(env, PengValue::Box(value));
     context.bytecode.push(PengInstruction::StoreHeap);
 
     Ok(())

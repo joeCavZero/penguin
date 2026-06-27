@@ -8,12 +8,12 @@ use crate::core::typing::*;
 use crate::core::unioning::*;
 use crate::core::vector::*;
 
-pub type PengColouredHeapValue = PengColoured<PengHeapValue>;
+pub type PengColouredHeapValue = PengColoured<PengBox>;
 
 #[derive(Debug, Clone)]
-pub enum PengHeapValue {
+pub enum PengBox {
     String(String),
-    Object(PengObject),
+    Object(PengBox),
     Vector(PengVector),
     Type(PengType),
     Module(PengModule),
@@ -23,19 +23,19 @@ pub enum PengHeapValue {
     Union(PengUnion),
 }
 
-impl PengHeapValue {
+impl PengBox {
     pub fn equals(&self, rhs: &Self) -> bool {
         match (self, rhs) {
-            (PengHeapValue::String(a), PengHeapValue::String(b)) => a == b,
+            (PengBox::String(a), PengBox::String(b)) => a == b,
 
-            (PengHeapValue::Object(a), PengHeapValue::Object(b)) => a.equals(b),
-            (PengHeapValue::Vector(a), PengHeapValue::Vector(b)) => a.equals(b),
-            (PengHeapValue::Type(a), PengHeapValue::Type(b)) => a.equals(b),
-            (PengHeapValue::Module(a), PengHeapValue::Module(b)) => a.equals(b),
-            (PengHeapValue::Thread(a), PengHeapValue::Thread(b)) => a.equals(b),
-            (PengHeapValue::Function(a), PengHeapValue::Function(b)) => a.equals(b),
-            (PengHeapValue::Operation(a), PengHeapValue::Operation(b)) => a.equals(b),
-            (PengHeapValue::Union(a), PengHeapValue::Union(b)) => a.equals(b),
+            (PengBox::Object(a), PengBox::Object(b)) => a.equals(b),
+            (PengBox::Vector(a), PengBox::Vector(b)) => a.equals(b),
+            (PengBox::Type(a), PengBox::Type(b)) => a.equals(b),
+            (PengBox::Module(a), PengBox::Module(b)) => a.equals(b),
+            (PengBox::Thread(a), PengBox::Thread(b)) => a.equals(b),
+            (PengBox::Function(a), PengBox::Function(b)) => a.equals(b),
+            (PengBox::Operation(a), PengBox::Operation(b)) => a.equals(b),
+            (PengBox::Union(a), PengBox::Union(b)) => a.equals(b),
 
             _ => false,
         }

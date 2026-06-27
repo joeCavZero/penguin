@@ -21,6 +21,7 @@ pub mod binding;
 pub mod colour;
 pub mod value;
 pub mod garbage_collector;
+pub mod unit;
 
 pub use env::*;
 pub use thread::*;
@@ -45,3 +46,4 @@ pub use binding::*;
 pub use colour::*;
 pub use value::*;
 pub use garbage_collector::*;
+pub use unit::*;

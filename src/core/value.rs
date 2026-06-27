@@ -1,16 +1,18 @@
 use crate::core::*;
 
+pub type PengColouredValue = PengColoured<PengValue>;
+
 #[derive(Debug, Clone)]
 pub enum PengValue {
     Cell(PengCell),
-    Heap(PengHeapValue),
+    Box(PengBox),
 }
 
 impl PengValue {
     pub fn equals(&self, rhs: &Self) -> bool {
         match (self, rhs) {
             (Self::Cell(left), Self::Cell(right)) => left.equals(right),
-            (Self::Heap(left), Self::Heap(right)) => left.equals(right),
+            (Self::Box(left), Self::Box(right)) => left.equals(right),
             _ => false,
         }
     }
@@ -216,40 +218,40 @@ impl PengValue {
             }
 
             // Heap types
-            (PengValue::Heap(PengHeapValue::String(value)), PengType::String) => {
-                Ok(PengValue::Heap(PengHeapValue::String(value)))
+            (PengValue::Box(PengBox::String(value)), PengType::String) => {
+                Ok(PengValue::Box(PengBox::String(value)))
             }
 
-            (PengValue::Heap(PengHeapValue::Object(value)), PengType::Object) => {
-                Ok(PengValue::Heap(PengHeapValue::Object(value)))
+            (PengValue::Box(PengBox::Object(value)), PengType::Object) => {
+                Ok(PengValue::Box(PengBox::Object(value)))
             }
 
-            (PengValue::Heap(PengHeapValue::Vector(value)), PengType::Vector(_)) => {
-                Ok(PengValue::Heap(PengHeapValue::Vector(value)))
+            (PengValue::Box(PengBox::Vector(value)), PengType::Vector(_)) => {
+                Ok(PengValue::Box(PengBox::Vector(value)))
             }
 
-            (PengValue::Heap(PengHeapValue::Type(value)), PengType::Type) => {
-                Ok(PengValue::Heap(PengHeapValue::Type(value)))
+            (PengValue::Box(PengBox::Type(value)), PengType::Type) => {
+                Ok(PengValue::Box(PengBox::Type(value)))
             }
 
-            (PengValue::Heap(PengHeapValue::Module(value)), PengType::Module) => {
-                Ok(PengValue::Heap(PengHeapValue::Module(value)))
+            (PengValue::Box(PengBox::Module(value)), PengType::Module) => {
+                Ok(PengValue::Box(PengBox::Module(value)))
             }
 
-            (PengValue::Heap(PengHeapValue::Function(value)), PengType::Function) => {
-                Ok(PengValue::Heap(PengHeapValue::Function(value)))
+            (PengValue::Box(PengBox::Function(value)), PengType::Function) => {
+                Ok(PengValue::Box(PengBox::Function(value)))
             }
 
-            (PengValue::Heap(PengHeapValue::Operation(value)), PengType::Operator) => {
-                Ok(PengValue::Heap(PengHeapValue::Operation(value)))
+            (PengValue::Box(PengBox::Operation(value)), PengType::Operator) => {
+                Ok(PengValue::Box(PengBox::Operation(value)))
             }
 
-            (PengValue::Heap(PengHeapValue::Thread(value)), PengType::Thread) => {
-                Ok(PengValue::Heap(PengHeapValue::Thread(value)))
+            (PengValue::Box(PengBox::Thread(value)), PengType::Thread) => {
+                Ok(PengValue::Box(PengBox::Thread(value)))
             }
 
-            (PengValue::Heap(PengHeapValue::Union(value)), PengType::Union) => {
-                Ok(PengValue::Heap(PengHeapValue::Union(value)))
+            (PengValue::Box(PengBox::Union(value)), PengType::Union) => {
+                Ok(PengValue::Box(PengBox::Union(value)))
             }
 
             // Qualquer tipo -> String
@@ -268,23 +270,23 @@ impl PengValue {
                         }
                     },
 
-                    PengValue::Heap(heap) => match heap {
-                        PengHeapValue::String(value) => value,
+                    PengValue::Box(heap) => match heap {
+                        PengBox::String(value) => value,
 
-                        PengHeapValue::Object(_)
-                        | PengHeapValue::Vector(_)
-                        | PengHeapValue::Type(_)
-                        | PengHeapValue::Module(_)
-                        | PengHeapValue::Thread(_)
-                        | PengHeapValue::Function(_)
-                        | PengHeapValue::Operation(_)
-                        | PengHeapValue::Union(_) => {
+                        PengBox::Object(_)
+                        | PengBox::Vector(_)
+                        | PengBox::Type(_)
+                        | PengBox::Module(_)
+                        | PengBox::Thread(_)
+                        | PengBox::Function(_)
+                        | PengBox::Operation(_)
+                        | PengBox::Union(_) => {
                             return Err(PengError::InvalidConversion { from, to });
                         }
                     },
                 };
 
-                Ok(PengValue::Heap(PengHeapValue::String(value)))
+                Ok(PengValue::Box(PengBox::String(value)))
             }
 
             _ => Err(PengError::InvalidConversion { from, to }),

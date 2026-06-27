@@ -464,7 +464,7 @@ pub fn generate_type_expression(
                 }
             };
 
-            context.push_const_and_const_instruction(env, PengValue::Heap(PengHeapValue::Type(
+            context.push_const_and_const_instruction(env, PengValue::Box(PengBox::Type(
                 PengType::Vector(Box::new(inner_type)),
             )));
 
@@ -486,7 +486,7 @@ pub fn generate_type_expression(
                 }
             };
 
-            context.push_const_and_const_instruction(env, PengValue::Heap(PengHeapValue::Type(typ)));
+            context.push_const_and_const_instruction(env, PengValue::Box(PengBox::Type(typ)));
 
             Ok(())
         }

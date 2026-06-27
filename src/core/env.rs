@@ -20,8 +20,8 @@ use crate::lexer::*;
 use crate::parser::*;
 
 pub struct PengEnv {
-    globals: HashMap<PengNamePoolPtr, PengBindedCell>,
-    pub heap: HashMap<PengHeapPtr, PengColouredHeapValue>,
+    globals: HashMap<PengNamePoolPtr, PengBindedHeapPtr>,
+    pub heap: HashMap<PengHeapPtr, PengColouredValue>,
     pub name_pool: HashMap<PengNamePoolPtr, String>,
     active_threads: HashSet<PengHeapPtr>,
     garbage_collector_interval: std::time::Duration,
@@ -77,7 +77,7 @@ impl PengEnv {
             Ok(v) => v,
             Err(e) => return Err(e),
         };
-        let ast = match parse_script(tokens) {
+        let ast = match parse_program(tokens) {
             Ok(v) => v,
             Err(e) => return Err(e),
         };
@@ -94,7 +94,7 @@ impl PengEnv {
             Ok(v) => v,
             Err(e) => return Err(e),
         };
-        let ast = match parse_script(tokens) {
+        let ast = match parse_program(tokens) {
             Ok(v) => v,
             Err(e) => return Err(e),
         };
@@ -183,11 +183,13 @@ impl PengEnv {
     where
         F: FnMut(Vec<PengBindedCell>, &mut PengEnv) -> Result<PengBindedCell, PengError> + 'static,
     {
-        let ptr = self.create_heap_value(PengHeapValue::Function(PengFunction::new_native(func)));
+        let ptr = self.create_heap_value(PengValue::Box(PengBox::Function(
+            PengFunction::new_native(func),
+        )));
 
-        let value = PengBindedCell::Immutable(PengCell::Reference(ptr));
+        let bhp = PengBinded::Immutable(ptr);
 
-        self.set_global(name.to_string(), value)
+        self.force_set_global(name.to_string(), bhp)
     }
 
     pub fn register_native_operation<F>(&mut self, name: &str, op: F) -> Result<(), PengError>
@@ -198,11 +200,13 @@ impl PengEnv {
             ) -> Result<PengBindedCell, PengError>
             + 'static,
     {
-        let ptr = self.create_heap_value(PengHeapValue::Operation(PengOperation::new_native(op)));
+        let ptr = self.create_heap_value(PengValue::Box(PengBox::Operation(
+            PengOperation::new_native(op),
+        )));
 
-        let value = PengBindedCell::Immutable(PengCell::Reference(ptr));
+        let bhp = PengBinded::Immutable(ptr);
 
-        self.set_global(name.to_string(), value)
+        self.force_set_global(name.to_string(), bhp)
     }
 
     fn next_name_ptr(&self) -> PengNamePoolPtr {
@@ -237,7 +241,7 @@ impl PengEnv {
         self.name_pool.get(&name_ptr)
     }
 
-    pub fn create_heap_value(&mut self, value: PengHeapValue) -> PengHeapPtr {
+    pub fn create_heap_value(&mut self, value: PengValue) -> PengHeapPtr {
         let value_ptr = self.next_heap_ptr();
         self.heap.insert(value_ptr, PengColoured::new(value));
         value_ptr
@@ -253,7 +257,7 @@ impl PengEnv {
             vector.push(cell);
         }
 
-        Ok(self.create_heap_value(PengHeapValue::Vector(vector)))
+        Ok(self.create_heap_value(PengValue::Box(PengBox::Vector(vector))))
     }
 
     pub fn has_global(&self, name_ptr: PengNamePoolPtr) -> bool {
@@ -263,7 +267,7 @@ impl PengEnv {
     pub fn create_global(
         &mut self,
         name_ptr: PengNamePoolPtr,
-        value: PengBindedCell,
+        value: PengBindedHeapPtr,
     ) -> Result<(), PengError> {
         if self.globals.contains_key(&name_ptr) {
             return Err(PengError::SyntaxError(
@@ -275,30 +279,34 @@ impl PengEnv {
         Ok(())
     }
 
-    pub fn set_global(&mut self, name: String, cell: PengBindedCell) -> Result<(), PengError> {
+    pub fn force_set_global(
+        &mut self,
+        name: String,
+        ptr: PengBindedHeapPtr,
+    ) -> Result<(), PengError> {
         let name_ptr = self.ensure_pooled_name_ptr(name);
 
         match self.globals.get_mut(&name_ptr) {
             Some(current_cell) => match current_cell {
                 PengBinded::Mutable(current) => {
-                    *current = cell.value().clone();
+                    *current = ptr.value().clone();
                     Ok(())
                 }
 
                 PengBinded::Immutable(_) => {
-                    *current_cell = cell;
+                    *current_cell = ptr;
                     Ok(())
                 }
             },
 
             None => {
-                self.globals.insert(name_ptr, cell);
+                self.globals.insert(name_ptr, ptr);
                 Ok(())
             }
         }
     }
 
-    pub fn get_global_by_name_str(&self, name: &str) -> Option<&PengBindedCell> {
+    pub fn get_global_by_str(&self, name: &str) -> Option<&PengBindedHeapPtr> {
         let name_ptr = match self.name_pool.iter().find_map(|(name_ptr, pooled_name)| {
             if pooled_name == name {
                 Some(*name_ptr)
@@ -313,31 +321,25 @@ impl PengEnv {
         self.globals.get(&name_ptr)
     }
 
-    pub fn get_coloured_heap(&self, value_ptr: PengHeapPtr) -> Option<&PengColouredHeapValue> {
-        match self.heap.get(&value_ptr) {
-            Some(v) => Some(&v),
-            None => None,
-        }
+    pub fn get_coloured_heap(&self, value_ptr: PengHeapPtr) -> Option<&PengColouredValue> {
+        self.heap.get(&value_ptr)
     }
 
     pub fn get_coloured_heap_mut(
         &mut self,
         value_ptr: PengHeapPtr,
-    ) -> Option<&mut PengColouredHeapValue> {
-        match self.heap.get_mut(&value_ptr) {
-            Some(v) => Some(v),
-            None => None,
-        }
+    ) -> Option<&mut PengColouredValue> {
+        self.heap.get_mut(&value_ptr)
     }
 
-    pub fn get_heap(&self, value_ptr: PengHeapPtr) -> Option<&PengHeapValue> {
+    pub fn get_heap(&self, value_ptr: PengHeapPtr) -> Option<&PengValue> {
         match self.heap.get(&value_ptr) {
             Some(v) => Some(&v.value),
             None => None,
         }
     }
 
-    pub fn get_heap_mut(&mut self, value_ptr: PengHeapPtr) -> Option<&mut PengHeapValue> {
+    pub fn get_heap_mut(&mut self, value_ptr: PengHeapPtr) -> Option<&mut PengValue> {
         match self.heap.get_mut(&value_ptr) {
             Some(v) => Some(&mut v.value),
             None => None,
@@ -347,7 +349,7 @@ impl PengEnv {
     pub fn assign_heap(
         &mut self,
         heap_ptr: PengHeapPtr,
-        value: PengHeapValue,
+        value: PengValue,
     ) -> Result<(), PengError> {
         match self.get_heap_mut(heap_ptr) {
             Some(heap_value) => {
@@ -367,7 +369,12 @@ impl PengEnv {
         params: Vec<PengBindedCell>,
         state: PengThreadState,
     ) -> PengHeapPtr {
-        let t = PengHeapValue::Thread(PengThread::new(procedure_ptr, base, params, state));
+        let t = PengValue::Box(PengBox::Thread(PengThread::new(
+            procedure_ptr,
+            base,
+            params,
+            state,
+        )));
         let tptr = self.create_heap_value(t);
         self.active_threads.insert(tptr);
         tptr
@@ -416,7 +423,7 @@ impl PengEnv {
     ) -> Result<(PengBindedCell, PengBindedCell), PengError> {
         match self.get_heap(thread_ptr) {
             Some(h) => {
-                if let PengHeapValue::Thread(thread) = h {
+                if let PengValue::Box(PengBox::Thread(thread)) = h {
                     if thread.stack.len() < 2 {
                         return Err(PengError::StackUnderflow);
                     }
@@ -482,7 +489,7 @@ impl PengEnv {
         local: usize,
     ) -> Result<&PengBindedCell, PengError> {
         match self.get_heap(thread_ptr) {
-            Some(PengHeapValue::Thread(thread)) => {
+            Some(PengValue::Box(PengBox::Thread(thread))) => {
                 let base = match thread.frames.last() {
                     Some(frame) => frame.base,
                     None => return Err(PengError::FrameNotFound),
@@ -509,7 +516,7 @@ impl PengEnv {
         value: PengBindedCell,
     ) -> Result<(), PengError> {
         match self.get_heap_mut(thread_ptr) {
-            Some(PengHeapValue::Thread(thread)) => {
+            Some(PengValue::Box(PengBox::Thread(thread))) => {
                 let base = match thread.frames.last() {
                     Some(frame) => frame.base,
                     None => return Err(PengError::FrameNotFound),
@@ -578,7 +585,7 @@ impl PengEnv {
         offset: usize,
     ) -> Result<PengBindedCell, PengError> {
         match self.get_heap_mut(thread_ptr) {
-            Some(PengHeapValue::Thread(thread)) => {
+            Some(PengValue::Box(PengBox::Thread(thread))) => {
                 if thread.stack.len() <= offset {
                     return Err(PengError::StackUnderflow);
                 }
@@ -662,7 +669,7 @@ impl PengEnv {
         thread_ptr: PengHeapPtr,
     ) -> Result<&PengFrame, PengError> {
         match self.get_heap(thread_ptr) {
-            Some(PengHeapValue::Thread(thread)) => match thread.frames.last() {
+            Some(PengValue::Box(PengBox::Thread(thread))) => match thread.frames.last() {
                 Some(frame) => Ok(frame),
                 None => Err(PengError::FrameNotFound),
             },
@@ -673,7 +680,7 @@ impl PengEnv {
 
     pub fn pop_thread_frame(&mut self, thread_ptr: PengHeapPtr) -> Result<PengFrame, PengError> {
         match self.get_heap_mut(thread_ptr) {
-            Some(PengHeapValue::Thread(thread)) => match thread.frames.pop() {
+            Some(PengValue::Box(PengBox::Thread(thread))) => match thread.frames.pop() {
                 Some(frame) => Ok(frame),
                 None => Err(PengError::FrameNotFound),
             },
@@ -688,7 +695,7 @@ impl PengEnv {
         len: usize,
     ) -> Result<(), PengError> {
         match self.get_heap_mut(thread_ptr) {
-            Some(PengHeapValue::Thread(thread)) => {
+            Some(PengValue::Box(PengBox::Thread(thread))) => {
                 thread.stack.truncate(len);
                 Ok(())
             }
@@ -699,7 +706,7 @@ impl PengEnv {
 
     pub fn get_thread_frames_len(&self, thread_ptr: PengHeapPtr) -> Result<usize, PengError> {
         match self.get_heap(thread_ptr) {
-            Some(PengHeapValue::Thread(thread)) => Ok(thread.frames.len()),
+            Some(PengValue::Box(PengBox::Thread(thread))) => Ok(thread.frames.len()),
             Some(_) => Err(PengError::ExpectedThread),
             None => Err(PengError::ThreadNotFound(thread_ptr)),
         }
@@ -707,7 +714,7 @@ impl PengEnv {
 
     pub fn recover_thread_try_error(&mut self, thread_ptr: PengHeapPtr) -> Result<bool, PengError> {
         match self.get_heap_mut(thread_ptr) {
-            Some(PengHeapValue::Thread(thread)) => {
+            Some(PengValue::Box(PengBox::Thread(thread))) => {
                 let mut try_frame = None;
 
                 while let Some(frame) = thread.frames.pop() {
@@ -740,7 +747,7 @@ impl PengEnv {
 
     fn get_thread(&self, thread_ptr: PengHeapPtr) -> Result<&PengThread, PengError> {
         match self.get_heap(thread_ptr) {
-            Some(PengHeapValue::Thread(thread)) => Ok(thread),
+            Some(PengValue::Box(PengBox::Thread(thread))) => Ok(thread),
             Some(_) => Err(PengError::ExpectedThread),
             None => Err(PengError::ThreadNotFound(thread_ptr)),
         }
@@ -748,7 +755,7 @@ impl PengEnv {
 
     fn get_thread_mut(&mut self, thread_ptr: PengHeapPtr) -> Result<&mut PengThread, PengError> {
         match self.get_heap_mut(thread_ptr) {
-            Some(PengHeapValue::Thread(thread)) => Ok(thread),
+            Some(PengValue::Box(PengBox::Thread(thread))) => Ok(thread),
             Some(_) => Err(PengError::ExpectedThread),
             None => Err(PengError::ThreadNotFound(thread_ptr)),
         }
@@ -757,7 +764,7 @@ impl PengEnv {
     pub fn get_value_from_cell(&self, cell: PengCell) -> Result<PengValue, PengError> {
         match cell {
             PengCell::Reference(ptr) => match self.get_heap(ptr) {
-                Some(value) => Ok(PengValue::Heap(value.clone())),
+                Some(value) => Ok(value.clone()),
                 None => Err(PengError::HeapValueNotFound(ptr)),
             },
 
@@ -765,10 +772,11 @@ impl PengEnv {
         }
     }
 
-    pub fn get_heap_value_from_cell(&self, cell: PengCell) -> Result<PengHeapValue, PengError> {
+    pub fn get_box_from_cell(&self, cell: PengCell) -> Result<PengBox, PengError> {
         match cell {
             PengCell::Reference(ptr) => match self.get_heap(ptr) {
-                Some(value) => Ok(value.clone()),
+                Some(PengValue::Box(value)) => Ok(value.clone()),
+                Some(_) => Err(PengError::ExpectedBox),
                 None => Err(PengError::HeapValueNotFound(ptr)),
             },
 
@@ -779,8 +787,8 @@ impl PengEnv {
     pub fn get_cell_from_value(&mut self, value: PengValue) -> Result<PengCell, PengError> {
         match value {
             PengValue::Cell(cell) => Ok(cell),
-            PengValue::Heap(value) => {
-                let ptr = self.create_heap_value(value);
+            PengValue::Box(value) => {
+                let ptr = self.create_heap_value(PengValue::Box(value));
                 Ok(PengCell::Reference(ptr))
             }
         }

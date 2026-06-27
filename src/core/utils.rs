@@ -2,6 +2,10 @@ use std::ops::{
     Add, AddAssign, Div, DivAssign, Mul, MulAssign, Rem, RemAssign, Sub, SubAssign,
 };
 
+use crate::core::PengBinded;
+
+pub type PengBindedHeapPtr = PengBinded<PengHeapPtr>;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PengHeapPtr(pub usize);
 
