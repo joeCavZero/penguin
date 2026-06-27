@@ -1,17 +1,14 @@
-use std::collections::HashMap;
-
 use crate::core::*;
 use crate::generator::*;
 use crate::parser::*;
 
 pub fn generate_operation_declaration_value(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
+
     declaration: &PengPositionedOperationDeclaration,
 ) -> Result<PengHeapValue, PengError> {
     generate_operation_value(
         env,
-        globals,
         &declaration.value.params,
         &declaration.value.body,
     )
@@ -19,7 +16,7 @@ pub fn generate_operation_declaration_value(
 
 pub fn generate_operation_value(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
+
     params: &Vec<PengPositionedFunctionParam>,
     body: &Vec<PengPositionedStatement>,
 ) -> Result<PengHeapValue, PengError> {
@@ -29,7 +26,7 @@ pub fn generate_operation_value(
         context.create_local(param.value.name.value.clone());
     }
 
-    match generate_statements(env, globals, &mut context, body) {
+    match generate_statements(env, &mut context, body) {
         Ok(()) => {}
         Err(e) => {
             return Err(e.push(PengError::InvalidState(
@@ -52,13 +49,13 @@ pub fn generate_operation_value(
 
 pub fn generate_operation_call(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
+
     context: &mut PengGeneratorContext,
     left: &PengPositionedExpression,
     operation: &PengPositionedExpression,
     right: &PengPositionedExpression,
 ) -> Result<(), PengError> {
-    match generate_expression(env, globals, context, operation) {
+    match generate_expression(env, context, operation) {
         Ok(()) => {}
         Err(e) => {
             return Err(e.push(PengError::InvalidState(
@@ -67,7 +64,7 @@ pub fn generate_operation_call(
         }
     }
 
-    match generate_expression(env, globals, context, left) {
+    match generate_expression(env, context, left) {
         Ok(()) => {}
         Err(e) => {
             return Err(e.push(PengError::InvalidState(
@@ -76,7 +73,7 @@ pub fn generate_operation_call(
         }
     }
 
-    match generate_expression(env, globals, context, right) {
+    match generate_expression(env, context, right) {
         Ok(()) => {}
         Err(e) => {
             return Err(e.push(PengError::InvalidState(
@@ -92,12 +89,12 @@ pub fn generate_operation_call(
 
 pub fn generate_local_operation_declaration(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
+
     context: &mut PengGeneratorContext,
     declaration: &PengPositionedOperationDeclaration,
     immutable: bool,
 ) -> Result<(), PengError> {
-    let value = match generate_operation_declaration_value(env, globals, declaration) {
+    let value = match generate_operation_declaration_value(env, declaration) {
         Ok(value) => value,
         Err(e) => {
             return Err(e.push(PengError::InvalidState(

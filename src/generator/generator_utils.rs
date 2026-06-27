@@ -211,7 +211,7 @@ impl PengGeneratorContext {
 
 pub fn generate_identifier(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
+
     context: &mut PengGeneratorContext,
     identifier: &PengPositioned<String>,
 ) -> Result<(), PengError> {
@@ -223,7 +223,7 @@ pub fn generate_identifier(
         None => {}
     }
 
-    match get_allocated_global(env, globals, &identifier.value) {
+    match get_allocated_global(env, &identifier.value) {
         Some(value_ptr) => {
             context.bytecode.push(PengInstruction::PushHeap(value_ptr));
             Ok(())
@@ -237,13 +237,13 @@ pub fn generate_identifier(
 
 pub fn generate_local_variable(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
+
     context: &mut PengGeneratorContext,
     variable: &PengPositionedVariableDeclaration,
     immutable: bool,
 ) -> Result<(), PengError> {
     match &variable.value.value {
-        Some(value) => match generate_expression(env, globals, context, value) {
+        Some(value) => match generate_expression(env, context, value) {
             Ok(()) => {}
             Err(e) => {
                 return Err(e.push(PengError::InvalidState(
@@ -274,12 +274,12 @@ pub fn generate_local_variable(
 
 pub fn generate_local_as_declaration(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
+
     context: &mut PengGeneratorContext,
     declaration: &PengPositionedAsDeclaration,
     immutable: bool,
 ) -> Result<(), PengError> {
-    match generate_expression(env, globals, context, &declaration.value.value) {
+    match generate_expression(env, context, &declaration.value.value) {
         Ok(()) => {}
         Err(e) => {
             return Err(e.push(PengError::InvalidState(
@@ -296,7 +296,7 @@ pub fn generate_local_as_declaration(
 
 pub fn generate_local_type_declaration(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
+
     context: &mut PengGeneratorContext,
     declaration: &PengPositionedTypeDeclaration,
     immutable: bool,
@@ -306,7 +306,7 @@ pub fn generate_local_type_declaration(
         None => {
             return generate_structured_local_type_declaration(
                 env,
-                globals,
+            
                 context,
                 declaration,
                 immutable,
@@ -314,7 +314,7 @@ pub fn generate_local_type_declaration(
         }
     };
 
-    match generate_type_expression(env, globals, context, value) {
+    match generate_type_expression(env, context, value) {
         Ok(()) => {}
         Err(e) => {
             return Err(e.push(PengError::InvalidState(
@@ -331,7 +331,7 @@ pub fn generate_local_type_declaration(
 
 pub fn generate_structured_local_type_declaration(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
+
     context: &mut PengGeneratorContext,
     declaration: &PengPositionedTypeDeclaration,
     immutable: bool,
@@ -342,7 +342,7 @@ pub fn generate_structured_local_type_declaration(
         functions: declaration.value.functions.clone(),
     };
 
-    match generate_type_literal(env, globals, context, &literal) {
+    match generate_type_literal(env, context, &literal) {
         Ok(()) => {}
         Err(e) => {
             return Err(e.push(PengError::InvalidState(
@@ -359,17 +359,16 @@ pub fn generate_structured_local_type_declaration(
 
 pub fn generate_assignment(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
+
     context: &mut PengGeneratorContext,
     assignment: &PengAssignStatement,
 ) -> Result<(), PengError> {
     match assignment {
         PengAssignStatement::Assign { target, value } => {
-            generate_assignment_value(env, globals, context, target, value, None)
+            generate_assignment_value(env, context, target, value, None)
         }
         PengAssignStatement::AddAssign { target, value } => generate_assignment_value(
             env,
-            globals,
             context,
             target,
             value,
@@ -377,7 +376,6 @@ pub fn generate_assignment(
         ),
         PengAssignStatement::SubtractAssign { target, value } => generate_assignment_value(
             env,
-            globals,
             context,
             target,
             value,
@@ -385,7 +383,6 @@ pub fn generate_assignment(
         ),
         PengAssignStatement::MultiplyAssign { target, value } => generate_assignment_value(
             env,
-            globals,
             context,
             target,
             value,
@@ -393,7 +390,7 @@ pub fn generate_assignment(
         ),
         PengAssignStatement::DivideAssign { target, value } => generate_assignment_value(
             env,
-            globals,
+        
             context,
             target,
             value,
@@ -401,7 +398,7 @@ pub fn generate_assignment(
         ),
         PengAssignStatement::PowerAssign { target, value } => generate_assignment_value(
             env,
-            globals,
+        
             context,
             target,
             value,
@@ -409,7 +406,7 @@ pub fn generate_assignment(
         ),
         PengAssignStatement::RemainderAssign { target, value } => generate_assignment_value(
             env,
-            globals,
+        
             context,
             target,
             value,
@@ -420,7 +417,7 @@ pub fn generate_assignment(
 
 pub fn generate_assignment_value(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
+
     context: &mut PengGeneratorContext,
     target: &PengPositionedExpression,
     value: &PengPositionedExpression,
@@ -430,14 +427,14 @@ pub fn generate_assignment_value(
         PengExpression::Identifier(identifier) => identifier,
         PengExpression::AttributeAccess(attribute) => {
             return generate_attribute_assignment(
-                env, globals, context, attribute, value, operation,
+                env, context, attribute, value, operation,
             );
         }
         PengExpression::Index(index) => {
-            return generate_index_assignment(env, globals, context, index, value, operation);
+            return generate_index_assignment(env, context, index, value, operation);
         }
         PengExpression::MemberAccess(member) => {
-            return generate_member_assignment(env, globals, context, member, value, operation);
+            return generate_member_assignment(env, context, member, value, operation);
         }
         _ => {
             return Err(PengError::new_positioned_message(
@@ -449,7 +446,7 @@ pub fn generate_assignment_value(
 
     let local = context.get_local(&identifier.value);
     let global = if local.is_none() {
-        get_allocated_global(env, globals, &identifier.value)
+        get_allocated_global(env, &identifier.value)
     } else {
         None
     };
@@ -482,7 +479,7 @@ pub fn generate_assignment_value(
                 },
             }
 
-            match generate_expression(env, globals, context, value) {
+            match generate_expression(env, context, value) {
                 Ok(()) => {}
                 Err(e) => {
                     return Err(e.push(PengError::InvalidState(
@@ -493,7 +490,7 @@ pub fn generate_assignment_value(
 
             context.bytecode.push(operation);
         }
-        None => match generate_expression(env, globals, context, value) {
+        None => match generate_expression(env, context, value) {
             Ok(()) => {}
             Err(e) => {
                 return Err(e.push(PengError::InvalidState(
@@ -523,14 +520,14 @@ pub fn generate_assignment_value(
 
 pub fn generate_index_assignment(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
+
     context: &mut PengGeneratorContext,
     index: &PengIndexExpression,
     value: &PengPositionedExpression,
     operation: Option<PengInstruction>,
 ) -> Result<(), PengError> {
     if operation.is_none() {
-        match generate_expression(env, globals, context, &index.object) {
+        match generate_expression(env, context, &index.object) {
             Ok(()) => {}
             Err(e) => {
                 return Err(e.push(PengError::InvalidState(
@@ -539,7 +536,7 @@ pub fn generate_index_assignment(
             }
         }
 
-        match generate_expression(env, globals, context, &index.index) {
+        match generate_expression(env, context, &index.index) {
             Ok(()) => {}
             Err(e) => {
                 return Err(e.push(PengError::InvalidState(
@@ -548,7 +545,7 @@ pub fn generate_index_assignment(
             }
         }
 
-        match generate_expression(env, globals, context, value) {
+        match generate_expression(env, context, value) {
             Ok(()) => {}
             Err(e) => {
                 return Err(e.push(PengError::InvalidState(
@@ -561,7 +558,7 @@ pub fn generate_index_assignment(
         return Ok(());
     }
 
-    match generate_expression(env, globals, context, &index.object) {
+    match generate_expression(env, context, &index.object) {
         Ok(()) => {}
         Err(e) => {
             return Err(e.push(PengError::InvalidState(
@@ -575,7 +572,7 @@ pub fn generate_index_assignment(
         .bytecode
         .push(PengInstruction::StoreLocal(object_local));
 
-    match generate_expression(env, globals, context, &index.index) {
+    match generate_expression(env, context, &index.index) {
         Ok(()) => {}
         Err(e) => {
             return Err(e.push(PengError::InvalidState(
@@ -606,7 +603,7 @@ pub fn generate_index_assignment(
                 .push(PengInstruction::PushLocal(index_local));
             context.bytecode.push(PengInstruction::GetIndex);
 
-            match generate_expression(env, globals, context, value) {
+            match generate_expression(env, context, value) {
                 Ok(()) => {}
                 Err(e) => {
                     return Err(e.push(PengError::InvalidState(
@@ -626,7 +623,6 @@ pub fn generate_index_assignment(
 
 pub fn generate_attribute_assignment(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     attribute: &PengAttributeAccessExpression,
     value: &PengPositionedExpression,
@@ -635,7 +631,7 @@ pub fn generate_attribute_assignment(
     let name = env.ensure_pooled_name_ptr(attribute.name.value.clone());
 
     if operation.is_none() {
-        match generate_expression(env, globals, context, &attribute.object) {
+        match generate_expression(env, context, &attribute.object) {
             Ok(()) => {}
             Err(e) => {
                 return Err(e.push(PengError::InvalidState(
@@ -644,7 +640,7 @@ pub fn generate_attribute_assignment(
             }
         }
 
-        match generate_expression(env, globals, context, value) {
+        match generate_expression(env, context, value) {
             Ok(()) => {}
             Err(e) => {
                 return Err(e.push(PengError::InvalidState(
@@ -657,7 +653,7 @@ pub fn generate_attribute_assignment(
         return Ok(());
     }
 
-    match generate_expression(env, globals, context, &attribute.object) {
+    match generate_expression(env, context, &attribute.object) {
         Ok(()) => {}
         Err(e) => {
             return Err(e.push(PengError::InvalidState(
@@ -682,7 +678,7 @@ pub fn generate_attribute_assignment(
                 .push(PengInstruction::PushLocal(object_local));
             context.bytecode.push(PengInstruction::GetAttribute(name));
 
-            match generate_expression(env, globals, context, value) {
+            match generate_expression(env, context, value) {
                 Ok(()) => {}
                 Err(e) => {
                     return Err(e.push(PengError::InvalidState(
@@ -728,7 +724,7 @@ pub fn generate_binary_operator(context: &mut PengGeneratorContext, operator: &P
 
 pub fn generate_member_assignment(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
+
     context: &mut PengGeneratorContext,
     member: &PengMemberAccessExpression,
     value: &PengPositionedExpression,
@@ -737,7 +733,7 @@ pub fn generate_member_assignment(
     let name = env.ensure_pooled_name_ptr(member.name.value.clone());
 
     if operation.is_none() {
-        match generate_expression(env, globals, context, &member.object) {
+        match generate_expression(env, context, &member.object) {
             Ok(()) => {}
             Err(e) => {
                 return Err(e.push(PengError::InvalidState(
@@ -746,7 +742,7 @@ pub fn generate_member_assignment(
             }
         }
 
-        match generate_expression(env, globals, context, value) {
+        match generate_expression(env, context, value) {
             Ok(()) => {}
             Err(e) => {
                 return Err(e.push(PengError::InvalidState(
@@ -759,7 +755,7 @@ pub fn generate_member_assignment(
         return Ok(());
     }
 
-    match generate_expression(env, globals, context, &member.object) {
+    match generate_expression(env, context, &member.object) {
         Ok(()) => {}
         Err(e) => {
             return Err(e.push(PengError::InvalidState(
@@ -784,7 +780,7 @@ pub fn generate_member_assignment(
                 .push(PengInstruction::PushLocal(object_local));
             context.bytecode.push(PengInstruction::GetMember(name));
 
-            match generate_expression(env, globals, context, value) {
+            match generate_expression(env, context, value) {
                 Ok(()) => {}
                 Err(e) => {
                     return Err(e.push(PengError::InvalidState(
@@ -804,7 +800,7 @@ pub fn generate_member_assignment(
 
 pub fn generate_local_module_declaration(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
+
     context: &mut PengGeneratorContext,
     declaration: &PengPositionedModuleDeclaration,
     immutable: bool,
@@ -832,7 +828,7 @@ pub fn generate_local_module_declaration(
         match declaration_value {
             PengDeclaration::Var(declaration) => match &declaration.value.value {
                 Some(value) => {
-                    match generate_expression(env, globals, context, value) {
+                    match generate_expression(env, context, value) {
                         Ok(()) => {}
                         Err(e) => {
                             return Err(e.push(PengError::InvalidState(
@@ -847,7 +843,7 @@ pub fn generate_local_module_declaration(
             },
 
             PengDeclaration::As(declaration) => {
-                match generate_expression(env, globals, context, &declaration.value.value) {
+                match generate_expression(env, context, &declaration.value.value) {
                     Ok(()) => {}
                     Err(e) => {
                         return Err(e.push(PengError::InvalidState(
@@ -858,7 +854,7 @@ pub fn generate_local_module_declaration(
             }
 
             PengDeclaration::Function(declaration) => {
-                let value = match generate_function_declaration_value(env, globals, declaration) {
+                let value = match generate_function_declaration_value(env, declaration) {
                     Ok(v) => v,
                     Err(e) => {
                         return Err(e.push(PengError::InvalidState(
@@ -870,7 +866,7 @@ pub fn generate_local_module_declaration(
             }
 
             PengDeclaration::Operation(declaration) => {
-                let value = match generate_operation_declaration_value(env, globals, declaration) {
+                let value = match generate_operation_declaration_value(env, declaration) {
                     Ok(v) => v,
                     Err(e) => {
                         return Err(e.push(PengError::InvalidState(
@@ -883,7 +879,7 @@ pub fn generate_local_module_declaration(
 
             PengDeclaration::Type(declaration) => match &declaration.value.value {
                 Some(value) => {
-                    match generate_type_expression(env, globals, context, value) {
+                    match generate_type_expression(env, context, value) {
                         Ok(()) => {}
                         Err(e) => {
                             return Err(e.push(PengError::InvalidState(
@@ -899,7 +895,7 @@ pub fn generate_local_module_declaration(
                         functions: declaration.value.functions.clone(),
                     };
 
-                    match generate_type_literal(env, globals, context, &literal) {
+                    match generate_type_literal(env, context, &literal) {
                         Ok(()) => {}
                         Err(e) => {
                             return Err(e.push(PengError::InvalidState(
@@ -911,7 +907,7 @@ pub fn generate_local_module_declaration(
             },
 
             PengDeclaration::Module(declaration) => {
-                match generate_module_declaration_value(env, globals, context, declaration) {
+                match generate_module_declaration_value(env, context, declaration) {
                     Ok(()) => {}
                     Err(e) => {
                         return Err(e.push(PengError::InvalidState(
@@ -933,7 +929,7 @@ pub fn generate_local_module_declaration(
 
 pub fn generate_module_declaration_value(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
+
     context: &mut PengGeneratorContext,
     declaration: &PengPositionedModuleDeclaration,
 ) -> Result<(), PengError> {
@@ -959,7 +955,7 @@ pub fn generate_module_declaration_value(
 
         match declaration_value {
             PengDeclaration::Var(declaration) => match &declaration.value.value {
-                Some(value) => match generate_expression(env, globals, context, value) {
+                Some(value) => match generate_expression(env, context, value) {
                     Ok(()) => {}
                     Err(e) => {
                         return Err(e.push(PengError::InvalidState(
@@ -973,7 +969,7 @@ pub fn generate_module_declaration_value(
             },
 
             PengDeclaration::As(declaration) => {
-                match generate_expression(env, globals, context, &declaration.value.value) {
+                match generate_expression(env, context, &declaration.value.value) {
                     Ok(()) => {}
                     Err(e) => {
                         return Err(e.push(PengError::InvalidState(
@@ -984,7 +980,7 @@ pub fn generate_module_declaration_value(
             }
 
             PengDeclaration::Function(declaration) => {
-                let value = match generate_function_declaration_value(env, globals, declaration) {
+                let value = match generate_function_declaration_value(env, declaration) {
                     Ok(v) => v,
                     Err(e) => {
                         return Err(e.push(PengError::InvalidState(
@@ -996,7 +992,7 @@ pub fn generate_module_declaration_value(
             }
 
             PengDeclaration::Operation(declaration) => {
-                let value = match generate_operation_declaration_value(env, globals, declaration) {
+                let value = match generate_operation_declaration_value(env, declaration) {
                     Ok(v) => v,
                     Err(e) => {
                         return Err(e.push(PengError::InvalidState(
@@ -1008,7 +1004,7 @@ pub fn generate_module_declaration_value(
             }
 
             PengDeclaration::Type(declaration) => match &declaration.value.value {
-                Some(value) => match generate_type_expression(env, globals, context, value) {
+                Some(value) => match generate_type_expression(env, context, value) {
                     Ok(()) => {}
                     Err(e) => {
                         return Err(e.push(PengError::InvalidState(
@@ -1023,7 +1019,7 @@ pub fn generate_module_declaration_value(
                         functions: declaration.value.functions.clone(),
                     };
 
-                    match generate_type_literal(env, globals, context, &literal) {
+                    match generate_type_literal(env, context, &literal) {
                         Ok(()) => {}
                         Err(e) => {
                             return Err(e.push(PengError::InvalidState(
@@ -1035,7 +1031,7 @@ pub fn generate_module_declaration_value(
             },
 
             PengDeclaration::Module(declaration) => {
-                match generate_module_declaration_value(env, globals, context, declaration) {
+                match generate_module_declaration_value(env, context, declaration) {
                     Ok(()) => {}
                     Err(e) => {
                         return Err(e.push(PengError::InvalidState(

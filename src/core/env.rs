@@ -38,10 +38,7 @@ impl PengEnv {
         }
     }
 
-    pub fn load_script_from_file(
-        &mut self,
-        path: &str,
-    ) -> Result<(HashMap<PengNamePoolPtr, PengHeapPtr>, PengHeapPtr), PengError> {
+    pub fn load_script_from_file(&mut self, path: &str) -> Result<PengHeapPtr, PengError> {
         let tokens = match lex_file(path.to_string()) {
             Ok(v) => v,
             Err(e) => return Err(e),
@@ -50,18 +47,15 @@ impl PengEnv {
             Ok(v) => v,
             Err(e) => return Err(e),
         };
-        let (globals, init_ptr) = match generate_ast(self, &ast, &HashMap::new()) {
+        let init_ptr = match generate_ast(self, &ast) {
             Ok(v) => v,
             Err(e) => return Err(e),
         };
 
-        Ok((globals, init_ptr))
+        Ok(init_ptr)
     }
 
-    pub fn load_script_from_source(
-        &mut self,
-        source: &str,
-    ) -> Result<(HashMap<PengNamePoolPtr, PengHeapPtr>, PengHeapPtr), PengError> {
+    pub fn load_script_from_source(&mut self, source: &str) -> Result<PengHeapPtr, PengError> {
         let tokens = match lex_source(source.to_string()) {
             Ok(v) => v,
             Err(e) => return Err(e),
@@ -70,18 +64,15 @@ impl PengEnv {
             Ok(v) => v,
             Err(e) => return Err(e),
         };
-        let (globals, init_ptr) = match generate_ast(self, &ast, &HashMap::new()) {
+        let init_ptr = match generate_ast(self, &ast) {
             Ok(v) => v,
             Err(e) => return Err(e),
         };
 
-        Ok((globals, init_ptr))
+        Ok(init_ptr)
     }
 
-    pub fn load_program_from_file(
-        &mut self,
-        path: &str,
-    ) -> Result<(HashMap<PengNamePoolPtr, PengHeapPtr>, PengHeapPtr), PengError> {
+    pub fn load_program_from_file(&mut self, path: &str) -> Result<PengHeapPtr, PengError> {
         let tokens = match lex_file(path.to_string()) {
             Ok(v) => v,
             Err(e) => return Err(e),
@@ -90,18 +81,15 @@ impl PengEnv {
             Ok(v) => v,
             Err(e) => return Err(e),
         };
-        let (globals, init_ptr) = match generate_ast(self, &ast, &HashMap::new()) {
+        let init_ptr = match generate_ast(self, &ast) {
             Ok(v) => v,
             Err(e) => return Err(e),
         };
 
-        Ok((globals, init_ptr))
+        Ok(init_ptr)
     }
 
-    pub fn load_program_from_source(
-        &mut self,
-        source: &str,
-    ) -> Result<(HashMap<PengNamePoolPtr, PengHeapPtr>, PengHeapPtr), PengError> {
+    pub fn load_program_from_source(&mut self, source: &str) -> Result<PengHeapPtr, PengError> {
         let tokens = match lex_source(source.to_string()) {
             Ok(v) => v,
             Err(e) => return Err(e),
@@ -110,12 +98,12 @@ impl PengEnv {
             Ok(v) => v,
             Err(e) => return Err(e),
         };
-        let (globals, init_ptr) = match generate_ast(self, &ast, &HashMap::new()) {
+        let init_ptr = match generate_ast(self, &ast) {
             Ok(v) => v,
             Err(e) => return Err(e),
         };
 
-        Ok((globals, init_ptr))
+        Ok(init_ptr)
     }
 
     pub fn run(&mut self, init_ptr: PengHeapPtr) -> Result<PengBindedCell, PengError> {
@@ -202,13 +190,13 @@ impl PengEnv {
         self.set_global(name.to_string(), value)
     }
 
-    pub fn register_native_operation<F>(
-        &mut self,
-        name: &str,
-        op: F,
-    ) -> Result<(), PengError> 
+    pub fn register_native_operation<F>(&mut self, name: &str, op: F) -> Result<(), PengError>
     where
-        F: FnMut((PengBindedCell,PengBindedCell), &mut PengEnv) -> Result<PengBindedCell, PengError> + 'static,
+        F: FnMut(
+                (PengBindedCell, PengBindedCell),
+                &mut PengEnv,
+            ) -> Result<PengBindedCell, PengError>
+            + 'static,
     {
         let ptr = self.create_heap_value(PengHeapValue::Operation(PengOperation::new_native(op)));
 
@@ -266,6 +254,25 @@ impl PengEnv {
         }
 
         Ok(self.create_heap_value(PengHeapValue::Vector(vector)))
+    }
+
+    pub fn has_global(&self, name_ptr: PengNamePoolPtr) -> bool {
+        self.globals.contains_key(&name_ptr)
+    }
+
+    pub fn create_global(
+        &mut self,
+        name_ptr: PengNamePoolPtr,
+        value: PengBindedCell,
+    ) -> Result<(), PengError> {
+        if self.globals.contains_key(&name_ptr) {
+            return Err(PengError::SyntaxError(
+                "duplicated global declaration".to_string(),
+            ));
+        }
+
+        self.globals.insert(name_ptr, value);
+        Ok(())
     }
 
     pub fn set_global(&mut self, name: String, cell: PengBindedCell) -> Result<(), PengError> {

@@ -71,6 +71,6 @@ fn main() {
     }).unwrap();
     //    .unwrap();
 
-    let (_, init) = peng.load_script_from_file("main.peng").unwrap();
+    let init = peng.load_script_from_file("main.peng").unwrap();
     peng.run(init).unwrap();
 }

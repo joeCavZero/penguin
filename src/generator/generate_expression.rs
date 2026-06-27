@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 
 use crate::core::*;
 use crate::generator::*;
@@ -6,17 +5,16 @@ use crate::parser::*;
 
 pub fn generate_expression(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     expression: &PengPositionedExpression,
 ) -> Result<(), PengError> {
     match &expression.value {
-        PengExpression::Literal(literal) => generate_literal(env, globals, context, literal),
+        PengExpression::Literal(literal) => generate_literal(env, context, literal),
         PengExpression::Identifier(identifier) => {
-            generate_identifier(env, globals, context, identifier)
+            generate_identifier(env, context, identifier)
         }
         PengExpression::Unary { operator, value } => {
-            match generate_expression(env, globals, context, value) {
+            match generate_expression(env, context, value) {
                 Ok(()) => {}
                 Err(e) => {
                     return Err(e.push(PengError::InvalidState(
@@ -41,7 +39,7 @@ pub fn generate_expression(
             operator,
             right,
         } => {
-            match generate_expression(env, globals, context, left) {
+            match generate_expression(env, context, left) {
                 Ok(()) => {}
                 Err(e) => {
                     return Err(e.push(PengError::InvalidState(
@@ -65,7 +63,7 @@ pub fn generate_expression(
                     });
                     context.bytecode.push(PengInstruction::Pop);
 
-                    match generate_expression(env, globals, context, right) {
+                    match generate_expression(env, context, right) {
                         Ok(()) => {}
                         Err(e) => {
                             return Err(e.push(PengError::InvalidState(
@@ -82,7 +80,7 @@ pub fn generate_expression(
                     };
                 }
                 _ => {
-                    match generate_expression(env, globals, context, right) {
+                    match generate_expression(env, context, right) {
                         Ok(()) => {}
                         Err(e) => {
                             return Err(e.push(PengError::InvalidState(
@@ -97,12 +95,12 @@ pub fn generate_expression(
             Ok(())
         }
         PengExpression::Type(type_expression) => {
-            generate_type_expression(env, globals, context, type_expression)
+            generate_type_expression(env, context, type_expression)
         }
-        PengExpression::FuncCall(call) => generate_function_call(env, globals, context, call),
-        PengExpression::MethodCall(call) => generate_method_call(env, globals, context, call),
+        PengExpression::FuncCall(call) => generate_function_call(env, context, call),
+        PengExpression::MethodCall(call) => generate_method_call(env, context, call),
         PengExpression::AttributeAccess(attribute) => {
-            match generate_expression(env, globals, context, &attribute.object) {
+            match generate_expression(env, context, &attribute.object) {
                 Ok(()) => {}
                 Err(e) => {
                     return Err(e.push(PengError::InvalidState(
@@ -117,7 +115,7 @@ pub fn generate_expression(
             Ok(())
         }
         PengExpression::MemberAccess(member) => {
-            match generate_expression(env, globals, context, &member.object) {
+            match generate_expression(env, context, &member.object) {
                 Ok(()) => {}
                 Err(e) => {
                     return Err(e.push(PengError::InvalidState(
@@ -129,28 +127,27 @@ pub fn generate_expression(
             context.bytecode.push(PengInstruction::GetMember(name));
             Ok(())
         }
-        PengExpression::Index(index) => generate_index_expression(env, globals, context, index),
+        PengExpression::Index(index) => generate_index_expression(env, context, index),
         PengExpression::ObjectConstruction(construction) => {
-            generate_object_construction(env, globals, context, construction)
+            generate_object_construction(env, context, construction)
         }
         PengExpression::OperationCall {
             left,
             operation,
             right,
-        } => generate_operation_call(env, globals, context, left, operation, right),
+        } => generate_operation_call(env, context, left, operation, right),
         PengExpression::Try { value, elsing } => {
-            generate_try_expression(env, globals, context, value, elsing.as_deref())
+            generate_try_expression(env, context, value, elsing.as_deref())
         }
     }
 }
 
 pub fn generate_method_call(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     call: &PengMethodCallExpression,
 ) -> Result<(), PengError> {
-    match generate_expression(env, globals, context, &call.object) {
+    match generate_expression(env, context, &call.object) {
         Ok(()) => {}
         Err(e) => {
             return Err(e.push(PengError::InvalidState(
@@ -176,7 +173,7 @@ pub fn generate_method_call(
         .push(PengInstruction::PushLocal(object_local));
 
     for arg in &call.args {
-        match generate_expression(env, globals, context, &arg.value.expression) {
+        match generate_expression(env, context, &arg.value.expression) {
             Ok(()) => {}
             Err(e) => {
                 return Err(e.push(PengError::InvalidState(
@@ -195,11 +192,10 @@ pub fn generate_method_call(
 
 pub fn generate_object_construction(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     construction: &PengObjectConstructionExpression,
 ) -> Result<(), PengError> {
-    match generate_expression(env, globals, context, &construction.object_type) {
+    match generate_expression(env, context, &construction.object_type) {
         Ok(()) => {}
         Err(e) => {
             return Err(e.push(PengError::InvalidState(
@@ -215,7 +211,7 @@ pub fn generate_object_construction(
 
         let name = env.ensure_pooled_name_ptr(field.name.value.clone());
 
-        match generate_expression(env, globals, context, &field.value) {
+        match generate_expression(env, context, &field.value) {
             Ok(()) => {}
             Err(e) => {
                 return Err(e.push(PengError::InvalidState(
@@ -234,14 +230,13 @@ pub fn generate_object_construction(
 
 pub fn generate_try_expression(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     value: &PengPositionedExpression,
     elsing: Option<&PengPositionedExpression>,
 ) -> Result<(), PengError> {
     match &value.value {
         PengExpression::FuncCall(call) => {
-            match generate_expression(env, globals, context, &call.function) {
+            match generate_expression(env, context, &call.function) {
                 Ok(()) => {}
                 Err(e) => {
                     return Err(e.push(PengError::InvalidState(
@@ -251,7 +246,7 @@ pub fn generate_try_expression(
             }
 
             let variadic_index =
-                match generate_function_call_args(env, globals, context, &call.args) {
+                match generate_function_call_args(env, context, &call.args) {
                     Ok(value) => value,
                     Err(e) => {
                         return Err(e.push(PengError::InvalidState(
@@ -276,7 +271,7 @@ pub fn generate_try_expression(
         }
 
         PengExpression::MethodCall(call) => {
-            match generate_expression(env, globals, context, &call.object) {
+            match generate_expression(env, context, &call.object) {
                 Ok(()) => {}
                 Err(e) => {
                     return Err(e.push(PengError::InvalidState(
@@ -306,7 +301,7 @@ pub fn generate_try_expression(
                 .push(PengInstruction::PushLocal(object_local));
 
             let variadic_index =
-                match generate_function_call_args(env, globals, context, &call.args) {
+                match generate_function_call_args(env, context, &call.args) {
                     Ok(value) => value,
                     Err(e) => {
                         return Err(e.push(PengError::InvalidState(
@@ -335,7 +330,7 @@ pub fn generate_try_expression(
             operation,
             right,
         } => {
-            match generate_expression(env, globals, context, operation) {
+            match generate_expression(env, context, operation) {
                 Ok(()) => {}
                 Err(e) => {
                     return Err(e.push(PengError::InvalidState(
@@ -344,7 +339,7 @@ pub fn generate_try_expression(
                 }
             }
 
-            match generate_expression(env, globals, context, left) {
+            match generate_expression(env, context, left) {
                 Ok(()) => {}
                 Err(e) => {
                     return Err(e.push(PengError::InvalidState(
@@ -353,7 +348,7 @@ pub fn generate_try_expression(
                 }
             }
 
-            match generate_expression(env, globals, context, right) {
+            match generate_expression(env, context, right) {
                 Ok(()) => {}
                 Err(e) => {
                     return Err(e.push(PengError::InvalidState(
@@ -382,7 +377,7 @@ pub fn generate_try_expression(
     context.bytecode.push(PengInstruction::Pop);
 
     match elsing {
-        Some(elsing) => match generate_expression(env, globals, context, elsing) {
+        Some(elsing) => match generate_expression(env, context, elsing) {
             Ok(()) => {}
             Err(e) => {
                 return Err(e.push(PengError::InvalidState(
@@ -404,11 +399,10 @@ pub fn generate_try_expression(
 
 pub fn generate_index_expression(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     index: &PengIndexExpression,
 ) -> Result<(), PengError> {
-    match generate_expression(env, globals, context, &index.object) {
+    match generate_expression(env, context, &index.object) {
         Ok(()) => {}
         Err(e) => {
             return Err(e.push(PengError::InvalidState(
@@ -417,7 +411,7 @@ pub fn generate_index_expression(
         }
     }
 
-    match generate_expression(env, globals, context, &index.index) {
+    match generate_expression(env, context, &index.index) {
         Ok(()) => {}
         Err(e) => {
             return Err(e.push(PengError::InvalidState(
@@ -432,14 +426,13 @@ pub fn generate_index_expression(
 
 pub fn generate_type_expression(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     type_expression: &PengPositionedTypeExpression,
 ) -> Result<(), PengError> {
     match &type_expression.value {
         PengTypeExpression::Union(types) => {
             for typ in types {
-                match generate_type_expression(env, globals, context, typ) {
+                match generate_type_expression(env, context, typ) {
                     Ok(()) => {}
                     Err(e) => {
                         return Err(e.push(PengError::InvalidState(
@@ -457,7 +450,7 @@ pub fn generate_type_expression(
         }
 
         PengTypeExpression::Custom(expression) => {
-            generate_expression(env, globals, context, expression)
+            generate_expression(env, context, expression)
         }
 
         PengTypeExpression::Vector(inner) => {
@@ -479,7 +472,7 @@ pub fn generate_type_expression(
         }
 
         PengTypeExpression::TypeLiteral(literal) => {
-            generate_type_literal(env, globals, context, literal)
+            generate_type_literal(env, context, literal)
         }
 
         _ => {

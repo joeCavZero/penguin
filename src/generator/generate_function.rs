@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 
 use crate::core::*;
 use crate::generator::*;
@@ -32,12 +31,10 @@ pub fn create_bytecode_function_value(
 
 pub fn generate_function_declaration_value(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     declaration: &PengPositionedFunctionDeclaration,
 ) -> Result<PengHeapValue, PengError> {
     generate_function_value(
         env,
-        globals,
         &declaration.value.params,
         &declaration.value.body,
     )
@@ -45,7 +42,6 @@ pub fn generate_function_declaration_value(
 
 pub fn generate_function_value(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     params: &Vec<PengPositionedFunctionParam>,
     body: &Vec<PengPositionedStatement>,
 ) -> Result<PengHeapValue, PengError> {
@@ -83,7 +79,7 @@ pub fn generate_function_value(
         context.create_local(param.value.name.value.clone());
     }
 
-    match generate_statements(env, globals, &mut context, body) {
+    match generate_statements(env, &mut context, body) {
         Ok(()) => {}
         Err(e) => {
             return Err(e.push(PengError::InvalidState(
@@ -97,11 +93,10 @@ pub fn generate_function_value(
 
 pub fn generate_function_call(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     call: &PengFuncCallExpression,
 ) -> Result<(), PengError> {
-    match generate_expression(env, globals, context, &call.function) {
+    match generate_expression(env, context, &call.function) {
         Ok(()) => {}
         Err(e) => {
             return Err(e.push(PengError::InvalidState(
@@ -110,7 +105,7 @@ pub fn generate_function_call(
         }
     }
 
-    let variadic_index = match generate_function_call_args(env, globals, context, &call.args) {
+    let variadic_index = match generate_function_call_args(env, context, &call.args) {
         Ok(value) => value,
         Err(e) => {
             return Err(e.push(PengError::InvalidState(
@@ -138,16 +133,15 @@ pub fn generate_function_call(
 
 pub fn generate_local_function_declaration(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     declaration: &PengPositionedFunctionDeclaration,
     immutable: bool,
 ) -> Result<(), PengError> {
-    let global = get_allocated_global(env, globals, &declaration.value.name.value);
+    let global = get_allocated_global(env, &declaration.value.name.value);
 
     match global {
         Some(value_ptr) => {
-            let value = match generate_function_declaration_value(env, globals, declaration) {
+            let value = match generate_function_declaration_value(env, declaration) {
                 Ok(value) => value,
                 Err(e) => {
                     return Err(e.push(PengError::InvalidState(
@@ -168,7 +162,7 @@ pub fn generate_local_function_declaration(
         }
 
         None => {
-            let value = match generate_function_declaration_value(env, globals, declaration) {
+            let value = match generate_function_declaration_value(env, declaration) {
                 Ok(value) => value,
                 Err(e) => {
                     return Err(e.push(PengError::InvalidState(
@@ -192,7 +186,6 @@ pub fn generate_local_function_declaration(
 
 pub fn generate_function_call_args(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     args: &Vec<PengPositionedFunctionCallArg>,
 ) -> Result<Option<usize>, PengError> {
@@ -220,7 +213,7 @@ pub fn generate_function_call_args(
             variadic_index = Some(i);
         }
 
-        match generate_expression(env, globals, context, &arg.value.expression) {
+        match generate_expression(env, context, &arg.value.expression) {
             Ok(()) => {}
             Err(e) => {
                 return Err(e.push(PengError::InvalidState(

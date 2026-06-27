@@ -1,27 +1,24 @@
-use std::collections::HashMap;
-
 use crate::core::*;
 use crate::generator::*;
 use crate::parser::*;
 
 pub fn generate_literal(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     literal: &PengPositionedLiteral,
 ) -> Result<(), PengError> {
     match &literal.value {
         PengLiteral::Type(type_literal) => {
-            return generate_type_literal(env, globals, context, type_literal);
+            return generate_type_literal(env, context, type_literal);
         }
         PengLiteral::Module(module) => {
-            return generate_module_literal(env, globals, context, module);
+            return generate_module_literal(env, context, module);
         }
         PengLiteral::Vector(values) => {
-            return generate_vector_literal(env, globals, context, values);
+            return generate_vector_literal(env, context, values);
         }
         PengLiteral::Object(fields) => {
-            return generate_object_literal(env, globals, context, fields);
+            return generate_object_literal(env, context, fields);
         }
         _ => {}
     }
@@ -37,7 +34,7 @@ pub fn generate_literal(
         PengLiteral::String(value) => PengValue::Heap(PengHeapValue::String(value.clone())),
         PengLiteral::Type(_) => unreachable!(),
         PengLiteral::Function(function) => {
-            match generate_function_value(env, globals, &function.params, &function.body) {
+            match generate_function_value(env, &function.params, &function.body) {
                 Ok(value) => PengValue::Heap(value),
                 Err(e) => {
                     return Err(e.push(PengError::InvalidState(
@@ -49,7 +46,7 @@ pub fn generate_literal(
         PengLiteral::Module(_) => unreachable!(),
         PengLiteral::Vector(_) => unreachable!(),
         PengLiteral::Operation(operation) => {
-            match generate_operation_value(env, globals, &operation.params, &operation.body) {
+            match generate_operation_value(env, &operation.params, &operation.body) {
                 Ok(value) => PengValue::Heap(value),
                 Err(e) => {
                     return Err(e.push(PengError::InvalidState(
@@ -67,11 +64,10 @@ pub fn generate_literal(
 
 pub fn generate_type_literal(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     literal: &PengTypeLiteral,
 ) -> Result<(), PengError> {
-    match generate_type_literal_after_base(env, globals, context, literal) {
+    match generate_type_literal_after_base(env, context, literal) {
         Ok(()) => Ok(()),
         Err(e) => Err(e),
     }
@@ -79,7 +75,6 @@ pub fn generate_type_literal(
 
 pub fn generate_object_literal(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     fields: &[PengObjectFieldLiteral],
 ) -> Result<(), PengError> {
@@ -90,7 +85,7 @@ pub fn generate_object_literal(
 
         let name = env.ensure_pooled_name_ptr(field.name.value.clone());
 
-        match generate_expression(env, globals, context, &field.value) {
+        match generate_expression(env, context, &field.value) {
             Ok(()) => {}
             Err(e) => {
                 return Err(e.push(PengError::InvalidState(
@@ -108,12 +103,11 @@ pub fn generate_object_literal(
 
 pub fn generate_type_literal_after_base(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     literal: &PengTypeLiteral,
 ) -> Result<(), PengError> {
     for super_type in &literal.supers {
-        match generate_expression(env, globals, context, super_type) {
+        match generate_expression(env, context, super_type) {
             Ok(()) => {}
             Err(e) => {
                 return Err(e.push(PengError::InvalidState(
@@ -133,7 +127,7 @@ pub fn generate_type_literal_after_base(
         let name = env.ensure_pooled_name_ptr(field.value.name.value.clone());
 
         match &field.value.value {
-            Some(value) => match generate_expression(env, globals, context, value) {
+            Some(value) => match generate_expression(env, context, value) {
                 Ok(()) => {}
                 Err(e) => {
                     return Err(e.push(PengError::InvalidState(
@@ -154,7 +148,7 @@ pub fn generate_type_literal_after_base(
 
         let name = env.ensure_pooled_name_ptr(function.value.name.value.clone());
 
-        let value = match generate_function_declaration_value(env, globals, function) {
+        let value = match generate_function_declaration_value(env, function) {
             Ok(value) => value,
             Err(e) => {
                 return Err(e.push(PengError::InvalidState(
@@ -175,12 +169,11 @@ pub fn generate_type_literal_after_base(
 
 pub fn generate_vector_literal(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     values: &[PengPositionedExpression],
 ) -> Result<(), PengError> {
     for value in values {
-        match generate_expression(env, globals, context, value) {
+        match generate_expression(env, context, value) {
             Ok(()) => {}
             Err(e) => {
                 return Err(e.push(PengError::InvalidState(
@@ -199,7 +192,6 @@ pub fn generate_vector_literal(
 
 pub fn generate_module_literal(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     module: &PengModuleLiteral,
 ) -> Result<(), PengError> {
@@ -225,7 +217,7 @@ pub fn generate_module_literal(
 
         match declaration {
             PengDeclaration::Var(declaration) => match &declaration.value.value {
-                Some(value) => match generate_expression(env, globals, context, value) {
+                Some(value) => match generate_expression(env, context, value) {
                     Ok(()) => {}
                     Err(e) => {
                         return Err(e.push(PengError::InvalidState(
@@ -237,7 +229,7 @@ pub fn generate_module_literal(
             },
 
             PengDeclaration::As(declaration) => {
-                match generate_expression(env, globals, context, &declaration.value.value) {
+                match generate_expression(env, context, &declaration.value.value) {
                     Ok(()) => {}
                     Err(e) => {
                         return Err(e.push(PengError::InvalidState(
@@ -248,7 +240,7 @@ pub fn generate_module_literal(
             }
 
             PengDeclaration::Function(declaration) => {
-                let value = match generate_function_declaration_value(env, globals, declaration) {
+                let value = match generate_function_declaration_value(env, declaration) {
                     Ok(v) => v,
                     Err(e) => {
                         return Err(e.push(PengError::InvalidState(
@@ -260,7 +252,7 @@ pub fn generate_module_literal(
             }
 
             PengDeclaration::Type(declaration) => match &declaration.value.value {
-                Some(value) => match generate_type_expression(env, globals, context, value) {
+                Some(value) => match generate_type_expression(env, context, value) {
                     Ok(()) => {}
                     Err(e) => {
                         return Err(e.push(PengError::InvalidState(
@@ -275,7 +267,7 @@ pub fn generate_module_literal(
                         functions: declaration.value.functions.clone(),
                     };
 
-                    match generate_type_literal(env, globals, context, &literal) {
+                    match generate_type_literal(env, context, &literal) {
                         Ok(()) => {}
                         Err(e) => {
                             return Err(e.push(PengError::InvalidState(
@@ -287,7 +279,7 @@ pub fn generate_module_literal(
             },
 
             PengDeclaration::Module(declaration) => {
-                match generate_module_declaration_value(env, globals, context, declaration) {
+                match generate_module_declaration_value(env, context, declaration) {
                     Ok(()) => {}
                     Err(e) => {
                         return Err(e.push(PengError::InvalidState(
@@ -298,7 +290,7 @@ pub fn generate_module_literal(
             }
 
             PengDeclaration::Operation(declaration) => {
-                let value = match generate_operation_declaration_value(env, globals, declaration) {
+                let value = match generate_operation_declaration_value(env, declaration) {
                     Ok(v) => v,
                     Err(e) => {
                         return Err(e.push(PengError::InvalidState(

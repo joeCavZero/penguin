@@ -1,17 +1,14 @@
-use std::collections::HashMap;
-
 use crate::core::*;
 use crate::generator::*;
 use crate::parser::*;
 
 pub fn generate_statements(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     context: &mut PengGeneratorContext,
     statements: &Vec<PengPositionedStatement>,
 ) -> Result<(), PengError> {
     for statement in statements {
-        match generate_statement(env, globals, context, statement) {
+        match generate_statement(env, context, statement) {
             Ok(()) => {}
             Err(e) => {
                 return Err(e.push(PengError::InvalidState(
@@ -26,24 +23,24 @@ pub fn generate_statements(
 
 pub fn generate_statement(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
+
     context: &mut PengGeneratorContext,
     statement: &PengPositionedStatement,
 ) -> Result<(), PengError> {
     match &statement.value {
         PengStatement::Declaration(binded_declaration) => match binded_declaration {
             PengBinded::Mutable(declaration) => {
-                generate_binded_local_declaration(env, globals, context, declaration, false)
+                generate_binded_local_declaration(env, context, declaration, false)
             }
 
             PengBinded::Immutable(declaration) => {
-                generate_binded_local_declaration(env, globals, context, declaration, true)
+                generate_binded_local_declaration(env, context, declaration, true)
             }
         },
         PengStatement::Block(statements) => {
             context.push_scope();
 
-            let result = generate_statements(env, globals, context, statements);
+            let result = generate_statements(env, context, statements);
 
             context.pop_scope();
 
@@ -55,7 +52,7 @@ pub fn generate_statement(
 
         PengStatement::Return(value) => {
             match value {
-                Some(value) => match generate_expression(env, globals, context, value) {
+                Some(value) => match generate_expression(env, context, value) {
                     Ok(()) => {}
                     Err(e) => {
                         return Err(e.push(PengError::InvalidState(
@@ -72,10 +69,10 @@ pub fn generate_statement(
             Ok(())
         }
 
-        PengStatement::Assign(assignment) => generate_assignment(env, globals, context, assignment),
+        PengStatement::Assign(assignment) => generate_assignment(env, context, assignment),
 
         PengStatement::Expression(expression) => {
-            match generate_expression(env, globals, context, expression) {
+            match generate_expression(env, context, expression) {
                 Ok(()) => {}
                 Err(e) => {
                     return Err(e.push(PengError::InvalidState(
@@ -89,22 +86,22 @@ pub fn generate_statement(
         }
 
         PengStatement::If(if_statement) => {
-            generate_if_statement(env, globals, context, if_statement)
+            generate_if_statement(env, context, if_statement)
         }
 
         PengStatement::Match(match_statement) => {
-            generate_match_statement(env, globals, context, match_statement)
+            generate_match_statement(env, context, match_statement)
         }
 
         PengStatement::While(while_statement) => {
-            generate_while_statement(env, globals, context, while_statement)
+            generate_while_statement(env, context, while_statement)
         }
 
         PengStatement::For(for_statement) => {
-            generate_for_statement(env, globals, context, for_statement)
+            generate_for_statement(env, context, for_statement)
         }
 
-        PengStatement::Loop(body) => generate_loop_statement(env, globals, context, body),
+        PengStatement::Loop(body) => generate_loop_statement(env, context, body),
 
         PengStatement::Break => {
             if context.emit_break() {
@@ -132,13 +129,13 @@ pub fn generate_statement(
 
 pub fn generate_scoped_statements(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
+
     context: &mut PengGeneratorContext,
     statements: &Vec<PengPositionedStatement>,
 ) -> Result<(), PengError> {
     context.push_scope();
 
-    let result = generate_statements(env, globals, context, statements);
+    let result = generate_statements(env, context, statements);
 
     context.pop_scope();
 
@@ -150,11 +147,11 @@ pub fn generate_scoped_statements(
 
 pub fn generate_if_statement(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
+
     context: &mut PengGeneratorContext,
     statement: &PengIfStatement,
 ) -> Result<(), PengError> {
-    match generate_expression(env, globals, context, &statement.condition) {
+    match generate_expression(env, context, &statement.condition) {
         Ok(()) => {}
         Err(e) => {
             return Err(e.push(PengError::InvalidState(
@@ -165,7 +162,7 @@ pub fn generate_if_statement(
 
     let false_jump = context.emit_jump_if_false();
 
-    match generate_scoped_statements(env, globals, context, &statement.then_branch) {
+    match generate_scoped_statements(env, context, &statement.then_branch) {
         Ok(()) => {}
         Err(e) => {
             return Err(e.push(PengError::InvalidState(
@@ -180,7 +177,7 @@ pub fn generate_if_statement(
             let else_start = context.bytecode.len();
             context.patch_jump(false_jump, else_start);
 
-            match generate_scoped_statements(env, globals, context, else_branch) {
+            match generate_scoped_statements(env, context, else_branch) {
                 Ok(()) => {}
                 Err(e) => {
                     return Err(e.push(PengError::InvalidState(
@@ -203,11 +200,11 @@ pub fn generate_if_statement(
 
 pub fn generate_match_statement(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
+
     context: &mut PengGeneratorContext,
     statement: &PengMatchStatement,
 ) -> Result<(), PengError> {
-    match generate_expression(env, globals, context, &statement.value) {
+    match generate_expression(env, context, &statement.value) {
         Ok(()) => {}
         Err(e) => {
             return Err(e.push(PengError::InvalidState(
@@ -228,7 +225,7 @@ pub fn generate_match_statement(
             .bytecode
             .push(PengInstruction::PushLocal(matched_local));
 
-        match generate_expression(env, globals, context, &arm.pattern) {
+        match generate_expression(env, context, &arm.pattern) {
             Ok(()) => {}
             Err(e) => {
                 return Err(e.push(PengError::InvalidState(
@@ -241,7 +238,7 @@ pub fn generate_match_statement(
 
         let next_arm_jump = context.emit_jump_if_false();
 
-        match generate_scoped_statements(env, globals, context, &arm.body) {
+        match generate_scoped_statements(env, context, &arm.body) {
             Ok(()) => {}
             Err(e) => {
                 return Err(e.push(PengError::InvalidState(
@@ -258,7 +255,7 @@ pub fn generate_match_statement(
     }
 
     match &statement.elsing {
-        Some(body) => match generate_scoped_statements(env, globals, context, body) {
+        Some(body) => match generate_scoped_statements(env, context, body) {
             Ok(()) => {}
             Err(e) => {
                 return Err(e.push(PengError::InvalidState(
@@ -289,34 +286,34 @@ pub fn generate_make_immutable_if_needed(
 
 pub fn generate_binded_local_declaration(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
+
     context: &mut PengGeneratorContext,
     declaration: &PengDeclaration,
     immutable: bool,
 ) -> Result<(), PengError> {
     match declaration {
         PengDeclaration::Var(variable) => {
-            generate_local_variable(env, globals, context, variable, immutable)
+            generate_local_variable(env, context, variable, immutable)
         }
 
         PengDeclaration::As(declaration) => {
-            generate_local_as_declaration(env, globals, context, declaration, immutable)
+            generate_local_as_declaration(env, context, declaration, immutable)
         }
 
         PengDeclaration::Function(declaration) => {
-            generate_local_function_declaration(env, globals, context, declaration, immutable)
+            generate_local_function_declaration(env, context, declaration, immutable)
         }
 
         PengDeclaration::Operation(declaration) => {
-            generate_local_operation_declaration(env, globals, context, declaration, immutable)
+            generate_local_operation_declaration(env, context, declaration, immutable)
         }
 
         PengDeclaration::Type(declaration) => {
-            generate_local_type_declaration(env, globals, context, declaration, immutable)
+            generate_local_type_declaration(env, context, declaration, immutable)
         }
 
         PengDeclaration::Module(declaration) => {
-            generate_local_module_declaration(env, globals, context, declaration, immutable)
+            generate_local_module_declaration(env, context, declaration, immutable)
         }
     }
 }

@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::parser::*;
 use crate::core::*;
 use crate::generator::*;
@@ -7,22 +5,18 @@ use crate::generator::*;
 pub fn generate_ast(
     env: &mut PengEnv,
     ast: &PengAST,
-    globals: &HashMap<PengNamePoolPtr, PengHeapPtr>,
-) -> Result<(HashMap<PengNamePoolPtr, PengHeapPtr>, PengHeapPtr), PengError> {
+) -> Result<PengHeapPtr, PengError> {
     match ast {
         PengAST::Script(statements) => {
-            match generate_script(env, statements, globals) {
+            match generate_script(env, statements) {
                 Ok(ptr) => Ok(
-                    (
-                        HashMap::new(),
-                        ptr,
-                    )
+                    ptr
                 ),
                 Err(e) => Err(e),
             }
         }
         PengAST::Program(declarations) => {
-            generate_program(env, declarations, globals)
+            generate_program(env, declarations)
         }
     }
 }

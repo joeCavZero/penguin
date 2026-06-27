@@ -1,88 +1,65 @@
-use std::collections::HashMap;
-
 use crate::core::*;
 use crate::generator::*;
 use crate::parser::*;
 
 pub fn generate_program(
     env: &mut PengEnv,
-    declarations: &Vec<PengBinded<PengDeclaration>>,
-    globals: &HashMap<PengNamePoolPtr, PengHeapPtr>,
-) -> Result<(HashMap<PengNamePoolPtr, PengHeapPtr>, PengHeapPtr), PengError> {
-    let local_globals = match allocate_program_globals(env, declarations) {
-        Ok(v) => v,
-        Err(e) => {
-            return Err(e.push(PengError::InvalidState(
-                "failed while generating generate_program".to_string(),
-            )));
-        }
-    };
-    let mut full_globals = globals.clone();
-    full_globals.extend(local_globals);
-
-    let mut context = PengGeneratorContext::new();
-
-    match generate_program_initialization(env, &mut full_globals, declarations, &mut context) {
+    declarations: &Vec<PengBindedDeclaration>,
+) -> Result<PengHeapPtr, PengError> {
+    match allocate_program_globals(env, declarations) {
         Ok(()) => {}
         Err(e) => {
             return Err(e.push(PengError::InvalidState(
                 "failed while generating generate_program".to_string(),
             )));
         }
-    };
+    }
+
+    let mut context = PengGeneratorContext::new();
+
+    generate_program_initialization(env, declarations, &mut context)?;
 
     let program_init = create_anonymous_bytecode_function(
-        env, 
+        env,
         context,
         PengBytecodeFunctionParams::Fixed(0),
     );
 
-    Ok((full_globals, program_init))
+    Ok(program_init)
 }
 
 fn allocate_program_globals(
     env: &mut PengEnv,
     declarations: &Vec<PengBindedDeclaration>,
-) -> Result<HashMap<PengNamePoolPtr, PengHeapPtr>, PengError> {
-    let mut globals = HashMap::new();
-
+) -> Result<(), PengError> {
     for declaration in declarations {
         let name = declaration_name(declaration);
         let name_ptr = env.ensure_pooled_name_ptr(name);
 
-        if globals.contains_key(&name_ptr) {
-            return Err(PengError::SyntaxError(
-                "duplicated global declaration".to_string(),
-            ));
-        }
+        let heap_ptr = env.create_heap_value(
+            PengHeapValue::Object(PengObject::new_empty()),
+        );
 
-        let value_ptr = match declaration {
+        let value = match declaration {
             PengBinded::Mutable(_) => {
-                env.create_heap_value(PengHeapValue::Object(PengObject::new_empty()))
+                PengBinded::Mutable(PengCell::Reference(heap_ptr))
             }
 
             PengBinded::Immutable(_) => {
-                env.create_heap_value(PengHeapValue::Object(PengObject::new_empty()))
+                PengBinded::Immutable(PengCell::Reference(heap_ptr))
             }
         };
 
-        globals.insert(name_ptr, value_ptr);
+        env.create_global(name_ptr, value)?;
     }
 
-    Ok(globals)
+    Ok(())
 }
 
 pub fn get_allocated_global(
     env: &mut PengEnv,
-    globals: &HashMap<PengNamePoolPtr, PengHeapPtr>,
     name: &str,
 ) -> Option<PengHeapPtr> {
-    let name_ptr = env.ensure_pooled_name_ptr(name.to_string());
-
-    if let Some(value_ptr) = globals.get(&name_ptr) {
-        return Some(*value_ptr);
-    }
-
     match env.get_global_by_name_str(name) {
         Some(cell) => match cell.value() {
             PengCell::Reference(ptr) => Some(*ptr),
@@ -110,7 +87,6 @@ fn declaration_name(declaration: &PengBindedDeclaration) -> String {
 
 fn generate_program_initialization(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
     declarations: &Vec<PengBindedDeclaration>,
     context: &mut PengGeneratorContext,
 ) -> Result<(), PengError> {
@@ -122,7 +98,7 @@ fn generate_program_initialization(
 
         match declaration {
             PengDeclaration::Function(function) => {
-                match generate_global_function(env, globals, context, function) {
+                match generate_global_function(env, context, function) {
                     Ok(()) => {}
                     Err(e) => {
                         return Err(e.push(PengError::InvalidState(
@@ -133,7 +109,7 @@ fn generate_program_initialization(
             }
 
             PengDeclaration::Operation(operation) => {
-                match generate_global_operation(env, globals, context, operation) {
+                match generate_global_operation(env, context, operation) {
                     Ok(()) => {}
                     Err(e) => {
                         return Err(e.push(PengError::InvalidState(
@@ -145,7 +121,7 @@ fn generate_program_initialization(
 
             PengDeclaration::Type(declaration) => {
                 if declaration.value.value.is_some() {
-                    match generate_global_type_value(env, globals, context, declaration) {
+                    match generate_global_type_value(env, context, declaration) {
                         Ok(()) => {}
                         Err(e) => {
                             return Err(e.push(PengError::InvalidState(
@@ -165,11 +141,11 @@ fn generate_program_initialization(
 
 fn generate_global_type_value(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
+
     context: &mut PengGeneratorContext,
     declaration: &PengPositionedTypeDeclaration,
 ) -> Result<(), PengError> {
-    let value_ptr = match get_allocated_global(env, globals, &declaration.value.name.value) {
+    let value_ptr = match get_allocated_global(env, &declaration.value.name.value) {
         Some(value_ptr) => value_ptr,
         None => {
             return Err(PengError::new_positioned_message(
@@ -193,7 +169,7 @@ fn generate_global_type_value(
         .bytecode
         .push(PengInstruction::PushHeapRef(value_ptr));
 
-    match generate_type_expression(env, globals, context, value) {
+    match generate_type_expression(env, context, value) {
         Ok(()) => {}
         Err(e) => {
             return Err(e.push(PengError::InvalidState(
@@ -208,11 +184,11 @@ fn generate_global_type_value(
 
 fn generate_global_operation(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
+
     context: &mut PengGeneratorContext,
     declaration: &PengPositionedOperationDeclaration,
 ) -> Result<(), PengError> {
-    let value_ptr = match get_allocated_global(env, globals, &declaration.value.name.value) {
+    let value_ptr = match get_allocated_global(env, &declaration.value.name.value) {
         Some(value_ptr) => value_ptr,
         None => {
             return Err(PengError::new_positioned_message(
@@ -222,7 +198,7 @@ fn generate_global_operation(
         }
     };
 
-    let value = match generate_operation_declaration_value(env, globals, declaration) {
+    let value = match generate_operation_declaration_value(env, declaration) {
         Ok(value) => value,
         Err(e) => {
             return Err(e.push(PengError::InvalidState(
@@ -242,11 +218,11 @@ fn generate_global_operation(
 
 fn generate_global_function(
     env: &mut PengEnv,
-    globals: &mut HashMap<PengNamePoolPtr, PengHeapPtr>,
+
     context: &mut PengGeneratorContext,
     declaration: &PengPositionedFunctionDeclaration,
 ) -> Result<(), PengError> {
-    let value_ptr = match get_allocated_global(env, globals, &declaration.value.name.value) {
+    let value_ptr = match get_allocated_global(env, &declaration.value.name.value) {
         Some(value_ptr) => value_ptr,
         None => {
             return Err(PengError::new_positioned_message(
@@ -256,7 +232,7 @@ fn generate_global_function(
         }
     };
 
-    let value = match generate_function_declaration_value(env, globals, declaration) {
+    let value = match generate_function_declaration_value(env, declaration) {
         Ok(value) => value,
         Err(e) => {
             return Err(e.push(PengError::InvalidState(

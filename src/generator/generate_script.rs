@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::core::*;
 use crate::generator::*;
 use crate::parser::*;
@@ -7,12 +5,10 @@ use crate::parser::*;
 pub fn generate_script(
     env: &mut PengEnv,
     statements: &Vec<PengPositioned<PengStatement>>,
-    global: &HashMap<PengNamePoolPtr, PengHeapPtr>,
 ) -> Result<PengHeapPtr, PengError> {
-    let mut local_globals = global.clone();
     let mut context = PengGeneratorContext::new();
 
-    match generate_statements(env, &mut local_globals, &mut context, statements) {
+    match generate_statements(env, &mut context, statements) {
         Ok(()) => {}
         Err(e) => {
             return Err(e.push(PengError::InvalidState(
