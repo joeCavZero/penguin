@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
 
+use crate::core::unit::*;
 use crate::core::binding::*;
 use crate::core::cell::*;
 use crate::core::colour::*;
@@ -20,7 +21,7 @@ use crate::lexer::*;
 use crate::parser::*;
 
 pub struct PengEnv {
-    globals: HashMap<PengNamePoolPtr, PengBindedHeapPtr>,
+    pub globals: HashMap<PengNamePoolPtr, PengBindedHeapPtr>,
     pub heap: HashMap<PengHeapPtr, PengColouredValue>,
     pub name_pool: HashMap<PengNamePoolPtr, String>,
     active_threads: HashSet<PengHeapPtr>,
@@ -38,7 +39,7 @@ impl PengEnv {
         }
     }
 
-    pub fn load_script_from_file(&mut self, path: &str) -> Result<PengHeapPtr, PengError> {
+    pub fn load_script_from_file(&mut self, path: &str) -> Result<PengUnit, PengError> {
         let tokens = match lex_file(path.to_string()) {
             Ok(v) => v,
             Err(e) => return Err(e),
@@ -47,15 +48,15 @@ impl PengEnv {
             Ok(v) => v,
             Err(e) => return Err(e),
         };
-        let init_ptr = match generate_ast(self, &ast) {
+        let unit = match generate_ast(self, &ast) {
             Ok(v) => v,
             Err(e) => return Err(e),
         };
 
-        Ok(init_ptr)
+        Ok(unit)
     }
 
-    pub fn load_script_from_source(&mut self, source: &str) -> Result<PengHeapPtr, PengError> {
+    pub fn load_script_from_source(&mut self, source: &str) -> Result<PengUnit, PengError> {
         let tokens = match lex_source(source.to_string()) {
             Ok(v) => v,
             Err(e) => return Err(e),
@@ -64,15 +65,15 @@ impl PengEnv {
             Ok(v) => v,
             Err(e) => return Err(e),
         };
-        let init_ptr = match generate_ast(self, &ast) {
+        let unit = match generate_ast(self, &ast) {
             Ok(v) => v,
             Err(e) => return Err(e),
         };
 
-        Ok(init_ptr)
+        Ok(unit)
     }
 
-    pub fn load_program_from_file(&mut self, path: &str) -> Result<PengHeapPtr, PengError> {
+    pub fn load_program_from_file(&mut self, path: &str) -> Result<PengUnit, PengError> {
         let tokens = match lex_file(path.to_string()) {
             Ok(v) => v,
             Err(e) => return Err(e),
@@ -89,7 +90,7 @@ impl PengEnv {
         Ok(init_ptr)
     }
 
-    pub fn load_program_from_source(&mut self, source: &str) -> Result<PengHeapPtr, PengError> {
+    pub fn load_program_from_source(&mut self, source: &str) -> Result<PengUnit, PengError> {
         let tokens = match lex_source(source.to_string()) {
             Ok(v) => v,
             Err(e) => return Err(e),
@@ -98,12 +99,12 @@ impl PengEnv {
             Ok(v) => v,
             Err(e) => return Err(e),
         };
-        let init_ptr = match generate_ast(self, &ast) {
+        let unit = match generate_ast(self, &ast) {
             Ok(v) => v,
             Err(e) => return Err(e),
         };
 
-        Ok(init_ptr)
+        Ok(unit)
     }
 
     pub fn run(&mut self, init_ptr: PengHeapPtr) -> Result<PengBindedCell, PengError> {
@@ -776,8 +777,7 @@ impl PengEnv {
         match cell {
             PengCell::Reference(ptr) => match self.get_heap(ptr) {
                 Some(PengValue::Box(value)) => Ok(value.clone()),
-                Some(_) => Err(PengError::ExpectedBox),
-                None => Err(PengError::HeapValueNotFound(ptr)),
+                _ => Err(PengError::HeapValueNotFound(ptr)),
             },
 
             _ => Err(PengError::ExpectedReference),

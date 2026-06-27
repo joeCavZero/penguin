@@ -13,7 +13,7 @@ pub type PengColouredHeapValue = PengColoured<PengBox>;
 #[derive(Debug, Clone)]
 pub enum PengBox {
     String(String),
-    Object(PengBox),
+    Object(PengObject),
     Vector(PengVector),
     Type(PengType),
     Module(PengModule),

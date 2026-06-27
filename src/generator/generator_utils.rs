@@ -7,11 +7,14 @@ use crate::parser::*;
 pub struct PengGeneratorContext {
     pub bytecode: Vec<PengInstruction>,
     pub consts: Vec<PengValue>,
+
+    globals: HashMap<PengNamePoolPtr, PengBindedHeapPtr>,
+    using_globals: HashMap<PengNamePoolPtr, PengBindedHeapPtr>,
+
     scopes: Vec<HashMap<String, usize>>,
     next_local: usize,
     loops: Vec<PengLoopContext>,
 }
-
 pub struct PengLoopContext {
     break_jumps: Vec<usize>,
     continue_jumps: Vec<usize>,
@@ -23,10 +26,68 @@ impl PengGeneratorContext {
         Self {
             bytecode: Vec::new(),
             consts: Vec::new(),
+
+            globals: HashMap::new(),
+            using_globals: HashMap::new(),
+
             scopes: vec![HashMap::new()],
             next_local: 0,
             loops: Vec::new(),
         }
+    }
+
+    pub fn new_child_context(&self) -> Self {
+        Self {
+            bytecode: Vec::new(),
+            consts: Vec::new(),
+
+            globals: self.globals.clone(),
+            using_globals: self.using_globals.clone(),
+
+            scopes: vec![HashMap::new()],
+            next_local: 0,
+            loops: Vec::new(),
+        }
+    }
+
+    pub fn into_globals(self) -> HashMap<PengNamePoolPtr, PengBindedHeapPtr> {
+        self.globals
+    }
+
+    pub fn insert_global(
+        &mut self,
+        name: PengNamePoolPtr,
+        value: PengBindedHeapPtr,
+    ) {
+        self.globals.insert(name, value);
+    }
+
+    pub fn use_global(
+        &mut self,
+        name: PengNamePoolPtr,
+        value: PengBindedHeapPtr,
+    ) {
+        self.using_globals.insert(name, value);
+    }
+
+    pub fn use_globals(
+        &mut self,
+        globals: HashMap<PengNamePoolPtr, PengBindedHeapPtr>,
+    ) {
+        for (name, value) in globals {
+            self.using_globals.insert(name, value);
+        }
+    }
+
+    pub fn get_global(&self, name: PengNamePoolPtr) -> Option<&PengBindedHeapPtr> {
+        match self.globals.get(&name) {
+            Some(value) => Some(value),
+            None => self.using_globals.get(&name),
+        }
+    }
+
+    pub fn get_own_global(&self, name: PengNamePoolPtr) -> Option<&PengBindedHeapPtr> {
+        self.globals.get(&name)
     }
 
     pub fn push_const_and_const_instruction(&mut self, env: &mut PengEnv, value: PengValue) {
@@ -207,11 +268,11 @@ impl PengGeneratorContext {
             self.patch_jump(jump, continue_target);
         }
     }
+
 }
 
 pub fn generate_identifier(
     env: &mut PengEnv,
-
     context: &mut PengGeneratorContext,
     identifier: &PengPositioned<String>,
 ) -> Result<(), PengError> {
@@ -220,14 +281,27 @@ pub fn generate_identifier(
             context.bytecode.push(PengInstruction::PushLocal(local));
             return Ok(());
         }
+
         None => {}
     }
 
-    match get_allocated_global(env, &identifier.value) {
-        Some(value_ptr) => {
-            context.bytecode.push(PengInstruction::PushHeap(value_ptr));
+    let name_ptr = env.ensure_pooled_name_ptr(identifier.value.clone());
+
+    match context.get_global(name_ptr) {
+        Some(value) => {
+            context.bytecode.push(PengInstruction::PushHeap(*value.value()));
+
+            match value {
+                PengBinded::Immutable(_) => {
+                    context.bytecode.push(PengInstruction::MakeImmutable);
+                }
+
+                PengBinded::Mutable(_) => {}
+            }
+
             Ok(())
         }
+
         None => Err(PengError::new_positioned_message(
             format!("unknown value '{}'", identifier.value),
             identifier.position.clone(),

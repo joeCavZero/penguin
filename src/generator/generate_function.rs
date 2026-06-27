@@ -10,7 +10,7 @@ pub fn create_anonymous_bytecode_function(
 ) -> PengHeapPtr {
     let function = create_bytecode_function_value(env, context, params);
 
-    env.create_heap_value(function)
+    env.create_heap_value(PengValue::Box(function))
 }
 
 pub fn create_bytecode_function_value(
@@ -42,10 +42,11 @@ pub fn generate_function_declaration_value(
 
 pub fn generate_function_value(
     env: &mut PengEnv,
+    parent_context: &PengGeneratorContext,
     params: &Vec<PengPositionedFunctionParam>,
     body: &Vec<PengPositionedStatement>,
 ) -> Result<PengBox, PengError> {
-    let mut context = PengGeneratorContext::new();
+    let mut context = parent_context.new_child_context();
 
     let mut variadic_index: Option<usize> = None;
 

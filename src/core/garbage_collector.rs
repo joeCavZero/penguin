@@ -3,7 +3,10 @@ use crate::core::colour::*;
 use crate::core::env::*;
 use crate::core::function::*;
 use crate::core::heap_value::*;
+use crate::core::instruction::*;
+use crate::core::operation::*;
 use crate::core::thread::*;
+use crate::core::typing::*;
 use crate::core::utils::*;
 use crate::core::value::*;
 
@@ -35,7 +38,7 @@ fn collect_roots(env: &PengEnv) -> Vec<PengHeapPtr> {
     let mut roots = Vec::new();
 
     for (ptr, heap_value) in env.heap.iter() {
-        if let PengBox::Thread(thread) = &heap_value.value {
+        if let PengValue::Box(PengBox::Thread(thread)) = &heap_value.value {
             match thread.state {
                 PengThreadState::Running | PengThreadState::Paused | PengThreadState::Waiting => {
                     roots.push(*ptr);
@@ -46,6 +49,10 @@ fn collect_roots(env: &PengEnv) -> Vec<PengHeapPtr> {
                 | PengThreadState::Cancelled => {}
             }
         }
+    }
+
+    for (_, global) in env.globals.iter() {
+        roots.push(*global.value());
     }
 
     roots
@@ -72,10 +79,10 @@ fn mark_ptr(env: &mut PengEnv, ptr: PengHeapPtr) {
     }
 }
 
-fn collect_children(value: &PengBox) -> Vec<PengHeapPtr> {
+fn collect_children(value: &PengValue) -> Vec<PengHeapPtr> {
     let mut children = Vec::new();
 
-    collect_heap_value_children(value, &mut children);
+    collect_value_children(value, &mut children);
 
     children
 }
@@ -91,8 +98,8 @@ fn collect_value_children(value: &PengValue, children: &mut Vec<PengHeapPtr>) {
             collect_cell_children(cell, children);
         }
 
-        PengValue::Box(heap_value) => {
-            collect_heap_value_children(heap_value, children);
+        PengValue::Box(value) => {
+            collect_box_children(value, children);
         }
     }
 }
@@ -103,7 +110,7 @@ fn collect_cell_children(cell: &PengCell, children: &mut Vec<PengHeapPtr>) {
     }
 }
 
-fn collect_heap_value_children(value: &PengBox, children: &mut Vec<PengHeapPtr>) {
+fn collect_box_children(value: &PengBox, children: &mut Vec<PengHeapPtr>) {
     match value {
         PengBox::String(_) => {}
 
@@ -137,23 +144,13 @@ fn collect_heap_value_children(value: &PengBox, children: &mut Vec<PengHeapPtr>)
             }
         }
 
-        PengBox::Function(function) => match function {
-            PengFunction::Bytecode(func) => {
-                for ptr in func.using_values.iter() {
-                    children.push(*ptr);
-                }
+        PengBox::Function(function) => {
+            collect_function_children(function, children);
+        }
 
-                for constant in func.consts.iter() {
-                    collect_value_children(constant, children);
-                }
-
-                for instruction in func.bytecode.iter() {
-                    collect_instruction_children(instruction, children);
-                }
-            }
-
-            PengFunction::Native(_) => {}
-        },
+        PengBox::Operation(operation) => {
+            collect_operation_children(operation, children);
+        }
 
         PengBox::Module(module) => {
             for (_, member) in module.members.iter() {
@@ -161,19 +158,77 @@ fn collect_heap_value_children(value: &PengBox, children: &mut Vec<PengHeapPtr>)
             }
         }
 
-        PengBox::Type(_) => {}
+        PengBox::Type(value) => {
+            collect_type_children(value, children);
+        }
 
-        PengBox::Operation(_) => {}
-
-        PengBox::Union(_) => {}
+        PengBox::Union(union) => {
+            for value in union.unions.iter() {
+                collect_type_children(value, children);
+            }
+        }
     }
 }
 
-use crate::core::instruction::*;
+fn collect_function_children(function: &PengFunction, children: &mut Vec<PengHeapPtr>) {
+    match function {
+        PengFunction::Bytecode(func) => {
+            for ptr in func.using_values.iter() {
+                children.push(*ptr);
+            }
+
+            for constant in func.consts.iter() {
+                collect_value_children(constant, children);
+            }
+
+            for instruction in func.bytecode.iter() {
+                collect_instruction_children(instruction, children);
+            }
+        }
+
+        PengFunction::Native(_) => {}
+    }
+}
+
+fn collect_operation_children(operation: &PengOperation, children: &mut Vec<PengHeapPtr>) {
+    match operation {
+        PengOperation::Bytecode(operation) => {
+            for ptr in operation.using_values.iter() {
+                children.push(*ptr);
+            }
+
+            for constant in operation.consts.iter() {
+                collect_value_children(constant, children);
+            }
+
+            for instruction in operation.bytecode.iter() {
+                collect_instruction_children(instruction, children);
+            }
+        }
+
+        PengOperation::Native(_) => {}
+    }
+}
+
+fn collect_type_children(value: &PengType, children: &mut Vec<PengHeapPtr>) {
+    match value {
+        PengType::Custom(custom_type) => {
+            for (_, item) in custom_type.fields.iter() {
+                collect_cell_children(item.value(), children);
+            }
+        }
+
+        PengType::Vector(inner) => {
+            collect_type_children(inner, children);
+        }
+
+        _ => {}
+    }
+}
 
 fn collect_instruction_children(instruction: &PengInstruction, children: &mut Vec<PengHeapPtr>) {
     match instruction {
-        PengInstruction::PushHeap(ptr) => {
+        PengInstruction::PushHeap(ptr) | PengInstruction::PushHeapRef(ptr) => {
             children.push(*ptr);
         }
 

@@ -5,8 +5,10 @@ use crate::parser::*;
 pub fn generate_program(
     env: &mut PengEnv,
     declarations: &Vec<PengBindedDeclaration>,
-) -> Result<PengHeapPtr, PengError> {
-    match allocate_program_globals(env, declarations) {
+) -> Result<PengUnit, PengError> {
+    let mut context = PengGeneratorContext::new();
+
+    match allocate_program_globals(env, declarations, &mut context) {
         Ok(()) => {}
         Err(e) => {
             return Err(e.push(PengError::InvalidState(
@@ -15,9 +17,10 @@ pub fn generate_program(
         }
     }
 
-    let mut context = PengGeneratorContext::new();
-
-    generate_program_initialization(env, declarations, &mut context)?;
+    match generate_program_initialization(env, declarations, &mut context) {
+        Ok(()) => {}
+        Err(e) => return Err(e),
+    };
 
     let program_init = create_anonymous_bytecode_function(
         env,
@@ -25,32 +28,31 @@ pub fn generate_program(
         PengBytecodeFunctionParams::Fixed(0),
     );
 
-    Ok(program_init)
+    Ok(PengUnit::new(program_init, context.into_globals()))
 }
 
 fn allocate_program_globals(
     env: &mut PengEnv,
     declarations: &Vec<PengBindedDeclaration>,
+    context: &mut PengGeneratorContext,
 ) -> Result<(), PengError> {
     for declaration in declarations {
         let name = declaration_name(declaration);
         let name_ptr = env.ensure_pooled_name_ptr(name);
 
-        let heap_ptr = env.create_heap_value(
-            PengBox::Object(PengBox::new_empty()),
-        );
+        let heap_ptr = env.create_heap_value(PengValue::Cell(PengCell::Nil));
 
         let value = match declaration {
             PengBinded::Mutable(_) => {
-                PengBinded::Mutable(PengCell::Reference(heap_ptr))
+                PengBinded::Mutable(heap_ptr)
             }
 
             PengBinded::Immutable(_) => {
-                PengBinded::Immutable(PengCell::Reference(heap_ptr))
+                PengBinded::Immutable(heap_ptr)
             }
         };
 
-        env.create_global(name_ptr, value)?;
+        context.insert_global(name_ptr, value);
     }
 
     Ok(())
@@ -58,13 +60,13 @@ fn allocate_program_globals(
 
 pub fn get_allocated_global(
     env: &mut PengEnv,
+    context: &PengGeneratorContext,
     name: &str,
-) -> Option<PengHeapPtr> {
-    match env.get_global_by_str(name) {
-        Some(cell) => match cell.value() {
-            PengCell::Reference(ptr) => Some(*ptr),
-            _ => None,
-        },
+) -> Option<PengBindedHeapPtr> {
+    let name_ptr = env.ensure_pooled_name_ptr(name.to_string());
+
+    match context.get_global(name_ptr) {
+        Some(value) => Some(value.clone()),
         None => None,
     }
 }
