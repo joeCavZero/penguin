@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 
 use crate::core::*;
-use crate::generator::*;
+pub use crate::generator::generate::*;
+
 use crate::parser::*;
 
 pub struct PengGeneratorContext {

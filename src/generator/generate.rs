@@ -1,6 +1,15 @@
 use crate::parser::*;
 use crate::core::*;
-use crate::generator::*;
+pub use crate::generator::generate_program::*;
+pub use crate::generator::generate_script::*;
+pub use crate::generator::generator_utils::*;
+pub use crate::generator::generate_expression::*;
+pub use crate::generator::generate_literal::*;
+pub use crate::generator::generate_function::*;
+pub use crate::generator::generate_operation::*;
+pub use crate::generator::generate_statement::*;
+pub use crate::generator::generate_loops::*;
+
 
 pub fn generate_ast(
     env: &mut PengEnv,

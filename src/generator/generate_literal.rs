@@ -1,5 +1,6 @@
 use crate::core::*;
-use crate::generator::*;
+pub use crate::generator::generate::*;
+
 use crate::parser::*;
 
 pub fn generate_literal(
