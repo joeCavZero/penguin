@@ -3,11 +3,11 @@ use std::rc::Rc;
 
 use crate::core::position::*;
 use crate::core::cell::*;
-use crate::core::env::*;
 use crate::core::error::*;
 use crate::core::instruction::*;
 use crate::core::utils::*;
 use crate::core::value::*;
+use crate::core::context::*;
 
 #[derive(Debug, Clone)]
 pub enum PengFunction {
@@ -44,7 +44,7 @@ impl PengBytecodeFunctionParams {
 impl PengFunction {
     pub fn new_native<F>(f: F) -> Self
     where
-        F: FnMut(Vec<PengBindedCell>, &mut PengEnv) -> Result<PengBindedCell, PengError> + 'static,
+        F: FnMut(&mut PengNativeFunctionCallContext) -> Result<PengBindedCell, PengError> + 'static,
     {
         Self::Native(PengNativeFunction {
             call: Rc::new(RefCell::new(f)),
@@ -87,17 +87,16 @@ impl PengBytecodeFunction {
 #[derive(Clone)]
 pub struct PengNativeFunction {
     pub call: Rc<
-        RefCell<dyn FnMut(Vec<PengBindedCell>, &mut PengEnv) -> Result<PengBindedCell, PengError>>,
+        RefCell<dyn FnMut(&mut PengNativeFunctionCallContext) -> Result<PengBindedCell, PengError>>,
     >,
 }
 
 impl PengNativeFunction {
     pub fn call(
         &self,
-        args: Vec<PengBindedCell>,
-        env: &mut PengEnv,
+        ctx: &mut PengNativeFunctionCallContext,
     ) -> Result<PengBindedCell, PengError> {
-        (self.call.borrow_mut())(args, env)
+        (self.call.borrow_mut())(ctx)
     }
 }
 

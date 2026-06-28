@@ -149,8 +149,9 @@ pub fn step_thread(
                 }
             };
 
+            let mut ctx = PengNativeFunctionCallContext::new(env, args.clone());
             let ret = match ntv_call {
-                PengNativeCallable::Function(ntv_fn) => match ntv_fn.call(args, env) {
+                PengNativeCallable::Function(ntv_fn) => match ntv_fn.call(&mut ctx) {
                     Ok(ret) => ret,
                     Err(e) => {
                         return Err(e.push(PengError::CannotCallValue(
@@ -168,8 +169,8 @@ pub fn step_thread(
                         Some(arg) => arg.clone(),
                         None => PengBinded::Mutable(PengCell::Nil),
                     };
-
-                    match ntv_oper.call((left, right), env) {
+                    let mut ctx = PengNativeOperationCallContext::new(env, left, right);
+                    match ntv_oper.call(&mut ctx) {
                         Ok(ret) => ret,
                         Err(e) => {
                             return Err(e.push(PengError::CannotCallValue(

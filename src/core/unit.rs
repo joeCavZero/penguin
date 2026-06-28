@@ -90,7 +90,7 @@ impl PengUnit {
         function: F,
     ) -> Result<(), PengError>
     where
-        F: FnMut(Vec<PengBindedCell>, &mut PengEnv) -> Result<PengBindedCell, PengError> + 'static,
+        F: FnMut(&mut PengNativeFunctionCallContext) -> Result<PengBindedCell, PengError> + 'static,
     {
         let name_ptr = env.ensure_pooled_name_ptr(name.to_string());
         let ptr = env.create_heap_value(PengValue::Box(PengBox::Function(
@@ -109,10 +109,7 @@ impl PengUnit {
         operation: F,
     ) -> Result<(), PengError>
     where
-        F: FnMut(
-                (PengBindedCell, PengBindedCell),
-                &mut PengEnv,
-            ) -> Result<PengBindedCell, PengError>
+        F: FnMut(&mut PengNativeOperationCallContext) -> Result<PengBindedCell, PengError>
             + 'static,
     {
         let name_ptr = env.ensure_pooled_name_ptr(name.to_string());

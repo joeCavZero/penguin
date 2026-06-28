@@ -1,114 +1,141 @@
 use penguin::prelude::*;
-use std::time::Instant;
 
 fn main() {
-    let total_start = Instant::now();
-
     let mut peng = PengEnv::new();
     let mut pengstd = PengUnit::library();
 
-    pengstd
-        .register_native_function(&mut peng, "print", move |args, env| {
-            for arg in args {
-                match arg.value() {
-                    PengCell::Bool(v) => print!("{}", v),
-                    PengCell::Byte(v) => print!("{}", v),
-                    PengCell::Float32(v) => print!("{}", v),
-                    PengCell::Float64(v) => print!("{}", v),
-                    PengCell::Int(v) => print!("{}", v),
-                    PengCell::Nil => print!("nil"),
-                    PengCell::Uint(v) => print!("{}", v),
-                    PengCell::Reference(ptr) => {
-                        if let Some(h) = env.get_heap(*ptr) {
-                            match h {
-                                PengValue::Box(PengBox::Function(_)) => print!("<function>"),
-                                PengValue::Box(PengBox::Module(_)) => print!("<module>"),
-                                PengValue::Box(PengBox::Object(_)) => print!("<object>"),
-                                PengValue::Box(PengBox::Operation(_)) => print!("<operation>"),
-                                PengValue::Box(PengBox::String(s)) => print!("{}", s),
-                                PengValue::Box(PengBox::Thread(_)) => print!("<thread>"),
-                                PengValue::Box(PengBox::Type(_)) => print!("<type>"),
-                                PengValue::Box(PengBox::Vector(_)) => print!("<vector>"),
-                                PengValue::Box(PengBox::Union(_)) => print!("<union>"),
-                                PengValue::Cell(cell) => print!("{:?}", cell),
-                            }
-                        }
+    match pengstd.register_native_function(&mut peng, "print", move |ctx| {
+        let mut index = 0usize;
+
+        loop {
+            let arg = match ctx.get_arg_cell(index) {
+                Some(arg) => arg,
+                None => break,
+            };
+
+            match arg.value() {
+                PengCell::Bool(v) => print!("{}", v),
+                PengCell::Byte(v) => print!("{}", v),
+                PengCell::Float32(v) => print!("{}", v),
+                PengCell::Float64(v) => print!("{}", v),
+                PengCell::Int(v) => print!("{}", v),
+                PengCell::Nil => print!("nil"),
+                PengCell::Uint(v) => print!("{}", v),
+
+                PengCell::Reference(ptr) => {
+                    match ctx.get_value(*ptr) {
+                        Some(PengValue::Box(PengBox::Function(_))) => print!("<function>"),
+                        Some(PengValue::Box(PengBox::Module(_))) => print!("<module>"),
+                        Some(PengValue::Box(PengBox::Object(_))) => print!("<object>"),
+                        Some(PengValue::Box(PengBox::Operation(_))) => print!("<operation>"),
+                        Some(PengValue::Box(PengBox::String(s))) => print!("{}", s),
+                        Some(PengValue::Box(PengBox::Thread(_))) => print!("<thread>"),
+                        Some(PengValue::Box(PengBox::Type(_))) => print!("<type>"),
+                        Some(PengValue::Box(PengBox::Vector(_))) => print!("<vector>"),
+                        Some(PengValue::Box(PengBox::Union(_))) => print!("<union>"),
+                        Some(PengValue::Cell(cell)) => print!("{:?}", cell),
+                        None => print!("<missing heap value>"),
                     }
                 }
             }
 
-            println!();
-            Ok(PengBindedCell::Mutable(PengCell::Nil))
-        })
-        .unwrap();
+            index += 1;
+        }
 
-    pengstd
-        .register_native_function(&mut peng, "len", move |args, env| {
-            for arg in args {
-                match arg.value() {
-                    PengCell::Reference(ptr) => {
-                        if let Some(h) = env.get_heap(*ptr) {
-                            match h {
-                                PengValue::Box(PengBox::String(s)) => {
-                                    return Ok(PengBindedCell::Mutable(PengCell::Uint(s.len())));
-                                }
-                                PengValue::Box(PengBox::Vector(v)) => {
-                                    return Ok(PengBindedCell::Mutable(PengCell::Uint(v.len())));
-                                }
-                                _ => {
-                                    return Err(PengError::NotImplemented(
-                                        "Expected string or vector".to_string(),
-                                    ));
-                                }
-                            }
-                        }
+        println!();
+
+        Ok(PengBindedCell::Mutable(PengCell::Nil))
+    }) {
+        Ok(_) => {}
+        Err(e) => {
+            println!("{:#?}", e);
+            return;
+        }
+    }
+
+    match pengstd.register_native_function(&mut peng, "len", move |ctx| {
+        let arg = match ctx.get_arg_cell(0) {
+            Some(arg) => arg,
+            None => {
+                return Err(PengError::NotImplemented(
+                    "len expected string or vector".to_string(),
+                ));
+            }
+        };
+
+        match arg.value() {
+            PengCell::Reference(ptr) => {
+                match ctx.get_value(*ptr) {
+                    Some(PengValue::Box(PengBox::String(s))) => {
+                        Ok(PengBindedCell::Mutable(PengCell::Uint(s.len())))
                     }
+
+                    Some(PengValue::Box(PengBox::Vector(v))) => {
+                        Ok(PengBindedCell::Mutable(PengCell::Uint(v.len())))
+                    }
+
                     _ => {
-                        return Err(PengError::NotImplemented(
-                            "Expected string or vector".to_string(),
-                        ));
+                        Err(PengError::NotImplemented(
+                            "len expected string or vector".to_string(),
+                        ))
                     }
                 }
             }
 
-            Ok(PengBindedCell::Mutable(PengCell::Nil))
-        })
-        .unwrap();
+            _ => {
+                Err(PengError::NotImplemented(
+                    "len expected string or vector".to_string(),
+                ))
+            }
+        }
+    }) {
+        Ok(_) => {}
+        Err(e) => {
+            println!("{:#?}", e);
+            return;
+        }
+    }
 
-    pengstd
-        .register_native_operation(&mut peng, "test_op", move |(a, b), _env| {
-            println!("{:?} doing things on {:?}", a, b);
-            Ok(PengBindedCell::Mutable(PengCell::Nil))
-        })
-        .unwrap();
+    match pengstd.register_native_operation(&mut peng, "test_op", move |ctx| {
+        let left = ctx.get_left_cell().clone();
+        let right = ctx.get_right_cell().clone();
 
-    let load_start = Instant::now();
+        println!("{:?} doing things on {:?}", left, right);
 
-    let unit = peng
-        .load_program_from_file_using("main.peng", &pengstd, 0)
-        .unwrap();
+        Ok(PengBindedCell::Mutable(PengCell::Nil))
+    }) {
+        Ok(_) => {}
+        Err(e) => {
+            println!("{:#?}", e);
+            return;
+        }
+    }
+    let unit = match peng.load_program_from_file_using("main.peng", &pengstd, 0) {
+        Ok(unit) => unit,
+        Err(e) => {
+            println!("{:#?}", e);
+            return;
+        }
+    };
 
-    let load_time = load_start.elapsed();
+    let init = match unit.require_init() {
+        Ok(init) => init,
+        Err(e) => {
+            println!("{:#?}", e);
+            return;
+        }
+    };
 
-    let init_start = Instant::now();
-
-    peng.run(unit.require_init().unwrap()).unwrap();
-
-    let init_time = init_start.elapsed();
-
-    let main_start = Instant::now();
+    match peng.run(init) {
+        Ok(_) => {}
+        Err(e) => {
+            println!("{:#?}", e);
+            return;
+        }
+    }
 
     match peng.run_function(&unit, "main", Vec::new()) {
         Ok(_) => {}
         Err(e) => println!("{:#?}", e),
-    };
-
-    let main_time = main_start.elapsed();
-    let total_time = total_start.elapsed();
-
-    println!("==== Penguin benchmark ====");
-    println!("load/compile: {:?}", load_time);
-    println!("init:         {:?}", init_time);
-    println!("main:         {:?}", main_time);
-    println!("total:        {:?}", total_time);
+    }
 }
