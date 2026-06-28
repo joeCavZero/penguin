@@ -8,7 +8,7 @@ use crate::core::error::*;
 use crate::core::frame::*;
 use crate::core::function::*;
 use crate::core::garbage_collector::*;
-use crate::core::heap_value::*;
+use crate::core::r#box::*;
 use crate::core::runtime::*;
 use crate::core::thread::*;
 use crate::core::unit::*;
@@ -186,16 +186,20 @@ impl PengEnv {
         Ok(unit)
     }
 
-    pub fn run(&mut self, init: PengHeapPtr) -> Result<PengBindedCell, PengError> {
+    pub fn run(
+        &mut self, 
+        init: PengHeapPtr,
+        unit: &PengUnit,
+    ) -> Result<PengBindedCell, PengError> {
         let main_thread = self.create_thread(init, 0, Vec::new(), PengThreadState::Running);
 
-        self.run_scheduler(main_thread)
+        self.run_scheduler(main_thread, unit)
     }
 
-    pub fn run_function(
+    pub fn run_global_function(
         &mut self,
-        unit: &PengUnit,
         name: &str,
+        unit: &PengUnit,
         args: Vec<PengBindedCell>,
     ) -> Result<PengBindedCell, PengError> {
         let name_ptr = self.ensure_pooled_name_ptr(name.to_string());
@@ -213,10 +217,14 @@ impl PengEnv {
 
         let main_thread = self.create_thread(function_ptr, 0, args, PengThreadState::Running);
 
-        self.run_scheduler(main_thread)
+        self.run_scheduler(main_thread, unit)
     }
 
-    pub fn run_scheduler(&mut self, main_thread: PengHeapPtr) -> Result<PengBindedCell, PengError> {
+    pub fn run_scheduler(
+        &mut self, 
+        main_thread: PengHeapPtr,
+        unit: &PengUnit,
+    ) -> Result<PengBindedCell, PengError> {
         let gc_interval = self.garbage_collector_interval;
         let mut last_gc = std::time::Instant::now();
 
@@ -246,7 +254,7 @@ impl PengEnv {
                     PengThreadState::Running => {
                         any_running = true;
 
-                        match step_thread(self, thread_ptr) {
+                        match step_thread(self, thread_ptr, unit) {
                             Ok(Some(result)) => {
                                 {
                                     let thread = match self.get_thread_mut(thread_ptr) {

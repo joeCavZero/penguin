@@ -51,7 +51,11 @@ pub fn generate_program_using(
         terminal_pos,
     );
 
-    Ok(PengUnit::new(program_init, globals))
+    Ok(PengUnit::new(
+        program_init,
+        globals,
+        using_unit.custom_access().clone(),
+    ))
 }
 
 fn allocate_program_globals(

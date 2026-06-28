@@ -3,6 +3,7 @@ use crate::core::*;
 pub fn step_thread(
     env: &mut PengEnv,
     thread: PengHeapPtr,
+    unit: &PengUnit,
 ) -> Result<Option<PengBindedCell>, PengError> {
     let (frame_program_counter, frame_base, frame_function_ptr, frame_params_count) =
         match env.get_heap(thread) {
@@ -150,15 +151,23 @@ pub fn step_thread(
             };
 
             let mut ctx = PengNativeFunctionCallContext::new(env, args.clone());
+
             let ret = match ntv_call {
                 PengNativeCallable::Function(ntv_fn) => match ntv_fn.call(&mut ctx) {
                     Ok(ret) => ret,
                     Err(e) => {
-                        return Err(e.push(PengError::CannotCallValue(
+                        let e = e.push(PengError::CannotCallValue(
                             "native function call failed".to_string(),
-                        )));
+                        ));
+
+                        match env.recover_thread_try_error(thread) {
+                            Ok(true) => return Ok(None),
+                            Ok(false) => return Err(e),
+                            Err(recover_error) => return Err(recover_error),
+                        }
                     }
                 },
+
                 PengNativeCallable::Operation(ntv_oper) => {
                     let left = match args.get(0) {
                         Some(arg) => arg.clone(),
@@ -169,13 +178,21 @@ pub fn step_thread(
                         Some(arg) => arg.clone(),
                         None => PengBinded::Mutable(PengCell::Nil),
                     };
+
                     let mut ctx = PengNativeOperationCallContext::new(env, left, right);
+
                     match ntv_oper.call(&mut ctx) {
                         Ok(ret) => ret,
                         Err(e) => {
-                            return Err(e.push(PengError::CannotCallValue(
+                            let e = e.push(PengError::CannotCallValue(
                                 "native operation call failed".to_string(),
-                            )));
+                            ));
+
+                            match env.recover_thread_try_error(thread) {
+                                Ok(true) => return Ok(None),
+                                Ok(false) => return Err(e),
+                                Err(recover_error) => return Err(recover_error),
+                            }
                         }
                     }
                 }
@@ -262,7 +279,8 @@ pub fn step_thread(
                 None => return Err(PengError::ThreadNotFound(thread)),
             }
 
-            match execute_instruction(instruction.clone(), constant, thread, frame_base, env) {
+            match execute_instruction(instruction.clone(), constant, thread, frame_base, env, unit)
+            {
                 Ok(res) => match res {
                     Some(ret) => {
                         let frame = match env.pop_thread_frame(thread) {
@@ -324,22 +342,18 @@ pub fn step_thread(
                 Err(e) => match env.recover_thread_try_error(thread) {
                     Ok(recovered) => {
                         if !recovered {
-                            return Err(
-                                PengError::PositionedError{
-                                    error: Box::new(e), 
-                                    position: instruction_position
-                                }
-                            );
+                            return Err(PengError::PositionedError {
+                                error: Box::new(e),
+                                position: instruction_position,
+                            });
                         }
                     }
 
                     Err(e) => {
-                        return Err(
-                            PengError::PositionedError{
-                                error: Box::new(e), 
-                                position: instruction_position
-                            }
-                        );
+                        return Err(PengError::PositionedError {
+                            error: Box::new(e),
+                            position: instruction_position,
+                        });
                     }
                 },
             };
@@ -360,6 +374,7 @@ pub fn execute_instruction(
     thread: PengHeapPtr,
     frame_base: usize,
     env: &mut PengEnv,
+    unit: &PengUnit,
 ) -> Result<Option<PengBindedCell>, PengError> {
     match instruction {
         PengInstruction::MakeImmutable => {
@@ -820,32 +835,42 @@ pub fn execute_instruction(
                         Some(PengValue::Box(PengBox::Object(object))) => {
                             match object.fields.get(&name_ptr) {
                                 Some(value) => value.clone(),
-                                None => {
-                                    return Err(PengError::AttributeNotFound(name_ptr));
-                                }
+                                None => match custom_access_as_cell(env, unit, name_ptr) {
+                                    Some(value) => value,
+                                    None => return Err(PengError::AttributeNotFound(name_ptr)),
+                                },
+                            }
+                        }
+
+                        Some(PengValue::Box(PengBox::Vector(_))) => {
+                            match custom_access_as_cell(env, unit, name_ptr) {
+                                Some(value) => value,
+                                None => return Err(PengError::AttributeNotFound(name_ptr)),
                             }
                         }
 
                         Some(PengValue::Box(PengBox::Type(PengType::Custom(custom_type)))) => {
                             match custom_type.fields.get(&name_ptr) {
                                 Some(value) => value.clone(),
-                                None => {
-                                    return Err(PengError::AttributeNotFound(name_ptr));
-                                }
+                                None => match custom_access_as_cell(env, unit, name_ptr) {
+                                    Some(value) => value,
+                                    None => return Err(PengError::AttributeNotFound(name_ptr)),
+                                },
                             }
                         }
 
-                        Some(PengValue::Box(PengBox::Type(_))) => {
-                            return Err(PengError::ExpectedType);
+                        Some(PengValue::Box(PengBox::Module(module))) => {
+                            match module.members.get(&name_ptr) {
+                                Some(value) => value.clone(),
+                                None => match custom_access_as_cell(env, unit, name_ptr) {
+                                    Some(value) => value,
+                                    None => return Err(PengError::AttributeNotFound(name_ptr)),
+                                },
+                            }
                         }
 
-                        Some(_) => {
-                            return Err(PengError::ExpectedObject);
-                        }
-
-                        None => {
-                            return Err(PengError::HeapValueNotFound(object_ptr));
-                        }
+                        Some(_) => return Err(PengError::ExpectedObject),
+                        None => return Err(PengError::HeapValueNotFound(object_ptr)),
                     };
 
                     match env.pop_thread_stack_n_times(thread, 1) {
@@ -2385,26 +2410,34 @@ pub fn execute_instruction(
 
                             let value = match env.get_heap(object_ptr) {
                                 Some(PengValue::Box(PengBox::Vector(vector))) => {
-                                    let index = match vector_index {
-                                        Some(index) => index,
-                                        None => {
-                                            return Err(PengError::InvalidIndexTypeValue(
-                                                index_value,
-                                            ));
+                                    if let Some(name_ptr) = object_key {
+                                        match custom_access_as_cell(env, unit, name_ptr) {
+                                            Some(value) => value,
+                                            None => {
+                                                return Err(PengError::AttributeNotFound(name_ptr));
+                                            }
                                         }
-                                    };
+                                    } else {
+                                        let index = match vector_index {
+                                            Some(index) => index,
+                                            None => {
+                                                return Err(PengError::InvalidIndexTypeValue(
+                                                    index_value,
+                                                ));
+                                            }
+                                        };
 
-                                    match vector.values.get(index) {
-                                        Some(value) => value.clone(),
-                                        None => {
-                                            return Err(PengError::IndexOutOfBounds {
-                                                index,
-                                                len: vector.values.len(),
-                                            });
+                                        match vector.values.get(index) {
+                                            Some(value) => value.clone(),
+                                            None => {
+                                                return Err(PengError::IndexOutOfBounds {
+                                                    index,
+                                                    len: vector.values.len(),
+                                                });
+                                            }
                                         }
                                     }
                                 }
-
                                 Some(PengValue::Box(PengBox::Object(object))) => {
                                     let name_ptr = match object_key {
                                         Some(name_ptr) => name_ptr,
@@ -2417,9 +2450,12 @@ pub fn execute_instruction(
 
                                     match object.fields.get(&name_ptr) {
                                         Some(value) => value.clone(),
-                                        None => {
-                                            return Err(PengError::AttributeNotFound(name_ptr));
-                                        }
+                                        None => match custom_access_as_cell(env, unit, name_ptr) {
+                                            Some(value) => value,
+                                            None => {
+                                                return Err(PengError::AttributeNotFound(name_ptr));
+                                            }
+                                        },
                                     }
                                 }
 
@@ -2437,9 +2473,12 @@ pub fn execute_instruction(
 
                                     match custom_type.fields.get(&name_ptr) {
                                         Some(value) => value.clone(),
-                                        None => {
-                                            return Err(PengError::AttributeNotFound(name_ptr));
-                                        }
+                                        None => match custom_access_as_cell(env, unit, name_ptr) {
+                                            Some(value) => value,
+                                            None => {
+                                                return Err(PengError::AttributeNotFound(name_ptr));
+                                            }
+                                        },
                                     }
                                 }
 
@@ -2695,14 +2734,11 @@ pub fn execute_instruction(
                         thread,
                         frame_base,
                         env,
+                        unit,
                     ) {
                         Ok(value) => return Ok(value),
                         Err(e) => {
-                            return Err(
-                                e.push(
-                                    PengError::InvalidInstruction(instruction),
-                                )
-                            );
+                            return Err(e.push(PengError::InvalidInstruction(instruction)));
                         }
                     }
                 }
@@ -2908,4 +2944,19 @@ fn ensure_mutable_base(base: &PengBindedCell) -> Result<(), PengError> {
         PengBinded::Mutable(_) => Ok(()),
         PengBinded::Immutable(_) => Err(PengError::CannotMutateImmutable),
     }
+}
+
+fn custom_access_as_cell(
+    env: &mut PengEnv,
+    unit: &PengUnit,
+    name: PengNamePoolPtr,
+) -> Option<PengBindedCell> {
+    let ntv = match unit.custom_access().get(&name).cloned() {
+        Some(v) => v,
+        None => return None,
+    };
+
+    let ptr = env.create_heap_value(PengValue::Box(PengBox::Function(PengFunction::Native(ntv))));
+
+    Some(PengBinded::Immutable(PengCell::Reference(ptr)))
 }

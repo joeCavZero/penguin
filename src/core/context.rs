@@ -1,7 +1,8 @@
-use crate::core::utils::*;
+use crate::core::PengBox;
 use crate::core::binding::*;
 use crate::core::cell::*;
 use crate::core::env::*;
+use crate::core::utils::*;
 use crate::core::value::*;
 
 pub struct PengNativeFunctionCallContext<'a> {
@@ -60,6 +61,26 @@ impl<'a> PengNativeFunctionCallContext<'a> {
 
             _ => None,
         }
+    }
+
+    pub fn create_value(&mut self, value: PengValue) -> PengHeapPtr {
+        self.env.create_heap_value(value)
+    }
+
+    pub fn create_box(&mut self, value: PengBox) -> PengHeapPtr {
+        self.env.create_heap_value(PengValue::Box(value))
+    }
+
+    pub fn create_box_cell(&mut self, value: PengBox) -> PengCell {
+        PengCell::Reference(self.create_box(value))
+    }
+
+    pub fn create_box_binded_cell(&mut self, value: PengBox) -> PengBindedCell {
+        PengBinded::Mutable(self.create_box_cell(value))
+    }
+
+    pub fn create_immutable_box_binded_cell(&mut self, value: PengBox) -> PengBindedCell {
+        PengBinded::Immutable(self.create_box_cell(value))
     }
 }
 
@@ -152,5 +173,25 @@ impl<'a> PengNativeOperationCallContext<'a> {
 
             _ => None,
         }
+    }
+
+    pub fn create_value(&mut self, value: PengValue) -> PengHeapPtr {
+        self.env.create_heap_value(value)
+    }
+
+    pub fn create_box(&mut self, value: PengBox) -> PengHeapPtr {
+        self.env.create_heap_value(PengValue::Box(value))
+    }
+
+    pub fn create_box_cell(&mut self, value: PengBox) -> PengCell {
+        PengCell::Reference(self.create_box(value))
+    }
+
+    pub fn create_box_binded_cell(&mut self, value: PengBox) -> PengBindedCell {
+        PengBinded::Mutable(self.create_box_cell(value))
+    }
+
+    pub fn create_immutable_box_binded_cell(&mut self, value: PengBox) -> PengBindedCell {
+        PengBinded::Immutable(self.create_box_cell(value))
     }
 }

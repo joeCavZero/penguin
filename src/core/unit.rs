@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::core::*;
 
@@ -6,16 +6,19 @@ use crate::core::*;
 pub struct PengUnit {
     init: Option<PengHeapPtr>,
     globals: HashMap<PengNamePoolPtr, PengBindedHeapPtr>,
+    custom_access: HashMap<PengNamePoolPtr, PengNativeFunction>,
 }
 
 impl PengUnit {
     pub fn new(
         init: PengHeapPtr,
         globals: HashMap<PengNamePoolPtr, PengBindedHeapPtr>,
+        custom_access: HashMap<PengNamePoolPtr, PengNativeFunction>,
     ) -> Self {
         Self {
             init: Some(init),
             globals,
+            custom_access,
         }
     }
 
@@ -23,6 +26,7 @@ impl PengUnit {
         Self {
             init: Some(init),
             globals: HashMap::new(),
+            custom_access: HashMap::new(),
         }
     }
 
@@ -30,6 +34,7 @@ impl PengUnit {
         Self {
             init: None,
             globals: HashMap::new(),
+            custom_access: HashMap::new(),
         }
     }
 
@@ -69,11 +74,7 @@ impl PengUnit {
         }
     }
 
-    pub fn insert_global(
-        &mut self,
-        name: PengNamePoolPtr,
-        value: PengBindedHeapPtr,
-    ) {
+    pub fn insert_global(&mut self, name: PengNamePoolPtr, value: PengBindedHeapPtr) {
         self.globals.insert(name, value);
     }
 
@@ -81,6 +82,36 @@ impl PengUnit {
         for (name, value) in unit.globals.iter() {
             self.globals.insert(*name, value.clone());
         }
+
+        for (name, value) in unit.custom_access.iter() {
+            self.custom_access.insert(*name, value.clone());
+        }
+    }
+
+    pub fn custom_access(&self) -> &HashMap<PengNamePoolPtr, PengNativeFunction> {
+        &self.custom_access
+    }
+    pub fn custom_access_mut(&mut self) -> &mut HashMap<PengNamePoolPtr, PengNativeFunction> {
+        &mut self.custom_access
+    }
+
+    pub fn register_custom_access<F>(
+        &mut self,
+        env: &mut PengEnv,
+        name: &str,
+        function: F,
+    ) -> Result<(), PengError>
+    where
+        F: FnMut(&mut PengNativeFunctionCallContext) -> Result<PengBindedCell, PengError> + 'static,
+    {
+        let name_ptr = env.ensure_pooled_name_ptr(name.to_string());
+        self.custom_access.insert(
+            name_ptr,
+            PengNativeFunction {
+                call: Rc::new(RefCell::new(function)),
+            },
+        );
+        Ok(())
     }
 
     pub fn register_native_function<F>(
@@ -154,12 +185,8 @@ impl PengUnit {
 
 fn binded_heap_ptr_to_cell(value: &PengBindedHeapPtr) -> PengBindedCell {
     match value {
-        PengBinded::Mutable(ptr) => {
-            PengBinded::Mutable(PengCell::Reference(*ptr))
-        }
+        PengBinded::Mutable(ptr) => PengBinded::Mutable(PengCell::Reference(*ptr)),
 
-        PengBinded::Immutable(ptr) => {
-            PengBinded::Immutable(PengCell::Reference(*ptr))
-        }
+        PengBinded::Immutable(ptr) => PengBinded::Immutable(PengCell::Reference(*ptr)),
     }
 }

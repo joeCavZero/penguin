@@ -1,4 +1,3 @@
-use crate::core::colour::*;
 use crate::core::function::*;
 use crate::core::module::*;
 use crate::core::object::*;
@@ -7,8 +6,6 @@ use crate::core::thread::*;
 use crate::core::typing::*;
 use crate::core::unioning::*;
 use crate::core::vector::*;
-
-pub type PengColouredHeapValue = PengColoured<PengBox>;
 
 #[derive(Debug, Clone)]
 pub enum PengBox {
@@ -39,11 +36,5 @@ impl PengBox {
 
             _ => false,
         }
-    }
-}
-
-impl PengColouredHeapValue {
-    pub fn equals(&self, rhs: &Self) -> bool {
-        self.value.equals(&rhs.value)
     }
 }

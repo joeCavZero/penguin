@@ -2,7 +2,7 @@ use crate::core::cell::*;
 use crate::core::colour::*;
 use crate::core::env::*;
 use crate::core::function::*;
-use crate::core::heap_value::*;
+use crate::core::r#box::*;
 use crate::core::instruction::*;
 use crate::core::operation::*;
 use crate::core::thread::*;
