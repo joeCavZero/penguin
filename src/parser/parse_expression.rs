@@ -429,6 +429,7 @@ fn parse_primary_expression(
         | PengToken::Type
         | PengToken::Mod
         | PengToken::Func
+        | PengToken::Thread
         | PengToken::Oper => {
             let type_expression = match type_expression_from_token(&token.value) {
                 Some(type_expression) => type_expression,

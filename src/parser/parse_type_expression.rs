@@ -283,6 +283,7 @@ pub fn type_expression_from_token(token: &PengToken) -> Option<PengTypeExpressio
         PengToken::Type => Some(PengTypeExpression::Type),
         PengToken::Mod => Some(PengTypeExpression::Module),
         PengToken::Func => Some(PengTypeExpression::Function),
+        PengToken::Thread => Some(PengTypeExpression::Thread),
         PengToken::Oper => Some(PengTypeExpression::Operation),
         PengToken::Union => Some(PengTypeExpression::Union(Vec::new())),
         _ => None,
