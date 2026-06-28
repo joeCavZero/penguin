@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 use std::rc::Rc;
 
 use crate::core::PengNativeOperationCallContext;
@@ -26,11 +25,11 @@ pub struct PengBytecodeOperation {
 impl PengOperation {
     pub fn new_native<F>(f: F) -> Self
     where
-        F: FnMut(&mut PengNativeOperationCallContext) -> Result<PengBindedCell, PengError>
+        F: Fn(&mut PengNativeOperationCallContext) -> Result<PengBindedCell, PengError>
             + 'static,
     {
         Self::Native(PengNativeOperation {
-            call: Rc::new(RefCell::new(f)),
+            call: Rc::new(f),
         })
     }
 
@@ -68,10 +67,7 @@ impl PengBytecodeOperation {
 
 #[derive(Clone)]
 pub struct PengNativeOperation {
-    pub call: Rc<
-        RefCell<
-            dyn FnMut(&mut PengNativeOperationCallContext) -> Result<PengBindedCell, PengError>,
-        >,
+    pub call: Rc<dyn Fn(&mut PengNativeOperationCallContext) -> Result<PengBindedCell, PengError>,
     >,
 }
 
@@ -80,7 +76,7 @@ impl PengNativeOperation {
         &self,
         ctx: &mut PengNativeOperationCallContext,
     ) -> Result<PengBindedCell, PengError> {
-        (self.call.borrow_mut())(ctx)
+        (self.call)(ctx)
     }
 }
 

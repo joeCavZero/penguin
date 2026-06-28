@@ -1,4 +1,5 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::rc::Rc;
+use std::collections::HashMap;
 
 use crate::core::*;
 
@@ -102,13 +103,13 @@ impl PengUnit {
         function: F,
     ) -> Result<(), PengError>
     where
-        F: FnMut(&mut PengNativeFunctionCallContext) -> Result<PengBindedCell, PengError> + 'static,
+        F: Fn(&mut PengNativeFunctionCallContext) -> Result<PengBindedCell, PengError> + 'static,
     {
         let name_ptr = env.ensure_pooled_name_ptr(name.to_string());
         self.custom_access.insert(
             name_ptr,
             PengNativeFunction {
-                call: Rc::new(RefCell::new(function)),
+                call: Rc::new(function),
             },
         );
         Ok(())
@@ -121,7 +122,7 @@ impl PengUnit {
         function: F,
     ) -> Result<(), PengError>
     where
-        F: FnMut(&mut PengNativeFunctionCallContext) -> Result<PengBindedCell, PengError> + 'static,
+        F: Fn(&mut PengNativeFunctionCallContext) -> Result<PengBindedCell, PengError> + 'static,
     {
         let name_ptr = env.ensure_pooled_name_ptr(name.to_string());
         let ptr = env.create_heap_value(PengValue::Box(PengBox::Function(
@@ -140,7 +141,7 @@ impl PengUnit {
         operation: F,
     ) -> Result<(), PengError>
     where
-        F: FnMut(&mut PengNativeOperationCallContext) -> Result<PengBindedCell, PengError>
+        F: Fn(&mut PengNativeOperationCallContext) -> Result<PengBindedCell, PengError>
             + 'static,
     {
         let name_ptr = env.ensure_pooled_name_ptr(name.to_string());
@@ -157,9 +158,9 @@ impl PengUnit {
         self.globals.remove(&name)
     }
 
-    pub fn retain_globals<F>(&mut self, mut f: F)
+    pub fn retain_globals<F>(&mut self, f: F)
     where
-        F: FnMut(&PengNamePoolPtr, &mut PengBindedHeapPtr) -> bool,
+        F: Fn(&PengNamePoolPtr, &mut PengBindedHeapPtr) -> bool,
     {
         self.globals.retain(|name, value| f(name, value));
     }

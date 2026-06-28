@@ -2,12 +2,12 @@ use penguin::prelude::*;
 
 fn main() {
     let mut peng = PengEnv::new();
-    let mut pengstd = PengUnit::library();
+    let mut core = PengUnit::library();
 
     let mut io = PengUnit::library();
     let mut thread_module = PengUnit::library();
 
-    io.register_native_function(&mut peng, "print", move |ctx| {
+    io.register_native_function(&mut peng, "println", move |ctx| {
         let mut index = 0usize;
 
         loop {
@@ -30,213 +30,208 @@ fn main() {
         Ok(PengBindedCell::Mutable(PengCell::Nil))
     })
     .unwrap();
-    pengstd
-        .register_native_function(&mut peng, "len", move |ctx| {
-            let arg = match ctx.get_arg_cell(0) {
-                Some(arg) => arg,
-                None => {
-                    return Err(PengError::NotImplemented(
-                        "len expected string or vector".to_string(),
-                    ));
+    core.register_native_function(&mut peng, "len", move |ctx| {
+        let arg = match ctx.get_arg_cell(0) {
+            Some(arg) => arg,
+            None => {
+                return Err(PengError::NotImplemented(
+                    "len expected string or vector".to_string(),
+                ));
+            }
+        };
+
+        match arg.value() {
+            PengCell::Reference(ptr) => match ctx.get_value(*ptr) {
+                Some(PengValue::Box(PengBox::String(s))) => {
+                    Ok(PengBindedCell::Mutable(PengCell::Uint(s.len())))
                 }
-            };
 
-            match arg.value() {
-                PengCell::Reference(ptr) => match ctx.get_value(*ptr) {
-                    Some(PengValue::Box(PengBox::String(s))) => {
-                        Ok(PengBindedCell::Mutable(PengCell::Uint(s.len())))
-                    }
-
-                    Some(PengValue::Box(PengBox::Vector(v))) => {
-                        Ok(PengBindedCell::Mutable(PengCell::Uint(v.len())))
-                    }
-
-                    _ => Err(PengError::NotImplemented(
-                        "len expected string or vector".to_string(),
-                    )),
-                },
+                Some(PengValue::Box(PengBox::Vector(v))) => {
+                    Ok(PengBindedCell::Mutable(PengCell::Uint(v.len())))
+                }
 
                 _ => Err(PengError::NotImplemented(
                     "len expected string or vector".to_string(),
                 )),
-            }
-        })
-        .unwrap();
+            },
 
-    pengstd
-        .register_custom_access(&mut peng, "len", |ctx| {
-            if let Some(value) = ctx.get_arg_value(0) {
-                let len = match value.value() {
-                    PengValue::Box(PengBox::Vector(v)) => v.values.len(),
+            _ => Err(PengError::NotImplemented(
+                "len expected string or vector".to_string(),
+            )),
+        }
+    })
+    .unwrap();
 
-                    PengValue::Box(PengBox::Object(o)) => o.fields.len(),
+    core.register_custom_access(&mut peng, "len", |ctx| {
+        if let Some(value) = ctx.get_arg_value(0) {
+            let len = match value.value() {
+                PengValue::Box(PengBox::Vector(v)) => v.values.len(),
 
-                    PengValue::Box(PengBox::Module(m)) => m.members.len(),
+                PengValue::Box(PengBox::Object(o)) => o.fields.len(),
 
-                    PengValue::Box(PengBox::Type(PengType::Custom(t))) => t.fields.len(),
+                PengValue::Box(PengBox::Module(m)) => m.members.len(),
 
-                    PengValue::Box(PengBox::String(s)) => s.chars().count(),
+                PengValue::Box(PengBox::Type(PengType::Custom(t))) => t.fields.len(),
 
-                    _ => {
-                        return Err(PengError::CannotCallValue(
-                            "len() not supported for this value".into(),
-                        ));
-                    }
-                };
+                PengValue::Box(PengBox::String(s)) => s.chars().count(),
 
-                return Ok(PengBinded::Mutable(PengCell::Uint(len)));
-            } else {
-            }
-            Err(PengError::CannotCallValue(
-                "len() not supported for this value".into(),
-            ))
-        })
-        .unwrap();
-
-    pengstd
-        .register_custom_access(&mut peng, "sum", |ctx| {
-            let value = match ctx.get_arg_value(0) {
-                Some(value) => value,
-                None => {
-                    return Err(PengError::CannotCallValue("sum() expected receiver".into()));
-                }
-            };
-
-            let vector = match value.value() {
-                PengValue::Box(PengBox::Vector(v)) => v,
-                _ => {
-                    return Err(PengError::CannotCallValue("sum() expected vector".into()));
-                }
-            };
-
-            let mut sum = PengCell::Int(0);
-
-            for item in &vector.values {
-                sum = match (&sum, item.value()) {
-                    (PengCell::Int(left), PengCell::Int(right)) => PengCell::Int(left + right),
-
-                    (PengCell::Uint(left), PengCell::Uint(right)) => PengCell::Uint(left + right),
-
-                    (PengCell::Byte(left), PengCell::Byte(right)) => PengCell::Byte(left + right),
-
-                    (PengCell::Float32(left), PengCell::Float32(right)) => {
-                        PengCell::Float32(left + right)
-                    }
-
-                    (PengCell::Float64(left), PengCell::Float64(right)) => {
-                        PengCell::Float64(left + right)
-                    }
-
-                    // primeiro item define o tipo real da soma
-                    (PengCell::Int(0), PengCell::Uint(right)) => PengCell::Uint(*right),
-
-                    (PengCell::Int(0), PengCell::Byte(right)) => PengCell::Byte(*right),
-
-                    (PengCell::Int(0), PengCell::Float32(right)) => PengCell::Float32(*right),
-
-                    (PengCell::Int(0), PengCell::Float64(right)) => PengCell::Float64(*right),
-
-                    _ => {
-                        return Err(PengError::CannotCallValue(
-                            "sum() expected vector with numbers of the same type".into(),
-                        ));
-                    }
-                };
-            }
-
-            Ok(PengBinded::Mutable(sum))
-        })
-        .unwrap();
-
-    pengstd
-        .register_custom_access(&mut peng, "push", |ctx| {
-            let item = match ctx.get_arg_cell(1) {
-                Some(item) => item.clone(),
-                None => {
-                    return Err(PengError::CannotCallValue(
-                        "push() expected one argument".into(),
-                    ));
-                }
-            };
-
-            let mut value = match ctx.get_arg_value_mut(0) {
-                Some(value) => value,
-                None => {
-                    return Err(PengError::CannotCallValue(
-                        "push() expected mutable vector".into(),
-                    ));
-                }
-            };
-
-            let vector = match value.value_mut() {
-                PengValue::Box(PengBox::Vector(v)) => v,
                 _ => {
                     return Err(PengError::CannotCallValue(
-                        "push() expected mutable vector".into(),
+                        "len() not supported for this value".into(),
                     ));
                 }
             };
 
-            vector.values.push(item);
+            return Ok(PengBinded::Mutable(PengCell::Uint(len)));
+        } else {
+        }
+        Err(PengError::CannotCallValue(
+            "len() not supported for this value".into(),
+        ))
+    })
+    .unwrap();
 
-            Ok(PengBinded::Mutable(PengCell::Nil))
-        })
-        .unwrap();
+    core.register_custom_access(&mut peng, "sum", |ctx| {
+        let value = match ctx.get_arg_value(0) {
+            Some(value) => value,
+            None => {
+                return Err(PengError::CannotCallValue("sum() expected receiver".into()));
+            }
+        };
 
-    pengstd
-        .register_custom_access(&mut peng, "keys", |ctx| {
-            let names: Vec<String> = match ctx.get_arg_value(0) {
-                Some(value) => match value.value() {
-                    PengValue::Box(PengBox::Object(obj)) => obj
-                        .fields
-                        .keys()
-                        .filter_map(|name| ctx.env().get_pooled_name(*name).cloned())
-                        .collect(),
+        let vector = match value.value() {
+            PengValue::Box(PengBox::Vector(v)) => v,
+            _ => {
+                return Err(PengError::CannotCallValue("sum() expected vector".into()));
+            }
+        };
 
-                    PengValue::Box(PengBox::Module(module)) => module
-                        .members
-                        .keys()
-                        .filter_map(|name| ctx.env().get_pooled_name(*name).cloned())
-                        .collect(),
+        let mut sum = PengCell::Int(0);
 
-                    PengValue::Box(PengBox::Type(PengType::Custom(ty))) => ty
-                        .fields
-                        .keys()
-                        .filter_map(|name| ctx.env().get_pooled_name(*name).cloned())
-                        .collect(),
+        for item in &vector.values {
+            sum = match (&sum, item.value()) {
+                (PengCell::Int(left), PengCell::Int(right)) => PengCell::Int(left + right),
 
-                    _ => {
-                        return Err(PengError::CannotCallValue(
-                            "keys() expected object, module or type".into(),
-                        ));
-                    }
-                },
+                (PengCell::Uint(left), PengCell::Uint(right)) => PengCell::Uint(left + right),
 
-                None => {
+                (PengCell::Byte(left), PengCell::Byte(right)) => PengCell::Byte(left + right),
+
+                (PengCell::Float32(left), PengCell::Float32(right)) => {
+                    PengCell::Float32(left + right)
+                }
+
+                (PengCell::Float64(left), PengCell::Float64(right)) => {
+                    PengCell::Float64(left + right)
+                }
+
+                // primeiro item define o tipo real da soma
+                (PengCell::Int(0), PengCell::Uint(right)) => PengCell::Uint(*right),
+
+                (PengCell::Int(0), PengCell::Byte(right)) => PengCell::Byte(*right),
+
+                (PengCell::Int(0), PengCell::Float32(right)) => PengCell::Float32(*right),
+
+                (PengCell::Int(0), PengCell::Float64(right)) => PengCell::Float64(*right),
+
+                _ => {
                     return Err(PengError::CannotCallValue(
-                        "keys() expected receiver".into(),
+                        "sum() expected vector with numbers of the same type".into(),
                     ));
                 }
             };
+        }
 
-            let values = names
-                .into_iter()
-                .map(|name| {
-                    let ptr = ctx
-                        .env_mut()
-                        .create_heap_value(PengValue::Box(PengBox::String(name)));
+        Ok(PengBinded::Mutable(sum))
+    })
+    .unwrap();
 
-                    PengBinded::Mutable(PengCell::Reference(ptr))
-                })
-                .collect();
+    core.register_custom_access(&mut peng, "push", |ctx| {
+        let item = match ctx.get_arg_cell(1) {
+            Some(item) => item.clone(),
+            None => {
+                return Err(PengError::CannotCallValue(
+                    "push() expected one argument".into(),
+                ));
+            }
+        };
 
-            let ptr = ctx
-                .env_mut()
-                .create_heap_value(PengValue::Box(PengBox::Vector(PengVector::new(values))));
+        let mut value = match ctx.get_arg_value_mut(0) {
+            Some(value) => value,
+            None => {
+                return Err(PengError::CannotCallValue(
+                    "push() expected mutable vector".into(),
+                ));
+            }
+        };
 
-            Ok(PengBinded::Mutable(PengCell::Reference(ptr)))
-        })
-        .unwrap();
+        let vector = match value.value_mut() {
+            PengValue::Box(PengBox::Vector(v)) => v,
+            _ => {
+                return Err(PengError::CannotCallValue(
+                    "push() expected mutable vector".into(),
+                ));
+            }
+        };
+
+        vector.values.push(item);
+
+        Ok(PengBinded::Mutable(PengCell::Nil))
+    })
+    .unwrap();
+
+    core.register_custom_access(&mut peng, "keys", |ctx| {
+        let names: Vec<String> = match ctx.get_arg_value(0) {
+            Some(value) => match value.value() {
+                PengValue::Box(PengBox::Object(obj)) => obj
+                    .fields
+                    .keys()
+                    .filter_map(|name| ctx.env().get_pooled_name(*name).cloned())
+                    .collect(),
+
+                PengValue::Box(PengBox::Module(module)) => module
+                    .members
+                    .keys()
+                    .filter_map(|name| ctx.env().get_pooled_name(*name).cloned())
+                    .collect(),
+
+                PengValue::Box(PengBox::Type(PengType::Custom(ty))) => ty
+                    .fields
+                    .keys()
+                    .filter_map(|name| ctx.env().get_pooled_name(*name).cloned())
+                    .collect(),
+
+                _ => {
+                    return Err(PengError::CannotCallValue(
+                        "keys() expected object, module or type".into(),
+                    ));
+                }
+            },
+
+            None => {
+                return Err(PengError::CannotCallValue(
+                    "keys() expected receiver".into(),
+                ));
+            }
+        };
+
+        let values = names
+            .into_iter()
+            .map(|name| {
+                let ptr = ctx
+                    .env_mut()
+                    .create_heap_value(PengValue::Box(PengBox::String(name)));
+
+                PengBinded::Mutable(PengCell::Reference(ptr))
+            })
+            .collect();
+
+        let ptr = ctx
+            .env_mut()
+            .create_heap_value(PengValue::Box(PengBox::Vector(PengVector::new(values))));
+
+        Ok(PengBinded::Mutable(PengCell::Reference(ptr)))
+    })
+    .unwrap();
 
     thread_module
         .register_native_function(&mut peng, "spawn", |ctx| {
@@ -287,105 +282,101 @@ fn main() {
             Ok(PengBinded::Mutable(PengCell::Reference(ptr)))
         })
         .unwrap();
-    
-    pengstd
-        .register_custom_access(&mut peng, "resume", |ctx| {
-            let mut value = match ctx.get_arg_value_mut(0) {
-                Some(value) => value,
-                None => {
-                    return Err(PengError::CannotCallValue(
-                        "resume() expected thread".into(),
-                    ));
-                }
-            };
 
-            match value.value_mut() {
-                PengValue::Box(PengBox::Thread(t)) => {
-                    t.state = PengThreadState::Running;
-                    Ok(PengBinded::Mutable(PengCell::Nil))
-                }
-
-                _ => Err(PengError::CannotCallValue(
+    core.register_custom_access(&mut peng, "resume", |ctx| {
+        let mut value = match ctx.get_arg_value_mut(0) {
+            Some(value) => value,
+            None => {
+                return Err(PengError::CannotCallValue(
                     "resume() expected thread".into(),
-                )),
+                ));
             }
-        })
-        .unwrap();
+        };
 
-    pengstd
-        .register_custom_access(&mut peng, "pause", |ctx| {
-            let mut value = match ctx.get_arg_value_mut(0) {
-                Some(value) => value,
-                None => {
-                    return Err(PengError::CannotCallValue("pause() expected thread".into()));
-                }
-            };
-
-            match value.value_mut() {
-                PengValue::Box(PengBox::Thread(t)) => {
-                    t.state = PengThreadState::Paused;
-                    Ok(PengBinded::Mutable(PengCell::Nil))
-                }
-
-                _ => Err(PengError::CannotCallValue("pause() expected thread".into())),
+        match value.value_mut() {
+            PengValue::Box(PengBox::Thread(t)) => {
+                t.state = PengThreadState::Running;
+                Ok(PengBinded::Mutable(PengCell::Nil))
             }
-        })
-        .unwrap();
 
-    pengstd
-        .register_custom_access(&mut peng, "cancel", |ctx| {
-            let mut value = match ctx.get_arg_value_mut(0) {
-                Some(value) => value,
-                None => {
-                    return Err(PengError::CannotCallValue(
-                        "cancel() expected thread".into(),
-                    ));
-                }
-            };
+            _ => Err(PengError::CannotCallValue(
+                "resume() expected thread".into(),
+            )),
+        }
+    })
+    .unwrap();
 
-            match value.value_mut() {
-                PengValue::Box(PengBox::Thread(t)) => {
-                    t.state = PengThreadState::Cancelled;
-                    Ok(PengBinded::Mutable(PengCell::Nil))
-                }
+    core.register_custom_access(&mut peng, "pause", |ctx| {
+        let mut value = match ctx.get_arg_value_mut(0) {
+            Some(value) => value,
+            None => {
+                return Err(PengError::CannotCallValue("pause() expected thread".into()));
+            }
+        };
 
-                _ => Err(PengError::CannotCallValue(
+        match value.value_mut() {
+            PengValue::Box(PengBox::Thread(t)) => {
+                t.state = PengThreadState::Paused;
+                Ok(PengBinded::Mutable(PengCell::Nil))
+            }
+
+            _ => Err(PengError::CannotCallValue("pause() expected thread".into())),
+        }
+    })
+    .unwrap();
+
+    core.register_custom_access(&mut peng, "cancel", |ctx| {
+        let mut value = match ctx.get_arg_value_mut(0) {
+            Some(value) => value,
+            None => {
+                return Err(PengError::CannotCallValue(
                     "cancel() expected thread".into(),
-                )),
+                ));
             }
-        })
-        .unwrap();
+        };
 
-    pengstd
-        .register_custom_access(&mut peng, "state", |ctx| {
-            let state = match ctx.get_arg_value(0) {
-                Some(value) => match value.value() {
-                    PengValue::Box(PengBox::Thread(t)) => match t.state {
-                        PengThreadState::Running => "running",
-                        PengThreadState::Finished => "finished",
-                        PengThreadState::Paused => "paused",
-                        PengThreadState::Waiting => "waiting",
-                        PengThreadState::Cancelled => "cancelled",
-                        PengThreadState::Failed => "failed",
-                    },
+        match value.value_mut() {
+            PengValue::Box(PengBox::Thread(t)) => {
+                t.state = PengThreadState::Cancelled;
+                Ok(PengBinded::Mutable(PengCell::Nil))
+            }
 
-                    _ => {
-                        return Err(PengError::CannotCallValue("state() expected thread".into()));
-                    }
+            _ => Err(PengError::CannotCallValue(
+                "cancel() expected thread".into(),
+            )),
+        }
+    })
+    .unwrap();
+
+    core.register_custom_access(&mut peng, "state", |ctx| {
+        let state = match ctx.get_arg_value(0) {
+            Some(value) => match value.value() {
+                PengValue::Box(PengBox::Thread(t)) => match t.state {
+                    PengThreadState::Running => "running",
+                    PengThreadState::Finished => "finished",
+                    PengThreadState::Paused => "paused",
+                    PengThreadState::Waiting => "waiting",
+                    PengThreadState::Cancelled => "cancelled",
+                    PengThreadState::Failed => "failed",
                 },
 
-                None => {
+                _ => {
                     return Err(PengError::CannotCallValue("state() expected thread".into()));
                 }
-            };
+            },
 
-            let ptr = ctx
-                .env_mut()
-                .create_heap_value(PengValue::Box(PengBox::String(state.to_string())));
+            None => {
+                return Err(PengError::CannotCallValue("state() expected thread".into()));
+            }
+        };
 
-            Ok(PengBinded::Mutable(PengCell::Reference(ptr)))
-        })
-        .unwrap();
+        let ptr = ctx
+            .env_mut()
+            .create_heap_value(PengValue::Box(PengBox::String(state.to_string())));
+
+        Ok(PengBinded::Mutable(PengCell::Reference(ptr)))
+    })
+    .unwrap();
 
     thread_module
         .register_native_function(&mut peng, "yield", |ctx| {
@@ -397,11 +388,53 @@ fn main() {
         })
         .unwrap();
 
-    pengstd.register_module(&mut peng, "io", &io).unwrap();
-    pengstd
-        .register_module(&mut peng, "Thread", &thread_module)
+    core.register_module(&mut peng, "io", &io).unwrap();
+    core.register_module(&mut peng, "Thread", &thread_module)
         .unwrap();
-    let unit = match peng.load_program_from_file_using("main.peng", &pengstd, 0) {
+
+    let core_for_import = core.clone();
+
+    core.register_native_function(&mut peng, "import", move |ctx| {
+        let path = match ctx.get_arg_value(0) {
+            Some(value) => match value.value() {
+                PengValue::Box(PengBox::String(s)) => s.clone(),
+                _ => {
+                    return Err(PengError::CannotCallValue(
+                        "import() expected string path".into(),
+                    ));
+                }
+            },
+
+            None => {
+                return Err(PengError::CannotCallValue("import() expected path".into()));
+            }
+        };
+
+        let unit = match ctx
+            .env_mut()
+            .load_program_from_file_using(&path, &core_for_import, 0)
+        {
+            Ok(v) => v,
+            Err(e) => return Err(e),
+        };
+
+        let init = match unit.require_init() {
+            Ok(v) => v,
+            Err(e) => return Err(e),
+        };
+
+        match ctx.env_mut().run_isolated(init, &unit) {
+            Ok(v) => v,
+            Err(e) => return Err(e),
+        };
+
+        let module_ptr = unit.create_module_heap(ctx.env_mut());
+
+        Ok(PengBinded::Immutable(PengCell::Reference(module_ptr)))
+    })
+    .unwrap();
+
+    let unit = match peng.load_program_from_file_using("main.peng", &core, 0) {
         Ok(unit) => unit,
         Err(e) => {
             println!("{:#?}", e);

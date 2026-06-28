@@ -1004,4 +1004,20 @@ impl PengEnv {
             Err(e) => Err(e.push(PengError::ThreadNotFound(thread))),
         }
     }
+
+    pub fn run_isolated(
+        &mut self,
+        function: PengHeapPtr,
+        unit: &PengUnit,
+    ) -> Result<PengBindedCell, PengError> {
+        let old_active_threads = self.active_threads.clone();
+
+        self.active_threads.clear();
+
+        let result = self.run(function, unit);
+
+        self.active_threads = old_active_threads;
+
+        result
+    }
 }

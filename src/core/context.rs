@@ -9,12 +9,13 @@ use crate::core::*;
 pub struct PengNativeFunctionCallContext<'a> {
     env: &'a mut PengEnv,
     thread: PengHeapPtr,
+    unit: &'a PengUnit,
     args: Vec<PengBindedCell>,
 }
 
 impl<'a> PengNativeFunctionCallContext<'a> {
-    pub fn new(env: &'a mut PengEnv, thread: PengHeapPtr, args: Vec<PengBindedCell>) -> Self {
-        Self { env, thread, args }
+    pub fn new(env: &'a mut PengEnv, thread: PengHeapPtr, unit: &'a PengUnit, args: Vec<PengBindedCell>) -> Self {
+        Self { env, thread, unit, args }
     }
 
     pub fn env(&self) -> &PengEnv {
@@ -23,6 +24,10 @@ impl<'a> PengNativeFunctionCallContext<'a> {
 
     pub fn env_mut(&mut self) -> &mut PengEnv {
         self.env
+    }
+
+    pub fn unit(&self) -> &PengUnit {
+        self.unit
     }
 
     pub fn thread(&self) -> PengHeapPtr {

@@ -150,7 +150,7 @@ pub fn step_thread(
                 }
             };
 
-            let mut ctx = PengNativeFunctionCallContext::new(env, thread, args.clone());
+            let mut ctx = PengNativeFunctionCallContext::new(env, thread, unit, args.clone());
 
             let ret = match ntv_call {
                 PengNativeCallable::Function(ntv_fn) => match ntv_fn.call(&mut ctx) {
