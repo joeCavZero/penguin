@@ -34,9 +34,13 @@ impl PengEnv {
             heap: HashMap::new(),
             name_pool: HashMap::new(),
             pinned: HashSet::new(),
-            garbage_collector_interval: std::time::Duration::from_secs(5),
+            garbage_collector_interval: std::time::Duration::from_secs(120),
             active_threads: HashSet::new(),
         }
+    }
+
+    pub fn set_garbage_collector_interval(&mut self, interval: std::time::Duration) {
+        self.garbage_collector_interval = interval;
     }
 
     pub fn heap(&self) -> &HashMap<PengHeapPtr, PengColouredValue> {
