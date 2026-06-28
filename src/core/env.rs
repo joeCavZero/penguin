@@ -2,13 +2,13 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 
 use crate::core::binding::*;
+use crate::core::r#box::*;
 use crate::core::cell::*;
 use crate::core::colour::*;
 use crate::core::error::*;
 use crate::core::frame::*;
 use crate::core::function::*;
 use crate::core::garbage_collector::*;
-use crate::core::r#box::*;
 use crate::core::runtime::*;
 use crate::core::thread::*;
 use crate::core::unit::*;
@@ -56,6 +56,14 @@ impl PengEnv {
 
     pub fn active_threads(&self) -> &HashSet<PengHeapPtr> {
         &self.active_threads
+    }
+
+    pub fn active_threads_mut(&mut self) -> &mut HashSet<PengHeapPtr> {
+        &mut self.active_threads
+    }
+
+    pub fn activate_thread(&mut self, thread: PengHeapPtr) {
+        self.active_threads.insert(thread);
     }
 
     pub fn load_script_from_file(
@@ -186,11 +194,7 @@ impl PengEnv {
         Ok(unit)
     }
 
-    pub fn run(
-        &mut self, 
-        init: PengHeapPtr,
-        unit: &PengUnit,
-    ) -> Result<PengBindedCell, PengError> {
+    pub fn run(&mut self, init: PengHeapPtr, unit: &PengUnit) -> Result<PengBindedCell, PengError> {
         let main_thread = self.create_thread(init, 0, Vec::new(), PengThreadState::Running);
 
         self.run_scheduler(main_thread, unit)
@@ -221,7 +225,7 @@ impl PengEnv {
     }
 
     pub fn run_scheduler(
-        &mut self, 
+        &mut self,
         main_thread: PengHeapPtr,
         unit: &PengUnit,
     ) -> Result<PengBindedCell, PengError> {
@@ -273,7 +277,25 @@ impl PengEnv {
                                 }
                             }
 
-                            Ok(None) => {}
+                            Ok(None) => {
+                                let should_yield = {
+                                    let thread = match self.get_thread_mut(thread_ptr) {
+                                        Ok(v) => v,
+                                        Err(e) => return Err(e),
+                                    };
+
+                                    if thread.quantum == 0 {
+                                        thread.quantum = 1;
+                                        true
+                                    } else {
+                                        false
+                                    }
+                                };
+
+                                if should_yield {
+                                    continue;
+                                }
+                            }
 
                             Err(e) => {
                                 {

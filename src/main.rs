@@ -4,30 +4,32 @@ fn main() {
     let mut peng = PengEnv::new();
     let mut pengstd = PengUnit::library();
 
-    pengstd
-        .register_native_function(&mut peng, "print", move |ctx| {
-            let mut index = 0usize;
+    let mut io = PengUnit::library();
+    let mut thread_module = PengUnit::library();
 
-            loop {
-                let arg = match ctx.get_arg_cell(index) {
-                    Some(arg) => arg,
-                    None => break,
-                };
+    io.register_native_function(&mut peng, "print", move |ctx| {
+        let mut index = 0usize;
 
-                if index > 0 {
-                    print!(" ");
-                }
+        loop {
+            let arg = match ctx.get_arg_cell(index) {
+                Some(arg) => arg,
+                None => break,
+            };
 
-                print_binded_cell(ctx, arg);
-
-                index += 1;
+            if index > 0 {
+                print!(" ");
             }
 
-            println!();
+            print_binded_cell(ctx, arg);
 
-            Ok(PengBindedCell::Mutable(PengCell::Nil))
-        })
-        .unwrap();
+            index += 1;
+        }
+
+        println!();
+
+        Ok(PengBindedCell::Mutable(PengCell::Nil))
+    })
+    .unwrap();
     pengstd
         .register_native_function(&mut peng, "len", move |ctx| {
             let arg = match ctx.get_arg_cell(0) {
@@ -58,17 +60,6 @@ fn main() {
                     "len expected string or vector".to_string(),
                 )),
             }
-        })
-        .unwrap();
-
-    pengstd
-        .register_native_operation(&mut peng, "test_op", move |ctx| {
-            let left = ctx.get_left_cell().clone();
-            let right = ctx.get_right_cell().clone();
-
-            println!("{:?} doing things on {:?}", left, right);
-
-            Ok(PengBindedCell::Mutable(PengCell::Nil))
         })
         .unwrap();
 
@@ -247,6 +238,169 @@ fn main() {
         })
         .unwrap();
 
+    thread_module
+        .register_native_function(&mut peng, "spawn", |ctx| {
+            let function_ptr = match ctx.get_arg_cell(0) {
+                Some(arg) => match arg.value() {
+                    PengCell::Reference(ptr) => *ptr,
+                    _ => {
+                        return Err(PengError::CannotCallValue(
+                            "Thread:spawn() expected function as first argument".into(),
+                        ));
+                    }
+                },
+
+                None => {
+                    return Err(PengError::CannotCallValue(
+                        "Thread:spawn() expected function".into(),
+                    ));
+                }
+            };
+
+            match ctx.get_value(function_ptr) {
+                Some(PengValue::Box(PengBox::Function(_))) => {}
+                _ => {
+                    return Err(PengError::CannotCallValue(
+                        "Thread:spawn() expected function as first argument".into(),
+                    ));
+                }
+            }
+
+            let mut params = Vec::new();
+            let mut index = 1usize;
+
+            loop {
+                match ctx.get_arg_cell(index) {
+                    Some(arg) => params.push(arg.clone()),
+                    None => break,
+                }
+
+                index += 1;
+            }
+
+            let thread = PengThread::new(function_ptr, 0, params, PengThreadState::Running);
+
+            let ptr = ctx.create_box(PengBox::Thread(thread));
+
+            ctx.env_mut().activate_thread(ptr);
+
+            Ok(PengBinded::Mutable(PengCell::Reference(ptr)))
+        })
+        .unwrap();
+    
+    pengstd
+        .register_custom_access(&mut peng, "resume", |ctx| {
+            let mut value = match ctx.get_arg_value_mut(0) {
+                Some(value) => value,
+                None => {
+                    return Err(PengError::CannotCallValue(
+                        "resume() expected thread".into(),
+                    ));
+                }
+            };
+
+            match value.value_mut() {
+                PengValue::Box(PengBox::Thread(t)) => {
+                    t.state = PengThreadState::Running;
+                    Ok(PengBinded::Mutable(PengCell::Nil))
+                }
+
+                _ => Err(PengError::CannotCallValue(
+                    "resume() expected thread".into(),
+                )),
+            }
+        })
+        .unwrap();
+
+    pengstd
+        .register_custom_access(&mut peng, "pause", |ctx| {
+            let mut value = match ctx.get_arg_value_mut(0) {
+                Some(value) => value,
+                None => {
+                    return Err(PengError::CannotCallValue("pause() expected thread".into()));
+                }
+            };
+
+            match value.value_mut() {
+                PengValue::Box(PengBox::Thread(t)) => {
+                    t.state = PengThreadState::Paused;
+                    Ok(PengBinded::Mutable(PengCell::Nil))
+                }
+
+                _ => Err(PengError::CannotCallValue("pause() expected thread".into())),
+            }
+        })
+        .unwrap();
+
+    pengstd
+        .register_custom_access(&mut peng, "cancel", |ctx| {
+            let mut value = match ctx.get_arg_value_mut(0) {
+                Some(value) => value,
+                None => {
+                    return Err(PengError::CannotCallValue(
+                        "cancel() expected thread".into(),
+                    ));
+                }
+            };
+
+            match value.value_mut() {
+                PengValue::Box(PengBox::Thread(t)) => {
+                    t.state = PengThreadState::Cancelled;
+                    Ok(PengBinded::Mutable(PengCell::Nil))
+                }
+
+                _ => Err(PengError::CannotCallValue(
+                    "cancel() expected thread".into(),
+                )),
+            }
+        })
+        .unwrap();
+
+    pengstd
+        .register_custom_access(&mut peng, "state", |ctx| {
+            let state = match ctx.get_arg_value(0) {
+                Some(value) => match value.value() {
+                    PengValue::Box(PengBox::Thread(t)) => match t.state {
+                        PengThreadState::Running => "running",
+                        PengThreadState::Finished => "finished",
+                        PengThreadState::Paused => "paused",
+                        PengThreadState::Waiting => "waiting",
+                        PengThreadState::Cancelled => "cancelled",
+                        PengThreadState::Failed => "failed",
+                    },
+
+                    _ => {
+                        return Err(PengError::CannotCallValue("state() expected thread".into()));
+                    }
+                },
+
+                None => {
+                    return Err(PengError::CannotCallValue("state() expected thread".into()));
+                }
+            };
+
+            let ptr = ctx
+                .env_mut()
+                .create_heap_value(PengValue::Box(PengBox::String(state.to_string())));
+
+            Ok(PengBinded::Mutable(PengCell::Reference(ptr)))
+        })
+        .unwrap();
+
+    thread_module
+        .register_native_function(&mut peng, "yield", |ctx| {
+            match ctx.yield_now() {
+                Ok(()) => {}
+                Err(e) => return Err(e),
+            }
+            Ok(PengBinded::Mutable(PengCell::Nil))
+        })
+        .unwrap();
+
+    pengstd.register_module(&mut peng, "io", &io).unwrap();
+    pengstd
+        .register_module(&mut peng, "Thread", &thread_module)
+        .unwrap();
     let unit = match peng.load_program_from_file_using("main.peng", &pengstd, 0) {
         Ok(unit) => unit,
         Err(e) => {

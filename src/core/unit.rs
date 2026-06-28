@@ -181,6 +181,20 @@ impl PengUnit {
     pub fn create_module_heap(&self, env: &mut PengEnv) -> PengHeapPtr {
         env.create_heap_value(self.create_module_value())
     }
+
+    pub fn register_module(
+        &mut self,
+        env: &mut PengEnv,
+        name: &str,
+        unit: &PengUnit,
+    ) -> Result<(), PengError> {
+        let name_ptr = env.ensure_pooled_name_ptr(name.to_string());
+        let module_ptr = unit.create_module_heap(env);
+
+        self.insert_global(name_ptr, PengBinded::Immutable(module_ptr));
+
+        Ok(())
+    }
 }
 
 fn binded_heap_ptr_to_cell(value: &PengBindedHeapPtr) -> PengBindedCell {
