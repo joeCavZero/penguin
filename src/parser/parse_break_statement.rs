@@ -1,7 +1,7 @@
 use crate::core::*;
 use crate::lexer::*;
 use crate::parser::parser_utils::consume_optional_semicolon;
-use crate::parser::*;
+use crate::parser::parser::*;
 
 pub fn parse_break_statement(
     ptokens: &mut PengPeekablePositionedToken,

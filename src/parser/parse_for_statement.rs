@@ -1,6 +1,11 @@
 use crate::core::*;
 use crate::lexer::*;
-use crate::parser::*;
+use crate::parser::parser::*;
+use crate::parser::parser_utils::*;
+use crate::parser::parse_block_statement::*;
+use crate::parser::parse_expression_statement::*;
+use crate::parser::parse_declaration_statement::*;
+use crate::parser::parse_expression::*;
 
 pub fn parse_for_statement(
     ptokens: &mut PengPeekablePositionedToken,

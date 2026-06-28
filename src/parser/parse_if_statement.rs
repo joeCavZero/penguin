@@ -1,6 +1,8 @@
 use crate::core::*;
 use crate::lexer::*;
-use crate::parser::*;
+use crate::parser::parser::*;
+use crate::parser::parse_block_statement::*;
+use crate::parser::parse_expression::*;
 
 pub fn parse_if_statement(
     ptokens: &mut PengPeekablePositionedToken,

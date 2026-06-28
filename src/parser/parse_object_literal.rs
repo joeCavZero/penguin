@@ -1,7 +1,8 @@
 use crate::core::*;
 use crate::lexer::*;
 use crate::parser::parser_utils::expect_identifier;
-use crate::parser::*;
+use crate::parser::parser::*;
+use crate::parser::parse_expression::*;
 
 pub fn parse_object_literal(
     ptokens: &mut PengPeekablePositionedToken,

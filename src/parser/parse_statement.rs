@@ -1,6 +1,18 @@
 use crate::core::*;
 use crate::lexer::*;
-use crate::parser::*;
+use crate::parser::parser::*;
+use crate::parser::parser_utils::*;
+use crate::parser::parse_block_statement::*;
+use crate::parser::parse_break_statement::*;
+use crate::parser::parse_continue_statement::*;
+use crate::parser::parse_expression_statement::*;
+use crate::parser::parse_for_statement::*;
+use crate::parser::parse_if_statement::*;
+use crate::parser::parse_loop_statement::*;
+use crate::parser::parse_return_statement::*;
+use crate::parser::parse_declaration_statement::*;
+use crate::parser::parse_while_statement::*;
+use crate::parser::parse_match_statement::*;
 
 pub fn parse_statement(
     ptokens: &mut PengPeekablePositionedToken,

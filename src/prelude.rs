@@ -3,7 +3,7 @@ pub use crate::core::{
     thread::*,
     cell::*,
     frame::*,
-    r#box::*,
+    boxed::*,
     vector::*,
     object::*,
     module::*,

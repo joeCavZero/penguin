@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 
 use crate::core::binding::*;
-use crate::core::r#box::*;
+use crate::core::boxed::*;
 use crate::core::cell::*;
 use crate::core::colour::*;
 use crate::core::error::*;
@@ -17,6 +17,7 @@ use crate::core::value::*;
 use crate::core::vector::*;
 use crate::generator::*;
 use crate::lexer::*;
+use crate::optimizer::*;
 use crate::parser::*;
 
 pub struct PengEnv {
@@ -90,7 +91,11 @@ impl PengEnv {
             Ok(v) => v,
             Err(e) => return Err(e),
         };
-        let unit = match generate_ast_using(self, &ast, using_unit) {
+        let optast = match optimize_ast(ast, PengOptimizerConfig::aggressive()) {
+            Ok(v) => v,
+            Err(e) => return Err(e),
+        };
+        let unit = match generate_ast_using(self, &optast, using_unit) {
             Ok(v) => v,
             Err(e) => return Err(e),
         };
@@ -122,7 +127,11 @@ impl PengEnv {
             Ok(v) => v,
             Err(e) => return Err(e),
         };
-        let unit = match generate_ast_using(self, &ast, using_unit) {
+        let optast = match optimize_ast(ast, PengOptimizerConfig::aggressive()) {
+            Ok(v) => v,
+            Err(e) => return Err(e),
+        };
+        let unit = match generate_ast_using(self, &optast, using_unit) {
             Ok(v) => v,
             Err(e) => return Err(e),
         };
@@ -154,7 +163,11 @@ impl PengEnv {
             Ok(v) => v,
             Err(e) => return Err(e),
         };
-        let unit = match generate_ast_using(self, &ast, using_unit) {
+        let optast = match optimize_ast(ast, PengOptimizerConfig::aggressive()) {
+            Ok(v) => v,
+            Err(e) => return Err(e),
+        };
+        let unit = match generate_ast_using(self, &optast, using_unit) {
             Ok(v) => v,
             Err(e) => return Err(e),
         };
@@ -186,7 +199,11 @@ impl PengEnv {
             Ok(v) => v,
             Err(e) => return Err(e),
         };
-        let unit = match generate_ast_using(self, &ast, using_unit) {
+        let optast = match optimize_ast(ast, PengOptimizerConfig::aggressive()) {
+            Ok(v) => v,
+            Err(e) => return Err(e),
+        };
+        let unit = match generate_ast_using(self, &optast, using_unit) {
             Ok(v) => v,
             Err(e) => return Err(e),
         };

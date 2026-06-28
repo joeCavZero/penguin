@@ -1,6 +1,6 @@
 use crate::core::*;
 use crate::lexer::*;
-use crate::parser::*;
+use crate::parser::parser::*;
 
 pub fn consume_optional_semicolon(
     ptokens: &mut PengPeekablePositionedToken,

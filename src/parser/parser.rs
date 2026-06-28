@@ -2,7 +2,6 @@ use std::iter::Peekable;
 use std::slice::Iter;
 use crate::core::*;
 use crate::lexer::*;
-use crate::parser::*;
 
 pub type PengPeekablePositionedToken<'a> = Peekable<Iter<'a, PengPositionedToken>>;
 
@@ -375,13 +374,4 @@ pub struct PengOperationLiteral {
 pub struct PengObjectFieldLiteral {
     pub name: PengPositioned<String>,
     pub value: PengPositionedExpression,
-}
-
-
-
-pub fn parse(ptokens: Vec<PengPositionedToken>) -> Result<PengAST, PengError> {
-    match parse_script(ptokens) {
-        Ok(ast) => Ok(ast),
-        Err(e) => Err(e),
-    }
 }
