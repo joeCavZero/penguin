@@ -842,13 +842,6 @@ pub fn execute_instruction(
                             }
                         }
 
-                        Some(PengValue::Box(PengBox::Vector(_))) => {
-                            match custom_access_as_cell(env, unit, name_ptr) {
-                                Some(value) => value,
-                                None => return Err(PengError::AttributeNotFound(name_ptr)),
-                            }
-                        }
-
                         Some(PengValue::Box(PengBox::Type(PengType::Custom(custom_type)))) => {
                             match custom_type.fields.get(&name_ptr) {
                                 Some(value) => value.clone(),
@@ -869,7 +862,11 @@ pub fn execute_instruction(
                             }
                         }
 
-                        Some(_) => return Err(PengError::ExpectedObject),
+                        Some(_) => match custom_access_as_cell(env, unit, name_ptr) {
+                            Some(value) => value,
+                            None => return Err(PengError::AttributeNotFound(name_ptr)),
+                        },
+
                         None => return Err(PengError::HeapValueNotFound(object_ptr)),
                     };
 
@@ -2438,6 +2435,7 @@ pub fn execute_instruction(
                                         }
                                     }
                                 }
+
                                 Some(PengValue::Box(PengBox::Object(object))) => {
                                     let name_ptr = match object_key {
                                         Some(name_ptr) => name_ptr,
@@ -2482,14 +2480,20 @@ pub fn execute_instruction(
                                     }
                                 }
 
-                                Some(PengValue::Box(PengBox::Type(_))) => {
-                                    return Err(PengError::ExpectedType);
-                                }
-
                                 Some(_) => {
-                                    return Err(PengError::CannotIndexValue(
-                                        "non-indexable heap value".to_string(),
-                                    ));
+                                    let name_ptr = match object_key {
+                                        Some(name_ptr) => name_ptr,
+                                        None => {
+                                            return Err(PengError::CannotIndexValue(
+                                                "non-indexable heap value".to_string(),
+                                            ));
+                                        }
+                                    };
+
+                                    match custom_access_as_cell(env, unit, name_ptr) {
+                                        Some(value) => value,
+                                        None => return Err(PengError::AttributeNotFound(name_ptr)),
+                                    }
                                 }
 
                                 None => {

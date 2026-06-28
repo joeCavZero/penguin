@@ -1,8 +1,8 @@
+use crate::core::boxed::*;
 use crate::core::cell::*;
 use crate::core::colour::*;
 use crate::core::env::*;
 use crate::core::function::*;
-use crate::core::boxed::*;
 use crate::core::instruction::*;
 use crate::core::operation::*;
 use crate::core::thread::*;
@@ -117,6 +117,14 @@ fn collect_box_children(value: &PengBox, children: &mut Vec<PengHeapPtr>) {
         }
 
         PengBox::Thread(thread) => {
+            match &thread.state {
+                PengThreadState::Waiting(ptr) => {
+                    children.push(*ptr);
+                }
+
+                _ => {}
+            }
+
             for cell in thread.stack.iter() {
                 collect_cell_children(cell.value(), children);
             }

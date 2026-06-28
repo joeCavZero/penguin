@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use crate::core::error::*;
 use crate::core::utils::*;
 use crate::core::cell::*;
@@ -8,9 +10,10 @@ pub enum PengThreadState {
     Running,
     Finished,
     Paused,
-    Waiting,
+    Waiting(PengHeapPtr),
     Cancelled,
     Failed,
+    Sleeping(Instant),
 }
 
 #[derive(Debug, Clone)]

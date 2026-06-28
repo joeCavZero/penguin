@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::time::Instant;
 
 use crate::core::binding::*;
 use crate::core::boxed::*;
@@ -344,7 +345,65 @@ impl PengEnv {
                         self.active_threads.remove(&thread_ptr);
                     }
 
-                    PengThreadState::Paused | PengThreadState::Waiting => {}
+                    PengThreadState::Sleeping(until) => {
+                        any_running = true;
+
+                        if Instant::now() >= until {
+                            match self.get_thread_mut(thread_ptr) {
+                                Ok(thread) => {
+                                    thread.state = PengThreadState::Running;
+                                }
+
+                                Err(e) => {
+                                    return Err(e);
+                                }
+                            }
+                        }
+                    }
+
+                    PengThreadState::Waiting(waiting_for) => {
+                        any_running = true;
+
+                        let target_state = match self.get_thread(waiting_for) {
+                            Ok(thread) => thread.state.clone(),
+
+                            Err(PengError::ThreadNotFound(_)) => {
+                                match self.get_thread_mut(thread_ptr) {
+                                    Ok(thread) => {
+                                        thread.state = PengThreadState::Running;
+                                    }
+
+                                    Err(e) => {
+                                        return Err(e);
+                                    }
+                                }
+
+                                continue;
+                            }
+
+                            Err(e) => {
+                                return Err(e);
+                            }
+                        };
+
+                        match target_state {
+                            PengThreadState::Finished
+                            | PengThreadState::Failed
+                            | PengThreadState::Cancelled => match self.get_thread_mut(thread_ptr) {
+                                Ok(thread) => {
+                                    thread.state = PengThreadState::Running;
+                                }
+
+                                Err(e) => {
+                                    return Err(e);
+                                }
+                            },
+
+                            _ => {}
+                        }
+                    }
+
+                    PengThreadState::Paused => {}
                 }
             }
 
@@ -353,6 +412,7 @@ impl PengEnv {
             }
         }
     }
+
     fn next_name_ptr(&self) -> PengNamePoolPtr {
         self.name_pool
             .keys()
