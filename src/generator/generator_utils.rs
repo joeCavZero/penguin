@@ -498,6 +498,11 @@ pub fn generate_structured_global_type(
     type_ptr: PengHeapPtr,
     declaration: &PengPositionedTypeDeclaration,
 ) -> Result<(), PengError> {
+    context.push_positioned_instruction(
+        PengInstruction::PushHeapRef(type_ptr),
+        declaration.position.clone(),
+    );
+
     for super_type in &declaration.value.supers {
         match generate_expression(env, context, super_type) {
             Ok(()) => {}
@@ -510,13 +515,10 @@ pub fn generate_structured_global_type(
     }
 
     context.push_positioned_instruction(
-        PengInstruction::PushHeapRef(type_ptr),
-        declaration.position.clone(),
-    );
-    context.push_positioned_instruction(
         PengInstruction::CreateSuperType(declaration.value.supers.len()),
         declaration.position.clone(),
     );
+
     context.push_positioned_instruction(PengInstruction::StoreHeap, declaration.position.clone());
 
     for field in &declaration.value.fields {
