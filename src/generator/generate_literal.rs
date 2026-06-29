@@ -138,7 +138,11 @@ pub fn generate_type_literal_after_base(
     context
         .push_positioned_instruction(PengInstruction::CreateSuperType(literal.supers.len()), pos);
 
-    for field in &literal.fields {
+    for binded_field in &literal.fields {
+        let (field, immutable) = match binded_field {
+            PengBinded::Mutable(field) => (field, false),
+            PengBinded::Immutable(field) => (field, true),
+        };
         context.push_positioned_instruction(PengInstruction::Duplicate, field.position.clone());
 
         let name = env.ensure_pooled_name_ptr(field.value.name.value.clone());
@@ -159,13 +163,18 @@ pub fn generate_type_literal_after_base(
             ),
         }
 
+        generate_make_immutable_if_needed(context, immutable, field.position.clone());
         context.push_positioned_instruction(
             PengInstruction::SetAttribute(name),
             field.position.clone(),
         );
     }
 
-    for function in &literal.functions {
+    for binded_function in &literal.functions {
+        let (function, immutable) = match binded_function {
+            PengBinded::Mutable(function) => (function, false),
+            PengBinded::Immutable(function) => (function, true),
+        };
         context.push_positioned_instruction(PengInstruction::Duplicate, function.position.clone());
 
         let name = env.ensure_pooled_name_ptr(function.value.name.value.clone());
@@ -185,6 +194,7 @@ pub fn generate_type_literal_after_base(
             function.position.clone(),
         );
 
+        generate_make_immutable_if_needed(context, immutable, function.position.clone());
         context.push_positioned_instruction(
             PengInstruction::SetAttribute(name),
             function.position.clone(),

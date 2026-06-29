@@ -521,7 +521,11 @@ pub fn generate_structured_global_type(
 
     context.push_positioned_instruction(PengInstruction::StoreHeap, declaration.position.clone());
 
-    for field in &declaration.value.fields {
+    for binded_field in &declaration.value.fields {
+        let (field, immutable) = match binded_field {
+            PengBinded::Mutable(field) => (field, false),
+            PengBinded::Immutable(field) => (field, true),
+        };
         context.push_positioned_instruction(
             PengInstruction::PushHeap(type_ptr),
             field.position.clone(),
@@ -548,13 +552,18 @@ pub fn generate_structured_global_type(
             }
         }
 
+        generate_make_immutable_if_needed(context, immutable, field.position.clone());
         context.push_positioned_instruction(
             PengInstruction::SetAttribute(name),
             field.position.clone(),
         );
     }
 
-    for function in &declaration.value.functions {
+    for binded_function in &declaration.value.functions {
+        let (function, immutable) = match binded_function {
+            PengBinded::Mutable(function) => (function, false),
+            PengBinded::Immutable(function) => (function, true),
+        };
         context.push_positioned_instruction(
             PengInstruction::PushHeap(type_ptr),
             function.position.clone(),
@@ -577,6 +586,7 @@ pub fn generate_structured_global_type(
             function.position.clone(),
         );
 
+        generate_make_immutable_if_needed(context, immutable, function.position.clone());
         context.push_positioned_instruction(
             PengInstruction::SetAttribute(name),
             function.position.clone(),

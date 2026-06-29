@@ -266,13 +266,17 @@ fn optimize_declaration(
 }
 
 fn optimize_variable_declarations(
-    declarations: Vec<PengPositionedVariableDeclaration>,
+    declarations: Vec<PengBinded<PengPositionedVariableDeclaration>>,
     config: &PengOptimizerConfig,
     constants: &mut constant_propagation::PengConstantPropagationScope,
-) -> Result<Vec<PengPositionedVariableDeclaration>, PengError> {
+) -> Result<Vec<PengBinded<PengPositionedVariableDeclaration>>, PengError> {
     let mut optimized = Vec::new();
 
-    for declaration in declarations {
+    for binded_declaration in declarations {
+        let (declaration, immutable) = match binded_declaration {
+            PengBinded::Mutable(declaration) => (declaration, false),
+            PengBinded::Immutable(declaration) => (declaration, true),
+        };
         let value = match declaration.value.value {
             Some(expression) => {
                 let expression = match optimize_expression(
@@ -290,13 +294,18 @@ fn optimize_variable_declarations(
             None => None,
         };
 
-        optimized.push(PengPositioned {
+        let declaration = PengPositioned {
             position: declaration.position,
             value: PengVariableDeclaration {
                 name: declaration.value.name,
                 type_hint: declaration.value.type_hint,
                 value,
             },
+        };
+        optimized.push(if immutable {
+            PengBinded::Immutable(declaration)
+        } else {
+            PengBinded::Mutable(declaration)
         });
     }
 
@@ -304,12 +313,16 @@ fn optimize_variable_declarations(
 }
 
 fn optimize_function_declarations(
-    declarations: Vec<PengPositionedFunctionDeclaration>,
+    declarations: Vec<PengBinded<PengPositionedFunctionDeclaration>>,
     config: &PengOptimizerConfig,
-) -> Result<Vec<PengPositionedFunctionDeclaration>, PengError> {
+) -> Result<Vec<PengBinded<PengPositionedFunctionDeclaration>>, PengError> {
     let mut optimized = Vec::new();
 
-    for declaration in declarations {
+    for binded_declaration in declarations {
+        let (declaration, immutable) = match binded_declaration {
+            PengBinded::Mutable(declaration) => (declaration, false),
+            PengBinded::Immutable(declaration) => (declaration, true),
+        };
         let body = match optimize_function_body(
             declaration.value.body,
             config,
@@ -318,7 +331,7 @@ fn optimize_function_declarations(
             Err(e) => return Err(e),
         };
 
-        optimized.push(PengPositioned {
+        let declaration = PengPositioned {
             position: declaration.position,
             value: PengFunctionDeclaration {
                 name: declaration.value.name,
@@ -326,6 +339,11 @@ fn optimize_function_declarations(
                 return_type: declaration.value.return_type,
                 body,
             },
+        };
+        optimized.push(if immutable {
+            PengBinded::Immutable(declaration)
+        } else {
+            PengBinded::Mutable(declaration)
         });
     }
 

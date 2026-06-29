@@ -2,7 +2,6 @@ use crate::core::*;
 use crate::lexer::*;
 use crate::parser::parser_utils::expect_identifier;
 use crate::parser::parser::*;
-use crate::parser::parse_function_declaration_statement::*;
 use crate::parser::parse_declaration_statement::*;
 use crate::parser::parse_expression::*;
 
@@ -242,8 +241,8 @@ pub fn parse_type_members(
     ptokens: &mut PengPeekablePositionedToken,
 ) -> Result<
     (
-        Vec<PengPositionedVariableDeclaration>,
-        Vec<PengPositionedFunctionDeclaration>,
+        Vec<PengBinded<PengPositionedVariableDeclaration>>,
+        Vec<PengBinded<PengPositionedFunctionDeclaration>>,
     ),
     PengError,
 > {
@@ -269,7 +268,7 @@ pub fn parse_type_members(
 
     loop {
         let token = match ptokens.peek() {
-            Some(token) => token,
+            Some(token) => (*token).clone(),
             None => {
                 return Err(PengError::new_positioned_message(
                     "expected '}'".to_string(),
@@ -283,9 +282,10 @@ pub fn parse_type_members(
                 ptokens.next();
                 break;
             }
-            PengToken::Var => {
-                let statement = match parse_variable_declaration_statement(ptokens) {
-                    Ok(statement) => statement,
+
+            PengToken::Var | PengToken::Func | PengToken::Const => {
+                let declaration = match parse_binded_declaration(ptokens) {
+                    Ok(declaration) => declaration,
                     Err(e) => {
                         return Err(e.push(PengError::SyntaxError(
                             "failed while parsing parse_type_declaration_statement".to_string(),
@@ -293,44 +293,30 @@ pub fn parse_type_members(
                     }
                 };
 
-                match statement.value {
-                    PengStatement::Declaration(PengBinded::Mutable(PengDeclaration::Var(
-                        field,
-                    ))) => {
-                        fields.push(field);
+                match declaration {
+                    PengBinded::Mutable(PengDeclaration::Var(field)) => {
+                        fields.push(PengBinded::Mutable(field));
                     }
-                    _ => {
-                        return Err(PengError::new_positioned_message(
-                            "expected type field".to_string(),
-                            statement.position,
-                        ));
+                    PengBinded::Immutable(PengDeclaration::Var(field)) => {
+                        fields.push(PengBinded::Immutable(field));
                     }
-                }
-            }
-            PengToken::Func => {
-                let statement = match parse_function_declaration_statement(ptokens) {
-                    Ok(statement) => statement,
-                    Err(e) => {
-                        return Err(e.push(PengError::SyntaxError(
-                            "failed while parsing parse_type_declaration_statement".to_string(),
-                        )));
-                    }
-                };
 
-                match statement.value {
-                    PengStatement::Declaration(PengBinded::Mutable(PengDeclaration::Function(
-                        function,
-                    ))) => {
-                        functions.push(function);
+                    PengBinded::Mutable(PengDeclaration::Function(function)) => {
+                        functions.push(PengBinded::Mutable(function));
                     }
+                    PengBinded::Immutable(PengDeclaration::Function(function)) => {
+                        functions.push(PengBinded::Immutable(function));
+                    }
+
                     _ => {
                         return Err(PengError::new_positioned_message(
-                            "expected type function".to_string(),
-                            statement.position,
+                            "type body only accepts variable and function declarations".to_string(),
+                            token.position.clone(),
                         ));
                     }
                 }
             }
+
             _ => {
                 return Err(PengError::new_positioned_message(
                     "type body only accepts variable and function declarations".to_string(),

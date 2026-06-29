@@ -195,8 +195,8 @@ pub struct PengTypeDeclaration {
     pub name: PengPositioned<String>,
     pub value: Option<PengPositionedTypeExpression>,
     pub supers: Vec<PengPositionedExpression>,
-    pub fields: Vec<PengPositionedVariableDeclaration>,
-    pub functions: Vec<PengPositionedFunctionDeclaration>,
+    pub fields: Vec<PengBinded<PengPositionedVariableDeclaration>>,
+    pub functions: Vec<PengBinded<PengPositionedFunctionDeclaration>>,
 }
 
 #[derive(Debug, Clone)]
@@ -347,8 +347,8 @@ pub enum PengTypeExpression {
 #[derive(Debug, Clone)]
 pub struct PengTypeLiteral {
     pub supers: Vec<PengPositionedExpression>,
-    pub fields: Vec<PengPositionedVariableDeclaration>,
-    pub functions: Vec<PengPositionedFunctionDeclaration>,
+    pub fields: Vec<PengBinded<PengPositionedVariableDeclaration>>,
+    pub functions: Vec<PengBinded<PengPositionedFunctionDeclaration>>,
 }
 
 #[derive(Debug, Clone)]

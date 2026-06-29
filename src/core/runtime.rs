@@ -775,6 +775,7 @@ pub fn execute_instruction(
                             Ok(()) => {}
                             Err(e) => return Err(e),
                         }
+
                         let object_ptr = match object_cell.value() {
                             PengCell::Reference(ptr) => *ptr,
                             _ => return Err(PengError::ExpectedReference),
@@ -784,10 +785,22 @@ pub fn execute_instruction(
 
                         match env.get_heap_mut(object_ptr) {
                             Some(PengValue::Box(PengBox::Object(object))) => {
+                                if let Some(existing) = object.fields.get(&name_ptr) {
+                                    if matches!(existing, PengBinded::Immutable(_)) {
+                                        return Err(PengError::CannotMutateImmutable);
+                                    }
+                                }
+
                                 object.fields.insert(name_ptr, bindedcell);
                             }
 
                             Some(PengValue::Box(PengBox::Type(PengType::Custom(custom_type)))) => {
+                                if let Some(existing) = custom_type.fields.get(&name_ptr) {
+                                    if matches!(existing, PengBinded::Immutable(_)) {
+                                        return Err(PengError::CannotMutateImmutable);
+                                    }
+                                }
+
                                 custom_type.fields.insert(name_ptr, bindedcell);
                             }
 
