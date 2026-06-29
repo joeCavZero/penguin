@@ -441,7 +441,6 @@ fn flush_token<F>(
     let tok = std::mem::take(token_acc);
     f(LexerCallbackResponse::Token(tok), actual_line, col);
 }
-
 fn unescape_string(s: &str, escape: char) -> String {
     let mut out = String::new();
     let mut it = s.chars();
@@ -456,9 +455,42 @@ fn unescape_string(s: &str, escape: char) -> String {
             Some('n') => out.push('\n'),
             Some('t') => out.push('\t'),
             Some('r') => out.push('\r'),
+            Some('0') => out.push('\0'),
             Some('\\') => out.push('\\'),
             Some('"') => out.push('"'),
             Some('\'') => out.push('\''),
+
+            Some('x') => {
+                let h1 = match it.next() {
+                    Some(v) => v,
+                    None => {
+                        out.push('x');
+                        continue;
+                    }
+                };
+
+                let h2 = match it.next() {
+                    Some(v) => v,
+                    None => {
+                        out.push('x');
+                        out.push(h1);
+                        continue;
+                    }
+                };
+
+                let hex = format!("{}{}", h1, h2);
+
+                match u8::from_str_radix(&hex, 16) {
+                    Ok(byte) => out.push(byte as char),
+
+                    Err(_) => {
+                        out.push('x');
+                        out.push(h1);
+                        out.push(h2);
+                    }
+                }
+            }
+
             Some(other) => out.push(other),
             None => break,
         }
