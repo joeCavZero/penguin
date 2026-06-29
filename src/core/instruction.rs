@@ -26,6 +26,7 @@ pub enum PengInstruction {
 
     Duplicate, // duplicate
     Pop, // pop
+    Swap,
 
     Add,    // ...|v1|v2| ---> ...|v1+v2|
     Subtract,

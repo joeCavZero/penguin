@@ -2932,6 +2932,41 @@ pub fn execute_instruction(
                 }
             }
         }
+        PengInstruction::Swap => {
+            let a = match env.get_thread_latest_binded_stated_cell(thread, 0).cloned() {
+                Ok(v) => v,
+                Err(e) => return Err(e.push(PengError::InvalidInstruction(instruction))),
+            };
+
+            let b = match env.get_thread_latest_binded_stated_cell(thread, 1).cloned() {
+                Ok(v) => v,
+                Err(e) => return Err(e.push(PengError::InvalidInstruction(instruction))),
+            };
+
+            match env.pop_thread_stack_n_times(thread, 2) {
+                Ok(()) => {}
+
+                Err(e) => {
+                    return Err(e.push(PengError::InvalidInstruction(instruction)));
+                }
+            }
+
+            match env.push_thread_binded_stated_cell(thread, a) {
+                Ok(()) => {}
+
+                Err(e) => {
+                    return Err(e.push(PengError::InvalidInstruction(instruction)));
+                }
+            }
+
+            match env.push_thread_binded_stated_cell(thread, b) {
+                Ok(()) => {}
+
+                Err(e) => {
+                    return Err(e.push(PengError::InvalidInstruction(instruction)));
+                }
+            }
+        }
     }
     Ok(None)
 }
@@ -2961,6 +2996,8 @@ fn custom_access_as_cell(
     };
 
     let ptr = env.create_heap_value(PengValue::Box(PengBox::Function(PengFunction::Native(ntv))));
+
+    env.pinned_mut().insert(ptr);
 
     Some(PengBinded::Immutable(PengCell::Reference(ptr)))
 }

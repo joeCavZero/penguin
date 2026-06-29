@@ -1,9 +1,9 @@
 use std::time::Instant;
 
-use crate::core::error::*;
-use crate::core::utils::*;
 use crate::core::cell::*;
+use crate::core::error::*;
 use crate::core::frame::*;
+use crate::core::utils::*;
 
 #[derive(Debug, Clone)]
 pub enum PengThreadState {
@@ -33,14 +33,16 @@ pub struct PengThread {
 }
 
 impl PengThread {
-    pub fn new(function: PengHeapPtr, base: usize, params: Vec<PengBindedCell>, state: PengThreadState) -> Self {
-        
+    pub fn new(
+        function: PengHeapPtr,
+        base: usize,
+        params: Vec<PengBindedCell>,
+        state: PengThreadState,
+    ) -> Self {
         let mut frames = Vec::new();
 
-        frames.push(
-            PengFrame::new(function, base, params.len())
-        );
-        
+        frames.push(PengFrame::new(function, base, params.len()));
+
         let mut thread = PengThread {
             state,
             stack: Vec::new(),
@@ -52,9 +54,7 @@ impl PengThread {
         for p in &params {
             thread.stack.push(p.clone());
         }
-        
-        
-        
+
         thread
     }
 
