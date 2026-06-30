@@ -368,6 +368,291 @@ enum PengNativeCallable {
     Operation(PengNativeOperation),
 }
 
+#[derive(Clone, Copy)]
+enum NumericBinaryOperation {
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
+    Power,
+    Remainder,
+}
+
+fn apply_float32_operation(
+    left: f32,
+    right: f32,
+    operation: NumericBinaryOperation,
+) -> Option<PengCell> {
+    match operation {
+        NumericBinaryOperation::Add => Some(PengCell::Float32(left + right)),
+        NumericBinaryOperation::Subtract => Some(PengCell::Float32(left - right)),
+        NumericBinaryOperation::Multiply => Some(PengCell::Float32(left * right)),
+        NumericBinaryOperation::Divide => {
+            if right == 0.0 {
+                None
+            } else {
+                Some(PengCell::Float32(left / right))
+            }
+        }
+        NumericBinaryOperation::Power => Some(PengCell::Float32(left.powf(right))),
+        NumericBinaryOperation::Remainder => {
+            if right == 0.0 {
+                None
+            } else {
+                Some(PengCell::Float32(left % right))
+            }
+        }
+    }
+}
+
+fn apply_float64_operation(
+    left: f64,
+    right: f64,
+    operation: NumericBinaryOperation,
+) -> Option<PengCell> {
+    match operation {
+        NumericBinaryOperation::Add => Some(PengCell::Float64(left + right)),
+        NumericBinaryOperation::Subtract => Some(PengCell::Float64(left - right)),
+        NumericBinaryOperation::Multiply => Some(PengCell::Float64(left * right)),
+        NumericBinaryOperation::Divide => {
+            if right == 0.0 {
+                None
+            } else {
+                Some(PengCell::Float64(left / right))
+            }
+        }
+        NumericBinaryOperation::Power => Some(PengCell::Float64(left.powf(right))),
+        NumericBinaryOperation::Remainder => {
+            if right == 0.0 {
+                None
+            } else {
+                Some(PengCell::Float64(left % right))
+            }
+        }
+    }
+}
+
+fn apply_int_operation(
+    left: isize,
+    right: isize,
+    operation: NumericBinaryOperation,
+) -> Option<PengCell> {
+    let value = match operation {
+        NumericBinaryOperation::Add => left.checked_add(right),
+        NumericBinaryOperation::Subtract => left.checked_sub(right),
+        NumericBinaryOperation::Multiply => left.checked_mul(right),
+        NumericBinaryOperation::Divide => left.checked_div(right),
+        NumericBinaryOperation::Power => {
+            if right < 0 {
+                return Some(PengCell::Float32((left as f32).powf(right as f32)));
+            }
+
+            match u32::try_from(right) {
+                Ok(exponent) => left.checked_pow(exponent),
+                Err(_) => None,
+            }
+        }
+        NumericBinaryOperation::Remainder => left.checked_rem(right),
+    };
+
+    match value {
+        Some(value) => Some(PengCell::Int(value)),
+        None => None,
+    }
+}
+
+fn apply_uint_operation(
+    left: usize,
+    right: usize,
+    operation: NumericBinaryOperation,
+) -> Option<PengCell> {
+    let value = match operation {
+        NumericBinaryOperation::Add => left.checked_add(right),
+        NumericBinaryOperation::Subtract => left.checked_sub(right),
+        NumericBinaryOperation::Multiply => left.checked_mul(right),
+        NumericBinaryOperation::Divide => left.checked_div(right),
+        NumericBinaryOperation::Power => match u32::try_from(right) {
+            Ok(exponent) => left.checked_pow(exponent),
+            Err(_) => None,
+        },
+        NumericBinaryOperation::Remainder => left.checked_rem(right),
+    };
+
+    match value {
+        Some(value) => Some(PengCell::Uint(value)),
+        None => None,
+    }
+}
+
+fn apply_byte_operation(
+    left: u8,
+    right: u8,
+    operation: NumericBinaryOperation,
+) -> Option<PengCell> {
+    let value = match operation {
+        NumericBinaryOperation::Add => left.checked_add(right),
+        NumericBinaryOperation::Subtract => left.checked_sub(right),
+        NumericBinaryOperation::Multiply => left.checked_mul(right),
+        NumericBinaryOperation::Divide => left.checked_div(right),
+        NumericBinaryOperation::Power => left.checked_pow(right as u32),
+        NumericBinaryOperation::Remainder => left.checked_rem(right),
+    };
+
+    match value {
+        Some(value) => Some(PengCell::Byte(value)),
+        None => None,
+    }
+}
+
+fn apply_mixed_int_operation(
+    left: i128,
+    right: i128,
+    operation: NumericBinaryOperation,
+) -> Option<PengCell> {
+    let value = match operation {
+        NumericBinaryOperation::Add => left.checked_add(right),
+        NumericBinaryOperation::Subtract => left.checked_sub(right),
+        NumericBinaryOperation::Multiply => left.checked_mul(right),
+        NumericBinaryOperation::Divide => left.checked_div(right),
+        NumericBinaryOperation::Power => {
+            if right < 0 {
+                return Some(PengCell::Float32((left as f32).powf(right as f32)));
+            }
+
+            match u32::try_from(right) {
+                Ok(exponent) => left.checked_pow(exponent),
+                Err(_) => None,
+            }
+        }
+        NumericBinaryOperation::Remainder => left.checked_rem(right),
+    };
+
+    match value {
+        Some(value) => match isize::try_from(value) {
+            Ok(value) => Some(PengCell::Int(value)),
+            Err(_) => None,
+        },
+        None => None,
+    }
+}
+
+fn binary_numeric_cells(
+    left: &PengCell,
+    right: &PengCell,
+    operation: NumericBinaryOperation,
+) -> Option<PengCell> {
+    match (left, right) {
+        (PengCell::Float64(left), PengCell::Float64(right)) => {
+            apply_float64_operation(*left, *right, operation)
+        }
+        (PengCell::Float64(left), PengCell::Float32(right)) => {
+            apply_float64_operation(*left, *right as f64, operation)
+        }
+        (PengCell::Float64(left), PengCell::Int(right)) => {
+            apply_float64_operation(*left, *right as f64, operation)
+        }
+        (PengCell::Float64(left), PengCell::Uint(right)) => {
+            apply_float64_operation(*left, *right as f64, operation)
+        }
+        (PengCell::Float64(left), PengCell::Byte(right)) => {
+            apply_float64_operation(*left, *right as f64, operation)
+        }
+        (PengCell::Float32(left), PengCell::Float64(right)) => {
+            apply_float64_operation(*left as f64, *right, operation)
+        }
+        (PengCell::Int(left), PengCell::Float64(right)) => {
+            apply_float64_operation(*left as f64, *right, operation)
+        }
+        (PengCell::Uint(left), PengCell::Float64(right)) => {
+            apply_float64_operation(*left as f64, *right, operation)
+        }
+        (PengCell::Byte(left), PengCell::Float64(right)) => {
+            apply_float64_operation(*left as f64, *right, operation)
+        }
+
+        (PengCell::Float32(left), PengCell::Float32(right)) => {
+            apply_float32_operation(*left, *right, operation)
+        }
+        (PengCell::Float32(left), PengCell::Int(right)) => {
+            apply_float32_operation(*left, *right as f32, operation)
+        }
+        (PengCell::Float32(left), PengCell::Uint(right)) => {
+            apply_float32_operation(*left, *right as f32, operation)
+        }
+        (PengCell::Float32(left), PengCell::Byte(right)) => {
+            apply_float32_operation(*left, *right as f32, operation)
+        }
+        (PengCell::Int(left), PengCell::Float32(right)) => {
+            apply_float32_operation(*left as f32, *right, operation)
+        }
+        (PengCell::Uint(left), PengCell::Float32(right)) => {
+            apply_float32_operation(*left as f32, *right, operation)
+        }
+        (PengCell::Byte(left), PengCell::Float32(right)) => {
+            apply_float32_operation(*left as f32, *right, operation)
+        }
+
+        (PengCell::Int(left), PengCell::Int(right)) => {
+            apply_int_operation(*left, *right, operation)
+        }
+        (PengCell::Int(left), PengCell::Uint(right)) => match i128::try_from(*right) {
+            Ok(right) => apply_mixed_int_operation(*left as i128, right, operation),
+            Err(_) => None,
+        },
+        (PengCell::Uint(left), PengCell::Int(right)) => match i128::try_from(*left) {
+            Ok(left) => apply_mixed_int_operation(left, *right as i128, operation),
+            Err(_) => None,
+        },
+        (PengCell::Int(left), PengCell::Byte(right)) => {
+            apply_int_operation(*left, *right as isize, operation)
+        }
+        (PengCell::Byte(left), PengCell::Int(right)) => {
+            apply_int_operation(*left as isize, *right, operation)
+        }
+        (PengCell::Uint(left), PengCell::Uint(right)) => {
+            apply_uint_operation(*left, *right, operation)
+        }
+        (PengCell::Uint(left), PengCell::Byte(right)) => {
+            apply_uint_operation(*left, *right as usize, operation)
+        }
+        (PengCell::Byte(left), PengCell::Uint(right)) => {
+            apply_uint_operation(*left as usize, *right, operation)
+        }
+        (PengCell::Byte(left), PengCell::Byte(right)) => {
+            apply_byte_operation(*left, *right, operation)
+        }
+
+        _ => None,
+    }
+}
+
+fn execute_binary_numeric_operation(
+    env: &mut PengEnv,
+    thread: PengHeapPtr,
+    instruction: PengInstruction,
+    operation: NumericBinaryOperation,
+) -> Result<(), PengError> {
+    let (left, right) = match env.get_thread_2_latests_binded_stated_cell_cloned(thread) {
+        Ok(cells) => cells,
+        Err(e) => return Err(e.push(PengError::InvalidInstruction(instruction))),
+    };
+
+    let result = match binary_numeric_cells(left.value(), right.value(), operation) {
+        Some(result) => result,
+        None => return Err(PengError::InvalidInstruction(instruction)),
+    };
+
+    match env.pop_thread_stack_n_times(thread, 2) {
+        Ok(()) => {}
+        Err(e) => return Err(e.push(PengError::InvalidInstruction(instruction))),
+    }
+
+    match env.push_thread_binded_stated_cell(thread, PengBinded::Mutable(result)) {
+        Ok(()) => Ok(()),
+        Err(e) => Err(e.push(PengError::InvalidInstruction(instruction))),
+    }
+}
+
 pub fn execute_instruction(
     instruction: PengInstruction,
     constant: Option<PengValue>,
@@ -1259,370 +1544,76 @@ pub fn execute_instruction(
             }
         }
 
-        PengInstruction::Add => match env.get_thread_2_latests_binded_stated_cell_cloned(thread) {
-            Ok((a, b)) => {
-                let res: PengCell = match (a.value(), b.value()) {
-                    (aa, bb) => match (aa, bb) {
-                        (PengCell::Int(aaa), PengCell::Int(bbb)) => match aaa.checked_add(*bbb) {
-                            Some(v) => PengCell::Int(v),
-                            None => {
-                                return Err(PengError::InvalidInstruction(instruction));
-                            }
-                        },
-                        (PengCell::Uint(aaa), PengCell::Uint(bbb)) => match aaa.checked_add(*bbb) {
-                            Some(v) => PengCell::Uint(v),
-                            None => {
-                                return Err(PengError::InvalidInstruction(instruction));
-                            }
-                        },
-                        (PengCell::Byte(aaa), PengCell::Byte(bbb)) => match aaa.checked_add(*bbb) {
-                            Some(v) => PengCell::Byte(v),
-                            None => {
-                                return Err(PengError::InvalidInstruction(instruction));
-                            }
-                        },
-                        (PengCell::Float32(aaa), PengCell::Float32(bbb)) => {
-                            PengCell::Float32(aaa + bbb)
-                        }
-                        (PengCell::Float64(aaa), PengCell::Float64(bbb)) => {
-                            PengCell::Float64(aaa + bbb)
-                        }
-                        _ => {
-                            return Err(PengError::InvalidInstruction(instruction));
-                        }
-                    },
-                };
-                match env.pop_thread_stack_n_times(thread, 2) {
-                    Ok(()) => {
-                        match env.push_thread_binded_stated_cell(thread, PengBinded::Mutable(res)) {
-                            Ok(()) => {}
-                            Err(e) => {
-                                return Err(e.push(PengError::InvalidInstruction(instruction)));
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        return Err(e.push(PengError::InvalidInstruction(instruction)));
-                    }
-                }
-            }
-            Err(e) => {
-                return Err(e.push(PengError::InvalidInstruction(instruction)));
-            }
+        PengInstruction::Add => match execute_binary_numeric_operation(
+            env,
+            thread,
+            instruction,
+            NumericBinaryOperation::Add,
+        ) {
+            Ok(()) => {}
+            Err(e) => return Err(e),
         },
 
-        PengInstruction::Subtract => {
-            match env.get_thread_2_latests_binded_stated_cell_cloned(thread) {
-                Ok((a, b)) => {
-                    let res: PengCell = match (a.value(), b.value()) {
-                        (aa, bb) => match (aa, bb) {
-                            (PengCell::Int(aaa), PengCell::Int(bbb)) => {
-                                match aaa.checked_sub(*bbb) {
-                                    Some(v) => PengCell::Int(v),
-                                    None => {
-                                        return Err(PengError::InvalidInstruction(instruction));
-                                    }
-                                }
-                            }
-                            (PengCell::Uint(aaa), PengCell::Uint(bbb)) => {
-                                match aaa.checked_sub(*bbb) {
-                                    Some(v) => PengCell::Uint(v),
-                                    None => {
-                                        return Err(PengError::InvalidInstruction(instruction));
-                                    }
-                                }
-                            }
-                            (PengCell::Byte(aaa), PengCell::Byte(bbb)) => {
-                                match aaa.checked_sub(*bbb) {
-                                    Some(v) => PengCell::Byte(v),
-                                    None => {
-                                        return Err(PengError::InvalidInstruction(instruction));
-                                    }
-                                }
-                            }
-                            (PengCell::Float32(aaa), PengCell::Float32(bbb)) => {
-                                PengCell::Float32(aaa - bbb)
-                            }
-                            (PengCell::Float64(aaa), PengCell::Float64(bbb)) => {
-                                PengCell::Float64(aaa - bbb)
-                            }
-                            _ => {
-                                return Err(PengError::InvalidInstruction(instruction));
-                            }
-                        },
-                    };
-                    match env.pop_thread_stack_n_times(thread, 2) {
-                        Ok(()) => {
-                            match env
-                                .push_thread_binded_stated_cell(thread, PengBinded::Mutable(res))
-                            {
-                                Ok(()) => {}
-                                Err(e) => {
-                                    return Err(e.push(PengError::InvalidInstruction(instruction)));
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            return Err(e.push(PengError::InvalidInstruction(instruction)));
-                        }
-                    }
-                }
-                Err(e) => {
-                    return Err(e.push(PengError::InvalidInstruction(instruction)));
-                }
-            }
-        }
+        PengInstruction::Subtract => match execute_binary_numeric_operation(
+            env,
+            thread,
+            instruction,
+            NumericBinaryOperation::Subtract,
+        ) {
+            Ok(()) => {}
+            Err(e) => return Err(e),
+        },
 
-        PengInstruction::Multiply => {
-            match env.get_thread_2_latests_binded_stated_cell_cloned(thread) {
-                Ok((a, b)) => {
-                    let res: PengCell = match (a.value(), b.value()) {
-                        (aa, bb) => match (aa, bb) {
-                            (PengCell::Int(aaa), PengCell::Int(bbb)) => {
-                                match aaa.checked_mul(*bbb) {
-                                    Some(v) => PengCell::Int(v),
-                                    None => {
-                                        return Err(PengError::InvalidInstruction(instruction));
-                                    }
-                                }
-                            }
-                            (PengCell::Uint(aaa), PengCell::Uint(bbb)) => {
-                                match aaa.checked_mul(*bbb) {
-                                    Some(v) => PengCell::Uint(v),
-                                    None => {
-                                        return Err(PengError::InvalidInstruction(instruction));
-                                    }
-                                }
-                            }
-                            (PengCell::Byte(aaa), PengCell::Byte(bbb)) => {
-                                match aaa.checked_mul(*bbb) {
-                                    Some(v) => PengCell::Byte(v),
-                                    None => {
-                                        return Err(PengError::InvalidInstruction(instruction));
-                                    }
-                                }
-                            }
-                            (PengCell::Float32(aaa), PengCell::Float32(bbb)) => {
-                                PengCell::Float32(aaa * bbb)
-                            }
-                            (PengCell::Float64(aaa), PengCell::Float64(bbb)) => {
-                                PengCell::Float64(aaa * bbb)
-                            }
-                            _ => {
-                                return Err(PengError::InvalidInstruction(instruction));
-                            }
-                        },
-                    };
-                    match env.pop_thread_stack_n_times(thread, 2) {
-                        Ok(()) => {
-                            match env
-                                .push_thread_binded_stated_cell(thread, PengBinded::Mutable(res))
-                            {
-                                Ok(()) => {}
-                                Err(e) => {
-                                    return Err(e.push(PengError::InvalidInstruction(instruction)));
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            return Err(e.push(PengError::InvalidInstruction(instruction)));
-                        }
-                    }
-                }
-                Err(e) => {
-                    return Err(e.push(PengError::InvalidInstruction(instruction)));
-                }
-            }
-        }
+        PengInstruction::Multiply => match execute_binary_numeric_operation(
+            env,
+            thread,
+            instruction,
+            NumericBinaryOperation::Multiply,
+        ) {
+            Ok(()) => {}
+            Err(e) => return Err(e),
+        },
 
-        PengInstruction::Divide => {
-            match env.get_thread_2_latests_binded_stated_cell_cloned(thread) {
-                Ok((a, b)) => {
-                    let res: PengCell = match (a.value(), b.value()) {
-                        (aa, bb) => match (aa, bb) {
-                            (PengCell::Int(aaa), PengCell::Int(bbb)) => {
-                                match aaa.checked_div(*bbb) {
-                                    Some(v) => PengCell::Int(v),
-                                    None => {
-                                        return Err(PengError::InvalidInstruction(instruction));
-                                    }
-                                }
-                            }
-                            (PengCell::Uint(aaa), PengCell::Uint(bbb)) => {
-                                match aaa.checked_div(*bbb) {
-                                    Some(v) => PengCell::Uint(v),
-                                    None => {
-                                        return Err(PengError::InvalidInstruction(instruction));
-                                    }
-                                }
-                            }
-                            (PengCell::Byte(aaa), PengCell::Byte(bbb)) => {
-                                if *bbb == 0 {
-                                    return Err(PengError::InvalidInstruction(instruction));
-                                }
+        PengInstruction::Divide => match execute_binary_numeric_operation(
+            env,
+            thread,
+            instruction,
+            NumericBinaryOperation::Divide,
+        ) {
+            Ok(()) => {}
+            Err(e) => return Err(e),
+        },
 
-                                PengCell::Byte(*aaa / *bbb)
-                            }
-                            (PengCell::Float32(aaa), PengCell::Float32(bbb)) => {
-                                PengCell::Float32(aaa / bbb)
-                            }
-                            (PengCell::Float64(aaa), PengCell::Float64(bbb)) => {
-                                PengCell::Float64(aaa / bbb)
-                            }
-                            _ => {
-                                return Err(PengError::InvalidInstruction(instruction));
-                            }
-                        },
-                    };
-                    match env.pop_thread_stack_n_times(thread, 2) {
-                        Ok(()) => {
-                            match env
-                                .push_thread_binded_stated_cell(thread, PengBinded::Mutable(res))
-                            {
-                                Ok(()) => {}
-                                Err(e) => {
-                                    return Err(e.push(PengError::InvalidInstruction(instruction)));
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            return Err(e.push(PengError::InvalidInstruction(instruction)));
-                        }
-                    }
-                }
-                Err(e) => {
-                    return Err(e.push(PengError::InvalidInstruction(instruction)));
-                }
-            }
-        }
+        PengInstruction::Power => match execute_binary_numeric_operation(
+            env,
+            thread,
+            instruction,
+            NumericBinaryOperation::Power,
+        ) {
+            Ok(()) => {}
+            Err(e) => return Err(e),
+        },
 
-        PengInstruction::Power => {
-            match env.get_thread_2_latests_binded_stated_cell_cloned(thread) {
-                Ok((a, b)) => {
-                    let res: PengCell = match (a.value(), b.value()) {
-                        (aa, bb) => match (aa, bb) {
-                            (PengCell::Int(aaa), PengCell::Int(bbb)) => {
-                                if *bbb < 0 {
-                                    PengCell::Float64((*aaa as f64).powf(*bbb as f64))
-                                } else {
-                                    PengCell::Int(aaa.pow(*bbb as u32))
-                                }
-                            }
-
-                            (PengCell::Uint(aaa), PengCell::Uint(bbb)) => {
-                                PengCell::Uint(aaa.pow(*bbb as u32))
-                            }
-
-                            (PengCell::Byte(aaa), PengCell::Byte(bbb)) => {
-                                match aaa.checked_pow(*bbb as u32) {
-                                    Some(v) => PengCell::Byte(v),
-                                    None => {
-                                        return Err(PengError::InvalidInstruction(instruction));
-                                    }
-                                }
-                            }
-
-                            (PengCell::Float32(aaa), PengCell::Float32(bbb)) => {
-                                PengCell::Float32(aaa.powf(*bbb))
-                            }
-
-                            (PengCell::Float64(aaa), PengCell::Float64(bbb)) => {
-                                PengCell::Float64(aaa.powf(*bbb))
-                            }
-
-                            _ => {
-                                return Err(PengError::InvalidInstruction(instruction));
-                            }
-                        },
-                    };
-                    match env.pop_thread_stack_n_times(thread, 2) {
-                        Ok(()) => {
-                            match env
-                                .push_thread_binded_stated_cell(thread, PengBinded::Mutable(res))
-                            {
-                                Ok(()) => {}
-                                Err(e) => {
-                                    return Err(e.push(PengError::InvalidInstruction(instruction)));
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            return Err(e.push(PengError::InvalidInstruction(instruction)));
-                        }
-                    }
-                }
-                Err(e) => {
-                    return Err(e.push(PengError::InvalidInstruction(instruction)));
-                }
-            }
-        }
-
-        PengInstruction::Remainder => {
-            match env.get_thread_2_latests_binded_stated_cell_cloned(thread) {
-                Ok((a, b)) => {
-                    let res: PengCell = match (a.value(), b.value()) {
-                        (aa, bb) => match (aa, bb) {
-                            (PengCell::Int(aaa), PengCell::Int(bbb)) => {
-                                match aaa.checked_rem(*bbb) {
-                                    Some(v) => PengCell::Int(v),
-                                    None => {
-                                        return Err(PengError::InvalidInstruction(instruction));
-                                    }
-                                }
-                            }
-                            (PengCell::Uint(aaa), PengCell::Uint(bbb)) => {
-                                match aaa.checked_rem(*bbb) {
-                                    Some(v) => PengCell::Uint(v),
-                                    None => {
-                                        return Err(PengError::InvalidInstruction(instruction));
-                                    }
-                                }
-                            }
-                            (PengCell::Byte(aaa), PengCell::Byte(bbb)) => {
-                                if *bbb == 0 {
-                                    return Err(PengError::InvalidInstruction(instruction));
-                                }
-
-                                PengCell::Byte(*aaa % *bbb)
-                            }
-                            (PengCell::Float32(aaa), PengCell::Float32(bbb)) => {
-                                PengCell::Float32(aaa % bbb)
-                            }
-                            (PengCell::Float64(aaa), PengCell::Float64(bbb)) => {
-                                PengCell::Float64(aaa % bbb)
-                            }
-                            _ => {
-                                return Err(PengError::InvalidInstruction(instruction));
-                            }
-                        },
-                    };
-                    match env.pop_thread_stack_n_times(thread, 2) {
-                        Ok(()) => {
-                            match env
-                                .push_thread_binded_stated_cell(thread, PengBinded::Mutable(res))
-                            {
-                                Ok(()) => {}
-                                Err(e) => {
-                                    return Err(e.push(PengError::InvalidInstruction(instruction)));
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            return Err(e.push(PengError::InvalidInstruction(instruction)));
-                        }
-                    }
-                }
-                Err(e) => {
-                    return Err(e.push(PengError::InvalidInstruction(instruction)));
-                }
-            }
-        }
+        PengInstruction::Remainder => match execute_binary_numeric_operation(
+            env,
+            thread,
+            instruction,
+            NumericBinaryOperation::Remainder,
+        ) {
+            Ok(()) => {}
+            Err(e) => return Err(e),
+        },
         PengInstruction::Negate => {
             match env.get_thread_latest_binded_stated_cell(thread, 0).cloned() {
                 Ok(cell) => {
                     let value = match cell.value() {
                         cell => match cell {
-                            PengCell::Int(v) => PengCell::Int(-v),
+                            PengCell::Int(v) => match v.checked_neg() {
+                                Some(value) => PengCell::Int(value),
+                                None => {
+                                    return Err(PengError::InvalidInstruction(instruction));
+                                }
+                            },
                             PengCell::Float32(v) => PengCell::Float32(-v),
                             PengCell::Float64(v) => PengCell::Float64(-v),
                             _ => {
