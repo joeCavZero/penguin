@@ -5,29 +5,35 @@ pub fn step_thread(
     thread: PengHeapPtr,
     unit: &PengUnit,
 ) -> Result<Option<PengBindedCell>, PengError> {
-    let (frame_program_counter, frame_base, frame_function_ptr, frame_params_count) =
-        match env.get_heap(thread) {
-            Some(PengValue::Box(PengBox::Thread(thread))) => {
-                if let Some(last_frame) = thread.frames.last() {
-                    (
-                        last_frame.program_counter,
-                        last_frame.base,
-                        last_frame.procedure,
-                        last_frame.params_count,
-                    )
-                } else {
-                    return Ok(None);
-                }
+    let (
+        frame_program_counter,
+        frame_base,
+        frame_function_ptr,
+        frame_params_count,
+        frame_call_position,
+    ) = match env.get_heap(thread) {
+        Some(PengValue::Box(PengBox::Thread(thread))) => {
+            if let Some(last_frame) = thread.frames.last() {
+                (
+                    last_frame.program_counter,
+                    last_frame.base,
+                    last_frame.procedure,
+                    last_frame.params_count,
+                    last_frame.call_position.clone(),
+                )
+            } else {
+                return Ok(None);
             }
+        }
 
-            Some(_) => {
-                return Err(PengError::ExpectedThread);
-            }
+        Some(_) => {
+            return Err(PengError::ExpectedThread);
+        }
 
-            None => {
-                return Err(PengError::ThreadNotFound(thread));
-            }
-        };
+        None => {
+            return Err(PengError::ThreadNotFound(thread));
+        }
+    };
 
     let (ntv_opt, should_end_frame, instruction, instruction_position, constant): (
         Option<PengNativeCallable>,
@@ -71,13 +77,20 @@ pub fn step_thread(
                 (None, false, instr, instr_pos, constant)
             }
 
-            PengFunction::Native(func_ntv) => (
-                Some(PengNativeCallable::Function(func_ntv.clone())),
-                false,
-                PengInstruction::Add,
-                PengPosition::new(0, 0, None),
-                None,
-            ),
+            PengFunction::Native(func_ntv) => {
+                let position = match frame_call_position.clone() {
+                    Some(position) => position,
+                    None => PengPosition::new(0, 0, None),
+                };
+
+                (
+                    Some(PengNativeCallable::Function(func_ntv.clone())),
+                    false,
+                    PengInstruction::FunctionCall(frame_params_count),
+                    position,
+                    None,
+                )
+            }
         },
         Some(PengValue::Box(PengBox::Operation(operation))) => match operation {
             PengOperation::Bytecode(operation_btc) => {
@@ -114,13 +127,20 @@ pub fn step_thread(
                 (None, false, instr, instr_pos, constant)
             }
 
-            PengOperation::Native(operation_ntv) => (
-                Some(PengNativeCallable::Operation(operation_ntv.clone())),
-                false,
-                PengInstruction::Add,
-                PengPosition::new(0, 0, None),
-                None,
-            ),
+            PengOperation::Native(operation_ntv) => {
+                let position = match frame_call_position.clone() {
+                    Some(position) => position,
+                    None => PengPosition::new(0, 0, None),
+                };
+
+                (
+                    Some(PengNativeCallable::Operation(operation_ntv.clone())),
+                    false,
+                    PengInstruction::OperationCall,
+                    position,
+                    None,
+                )
+            }
         },
         Some(_) => {
             return Err(PengError::ExpectedFunction);
@@ -162,8 +182,18 @@ pub fn step_thread(
 
                         match env.recover_thread_try_error(thread) {
                             Ok(true) => return Ok(None),
-                            Ok(false) => return Err(e),
-                            Err(recover_error) => return Err(recover_error),
+                            Ok(false) => {
+                                return Err(PengError::PositionedError {
+                                    error: Box::new(e),
+                                    position: instruction_position,
+                                });
+                            }
+                            Err(recover_error) => {
+                                return Err(PengError::PositionedError {
+                                    error: Box::new(recover_error),
+                                    position: instruction_position,
+                                });
+                            }
                         }
                     }
                 },
@@ -190,8 +220,18 @@ pub fn step_thread(
 
                             match env.recover_thread_try_error(thread) {
                                 Ok(true) => return Ok(None),
-                                Ok(false) => return Err(e),
-                                Err(recover_error) => return Err(recover_error),
+                                Ok(false) => {
+                                    return Err(PengError::PositionedError {
+                                        error: Box::new(e),
+                                        position: instruction_position,
+                                    });
+                                }
+                                Err(recover_error) => {
+                                    return Err(PengError::PositionedError {
+                                        error: Box::new(recover_error),
+                                        position: instruction_position,
+                                    });
+                                }
                             }
                         }
                     }
@@ -279,7 +319,7 @@ pub fn step_thread(
                 None => return Err(PengError::ThreadNotFound(thread)),
             }
 
-            match execute_instruction(instruction.clone(), constant, thread, frame_base, env, unit)
+            match execute_instruction(instruction.clone(), instruction_position.clone(), constant, thread, frame_base, env, unit)
             {
                 Ok(res) => match res {
                     Some(ret) => {
@@ -655,6 +695,7 @@ fn execute_binary_numeric_operation(
 
 pub fn execute_instruction(
     instruction: PengInstruction,
+    instruction_position: PengPosition,
     constant: Option<PengValue>,
     thread: PengHeapPtr,
     frame_base: usize,
@@ -1381,7 +1422,12 @@ pub fn execute_instruction(
             }
         }
         PengInstruction::FunctionCall(args_count) => {
-            match env.execute_function_call(thread, args_count, false) {
+            match env.execute_function_call(
+                thread,
+                args_count,
+                false,
+                Some(instruction_position.clone()),
+            ) {
                 Ok(()) => return Ok(None),
                 Err(e) => {
                     return Err(e.push(PengError::InvalidInstruction(instruction)));
@@ -1978,7 +2024,12 @@ pub fn execute_instruction(
         }
 
         PengInstruction::TryFunctionCall(args_count) => {
-            match env.execute_function_call(thread, args_count, true) {
+            match env.execute_function_call(
+                thread,
+                args_count,
+                true,
+                Some(instruction_position.clone()),
+            ) {
                 Ok(()) => return Ok(None),
                 Err(e) => {
                     return Err(e.push(PengError::InvalidInstruction(instruction)));
@@ -2738,6 +2789,7 @@ pub fn execute_instruction(
 
                     match execute_instruction(
                         PengInstruction::FunctionCall(args_count),
+                        instruction_position.clone(),
                         None,
                         thread,
                         frame_base,
@@ -2810,7 +2862,12 @@ pub fn execute_instruction(
                         None => return Err(PengError::ArithmeticOverflow),
                     };
 
-                    match env.execute_function_call(thread, args_count, true) {
+                    match env.execute_function_call(
+                        thread,
+                        args_count,
+                        true,
+                        Some(instruction_position.clone()),
+                    ) {
                         Ok(()) => return Ok(None),
                         Err(e) => {
                             return Err(e.push(PengError::InvalidInstruction(instruction)));

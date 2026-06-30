@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::time::Instant;
 
+use crate::core::position::*;
 use crate::core::binding::*;
 use crate::core::boxed::*;
 use crate::core::cell::*;
@@ -784,11 +785,12 @@ impl PengEnv {
         base: usize,
         params_count: usize,
         is_try: bool,
+        position: Option<PengPosition>,
     ) -> Result<(), PengError> {
         let frame = if is_try {
-            PengFrame::new_try(function_ptr, base, params_count)
+            PengFrame::new_try_positioned_optional(function_ptr, base, params_count, position)
         } else {
-            PengFrame::new(function_ptr, base, params_count)
+            PengFrame::new_positioned_optional(function_ptr, base, params_count, position)
         };
 
         self.push_thread_frame(thread, frame)
@@ -799,6 +801,7 @@ impl PengEnv {
         thread: PengHeapPtr,
         args_count: usize,
         is_try: bool,
+        position: Option<PengPosition>,
     ) -> Result<(), PengError> {
         let stack_len = match self.get_thread_stack_len(thread) {
             Ok(v) => v,
@@ -841,7 +844,7 @@ impl PengEnv {
                     Err(e) => return Err(e),
                 };
 
-                match self.push_call_frame(thread, function_ptr, function_index, args_count, is_try)
+                match self.push_call_frame(thread, function_ptr, function_index, args_count, is_try, position.clone())
                 {
                     Ok(()) => {}
                     Err(e) => return Err(e),
@@ -885,6 +888,7 @@ impl PengEnv {
                             function_index,
                             expected_count,
                             is_try,
+                            position.clone(),
                         ) {
                             Ok(()) => {}
                             Err(e) => return Err(e),
@@ -934,6 +938,7 @@ impl PengEnv {
                             function_index,
                             fixed_count + 1,
                             is_try,
+                            position.clone()
                         ) {
                             Ok(()) => {}
                             Err(e) => return Err(e),
