@@ -24,6 +24,3 @@ pub use crate::core::{
     garbage_collector::*,
     unit::*,
 };
-pub use crate::lexer::*;
-pub use crate::parser::*;
-pub use crate::generator::*;
