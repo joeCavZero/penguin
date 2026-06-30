@@ -209,7 +209,7 @@ pub fn step_thread(
                         None => PengBinded::Mutable(PengCell::Nil),
                     };
 
-                    let mut ctx = PengNativeOperationCallContext::new(env, left, right);
+                    let mut ctx = PengNativeOperationCallContext::new(env, thread, unit, left, right);
 
                     match ntv_oper.call(&mut ctx) {
                         Ok(ret) => ret,

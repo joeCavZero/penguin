@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::time::Instant;
 
-use crate::core::position::*;
 use crate::core::binding::*;
 use crate::core::boxed::*;
 use crate::core::cell::*;
@@ -11,6 +10,7 @@ use crate::core::error::*;
 use crate::core::frame::*;
 use crate::core::function::*;
 use crate::core::garbage_collector::*;
+use crate::core::position::*;
 use crate::core::runtime::*;
 use crate::core::thread::*;
 use crate::core::unit::*;
@@ -844,8 +844,14 @@ impl PengEnv {
                     Err(e) => return Err(e),
                 };
 
-                match self.push_call_frame(thread, function_ptr, function_index, args_count, is_try, position.clone())
-                {
+                match self.push_call_frame(
+                    thread,
+                    function_ptr,
+                    function_index,
+                    args_count,
+                    is_try,
+                    position.clone(),
+                ) {
                     Ok(()) => {}
                     Err(e) => return Err(e),
                 };
@@ -938,7 +944,7 @@ impl PengEnv {
                             function_index,
                             fixed_count + 1,
                             is_try,
-                            position.clone()
+                            position.clone(),
                         ) {
                             Ok(()) => {}
                             Err(e) => return Err(e),
@@ -1096,14 +1102,105 @@ impl PengEnv {
         function: PengHeapPtr,
         unit: &PengUnit,
     ) -> Result<PengBindedCell, PengError> {
+        match self.run_isolated_with_args(function, unit, Vec::new()) {
+            Ok(result) => Ok(result),
+            Err(e) => Err(e),
+        }
+    }
+
+    pub fn run_isolated_with_args(
+        &mut self,
+        function: PengHeapPtr,
+        unit: &PengUnit,
+        args: Vec<PengBindedCell>,
+    ) -> Result<PengBindedCell, PengError> {
         let old_active_threads = self.active_threads.clone();
+        let mut added_pins = Vec::new();
+
+        for thread in old_active_threads.iter() {
+            if !self.pinned.contains(thread) {
+                self.pinned.insert(*thread);
+                added_pins.push(*thread);
+            }
+        }
 
         self.active_threads.clear();
 
-        let result = self.run(function, unit);
+        let main_thread = self.create_thread(function, 0, args, PengThreadState::Running);
+
+        let result = self.run_scheduler(main_thread, unit);
 
         self.active_threads = old_active_threads;
 
+        for ptr in added_pins {
+            self.pinned.remove(&ptr);
+        }
+
         result
+    }
+
+    pub fn load_function_from_source(
+        &mut self,
+        source: &str,
+        function_name: &str,
+        position_id: usize,
+    ) -> Result<PengHeapPtr, PengError> {
+        let using_unit = PengUnit::library();
+
+        match self.load_function_from_source_using(source, &using_unit, function_name, position_id)
+        {
+            Ok(function) => Ok(function),
+            Err(e) => Err(e),
+        }
+    }
+
+    pub fn load_function_from_source_using(
+        &mut self,
+        source: &str,
+        using_unit: &PengUnit,
+        function_name: &str,
+        position_id: usize,
+    ) -> Result<PengHeapPtr, PengError> {
+        let unit = match self.load_script_from_source_using(source, using_unit, position_id) {
+            Ok(unit) => unit,
+            Err(e) => return Err(e),
+        };
+
+        let name_ptr = self.ensure_pooled_name_ptr(function_name.to_string());
+
+        let function_ptr = match unit.get_global(name_ptr) {
+            Some(value) => *value.value(),
+            None => return Err(PengError::NameNotFound(name_ptr)),
+        };
+
+        match self.get_heap(function_ptr) {
+            Some(PengValue::Box(PengBox::Function(_))) => Ok(function_ptr),
+            Some(_) => Err(PengError::ExpectedFunction),
+            None => Err(PengError::HeapValueNotFound(function_ptr)),
+        }
+    }
+
+    pub fn run_function_from_source_using(
+        &mut self,
+        source: &str,
+        using_unit: &PengUnit,
+        function_name: &str,
+        args: Vec<PengBindedCell>,
+        position_id: usize,
+    ) -> Result<PengBindedCell, PengError> {
+        let function_ptr = match self.load_function_from_source_using(
+            source,
+            using_unit,
+            function_name,
+            position_id,
+        ) {
+            Ok(function_ptr) => function_ptr,
+            Err(e) => return Err(e),
+        };
+
+        match self.run_isolated_with_args(function_ptr, using_unit, args) {
+            Ok(result) => Ok(result),
+            Err(e) => Err(e),
+        }
     }
 }

@@ -1,5 +1,5 @@
-use std::rc::Rc;
 use std::collections::HashMap;
+use std::rc::Rc;
 
 use crate::core::*;
 
@@ -115,7 +115,26 @@ impl PengUnit {
         Ok(())
     }
 
-    pub fn register_native_function<F>(
+    pub fn register_mutable_native_function<F>(
+        &mut self,
+        env: &mut PengEnv,
+        name: &str,
+        function: F,
+    ) -> Result<(), PengError>
+    where
+        F: Fn(&mut PengNativeFunctionCallContext) -> Result<PengBindedCell, PengError> + 'static,
+    {
+        let name_ptr = env.ensure_pooled_name_ptr(name.to_string());
+        let ptr = env.create_heap_value(PengValue::Box(PengBox::Function(
+            PengFunction::new_native(function),
+        )));
+
+        self.insert_global(name_ptr, PengBinded::Mutable(ptr));
+
+        Ok(())
+    }
+
+    pub fn register_immutable_native_function<F>(
         &mut self,
         env: &mut PengEnv,
         name: &str,
@@ -134,15 +153,33 @@ impl PengUnit {
         Ok(())
     }
 
-    pub fn register_native_operation<F>(
+    pub fn register_mutable_native_operation<F>(
         &mut self,
         env: &mut PengEnv,
         name: &str,
         operation: F,
     ) -> Result<(), PengError>
     where
-        F: Fn(&mut PengNativeOperationCallContext) -> Result<PengBindedCell, PengError>
-            + 'static,
+        F: Fn(&mut PengNativeOperationCallContext) -> Result<PengBindedCell, PengError> + 'static,
+    {
+        let name_ptr = env.ensure_pooled_name_ptr(name.to_string());
+        let ptr = env.create_heap_value(PengValue::Box(PengBox::Operation(
+            PengOperation::new_native(operation),
+        )));
+
+        self.insert_global(name_ptr, PengBinded::Mutable(ptr));
+
+        Ok(())
+    }
+
+    pub fn register_immutable_native_operation<F>(
+        &mut self,
+        env: &mut PengEnv,
+        name: &str,
+        operation: F,
+    ) -> Result<(), PengError>
+    where
+        F: Fn(&mut PengNativeOperationCallContext) -> Result<PengBindedCell, PengError> + 'static,
     {
         let name_ptr = env.ensure_pooled_name_ptr(name.to_string());
         let ptr = env.create_heap_value(PengValue::Box(PengBox::Operation(
@@ -183,7 +220,21 @@ impl PengUnit {
         env.create_heap_value(self.create_module_value())
     }
 
-    pub fn register_module(
+    pub fn register_mutable_module(
+        &mut self,
+        env: &mut PengEnv,
+        name: &str,
+        unit: &PengUnit,
+    ) -> Result<(), PengError> {
+        let name_ptr = env.ensure_pooled_name_ptr(name.to_string());
+        let module_ptr = unit.create_module_heap(env);
+
+        self.insert_global(name_ptr, PengBinded::Mutable(module_ptr));
+
+        Ok(())
+    }
+
+    pub fn register_immutable_module(
         &mut self,
         env: &mut PengEnv,
         name: &str,
@@ -193,6 +244,34 @@ impl PengUnit {
         let module_ptr = unit.create_module_heap(env);
 
         self.insert_global(name_ptr, PengBinded::Immutable(module_ptr));
+
+        Ok(())
+    }
+
+    pub fn register_mutable_global(
+        &mut self,
+        env: &mut PengEnv,
+        name: &str,
+        value: PengValue,
+    ) -> Result<(), PengError> {
+        let name_ptr = env.ensure_pooled_name_ptr(name.to_string());
+        let ptr = env.create_heap_value(value);
+
+        self.insert_global(name_ptr, PengBinded::Mutable(ptr));
+
+        Ok(())
+    }
+
+    pub fn register_immutable_global(
+        &mut self,
+        env: &mut PengEnv,
+        name: &str,
+        value: PengValue,
+    ) -> Result<(), PengError> {
+        let name_ptr = env.ensure_pooled_name_ptr(name.to_string());
+        let ptr = env.create_heap_value(value);
+
+        self.insert_global(name_ptr, PengBinded::Immutable(ptr));
 
         Ok(())
     }

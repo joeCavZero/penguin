@@ -14,8 +14,18 @@ pub struct PengNativeFunctionCallContext<'a> {
 }
 
 impl<'a> PengNativeFunctionCallContext<'a> {
-    pub fn new(env: &'a mut PengEnv, thread: PengHeapPtr, unit: &'a PengUnit, args: Vec<PengBindedCell>) -> Self {
-        Self { env, thread, unit, args }
+    pub fn new(
+        env: &'a mut PengEnv,
+        thread: PengHeapPtr,
+        unit: &'a PengUnit,
+        args: Vec<PengBindedCell>,
+    ) -> Self {
+        Self {
+            env,
+            thread,
+            unit,
+            args,
+        }
     }
 
     pub fn env(&self) -> &PengEnv {
@@ -110,24 +120,78 @@ impl<'a> PengNativeFunctionCallContext<'a> {
         PengCell::Reference(self.create_box(value))
     }
 
-    pub fn create_box_binded_cell(&mut self, value: PengBox) -> PengBindedCell {
+    pub fn create_mutable_box_binded_cell(&mut self, value: PengBox) -> PengBindedCell {
         PengBinded::Mutable(self.create_box_cell(value))
     }
 
     pub fn create_immutable_box_binded_cell(&mut self, value: PengBox) -> PengBindedCell {
         PengBinded::Immutable(self.create_box_cell(value))
     }
+
+    pub fn load_penguin_function_from_source(
+        &mut self,
+        source: &str,
+        function_name: &str,
+        position_id: usize,
+    ) -> Result<PengHeapPtr, PengError> {
+        let using_unit = (*self.unit).clone();
+
+        match self.env.load_function_from_source_using(
+            source,
+            &using_unit,
+            function_name,
+            position_id,
+        ) {
+            Ok(function) => Ok(function),
+            Err(e) => Err(e),
+        }
+    }
+
+    pub fn run_penguin_function_from_source(
+        &mut self,
+        source: &str,
+        function_name: &str,
+        args: Vec<PengBindedCell>,
+        position_id: usize,
+    ) -> Result<PengBindedCell, PengError> {
+        let using_unit = (*self.unit).clone();
+
+        match self.env.run_function_from_source_using(
+            source,
+            &using_unit,
+            function_name,
+            args,
+            position_id,
+        ) {
+            Ok(result) => Ok(result),
+            Err(e) => Err(e),
+        }
+    }
 }
 
 pub struct PengNativeOperationCallContext<'a> {
     env: &'a mut PengEnv,
+    thread: PengHeapPtr,
+    unit: &'a PengUnit,
     left: PengBindedCell,
     right: PengBindedCell,
 }
 
 impl<'a> PengNativeOperationCallContext<'a> {
-    pub fn new(env: &'a mut PengEnv, left: PengBindedCell, right: PengBindedCell) -> Self {
-        Self { env, left, right }
+    pub fn new(
+        env: &'a mut PengEnv,
+        thread: PengHeapPtr,
+        unit: &'a PengUnit,
+        left: PengBindedCell,
+        right: PengBindedCell,
+    ) -> Self {
+        Self {
+            env,
+            thread,
+            unit,
+            left,
+            right,
+        }
     }
 
     pub fn env(&self) -> &PengEnv {
@@ -136,6 +200,38 @@ impl<'a> PengNativeOperationCallContext<'a> {
 
     pub fn env_mut(&mut self) -> &mut PengEnv {
         self.env
+    }
+
+    pub fn unit(&self) -> &PengUnit {
+        self.unit
+    }
+
+    pub fn thread(&self) -> PengHeapPtr {
+        self.thread
+    }
+
+    pub fn set_current_thread_state(&mut self, state: PengThreadState) -> Result<(), PengError> {
+        match self.env.get_heap_mut(self.thread) {
+            Some(PengValue::Box(PengBox::Thread(thread))) => {
+                thread.state = state;
+                Ok(())
+            }
+
+            Some(_) => Err(PengError::ExpectedThread),
+            None => Err(PengError::ThreadNotFound(self.thread)),
+        }
+    }
+
+    pub fn yield_now(&mut self) -> Result<(), PengError> {
+        match self.env.get_heap_mut(self.thread) {
+            Some(PengValue::Box(PengBox::Thread(thread))) => {
+                thread.quantum = 0;
+                Ok(())
+            }
+
+            Some(_) => Err(PengError::ExpectedThread),
+            None => Err(PengError::ThreadNotFound(self.thread)),
+        }
     }
 
     pub fn get_left_cell(&self) -> &PengBindedCell {
@@ -222,11 +318,51 @@ impl<'a> PengNativeOperationCallContext<'a> {
         PengCell::Reference(self.create_box(value))
     }
 
-    pub fn create_box_binded_cell(&mut self, value: PengBox) -> PengBindedCell {
+    pub fn create_mutable_box_binded_cell(&mut self, value: PengBox) -> PengBindedCell {
         PengBinded::Mutable(self.create_box_cell(value))
     }
 
     pub fn create_immutable_box_binded_cell(&mut self, value: PengBox) -> PengBindedCell {
         PengBinded::Immutable(self.create_box_cell(value))
+    }
+
+    pub fn load_penguin_function_from_source(
+        &mut self,
+        source: &str,
+        function_name: &str,
+        position_id: usize,
+    ) -> Result<PengHeapPtr, PengError> {
+        let using_unit = (*self.unit).clone();
+
+        match self.env.load_function_from_source_using(
+            source,
+            &using_unit,
+            function_name,
+            position_id,
+        ) {
+            Ok(function) => Ok(function),
+            Err(e) => Err(e),
+        }
+    }
+
+    pub fn run_penguin_function_from_source(
+        &mut self,
+        source: &str,
+        function_name: &str,
+        args: Vec<PengBindedCell>,
+        position_id: usize,
+    ) -> Result<PengBindedCell, PengError> {
+        let using_unit = (*self.unit).clone();
+
+        match self.env.run_function_from_source_using(
+            source,
+            &using_unit,
+            function_name,
+            args,
+            position_id,
+        ) {
+            Ok(result) => Ok(result),
+            Err(e) => Err(e),
+        }
     }
 }
