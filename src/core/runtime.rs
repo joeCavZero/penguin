@@ -209,7 +209,8 @@ pub fn step_thread(
                         None => PengBinded::Mutable(PengCell::Nil),
                     };
 
-                    let mut ctx = PengNativeOperationCallContext::new(env, thread, unit, left, right);
+                    let mut ctx =
+                        PengNativeOperationCallContext::new(env, thread, unit, left, right);
 
                     match ntv_oper.call(&mut ctx) {
                         Ok(ret) => ret,
@@ -319,8 +320,15 @@ pub fn step_thread(
                 None => return Err(PengError::ThreadNotFound(thread)),
             }
 
-            match execute_instruction(instruction.clone(), instruction_position.clone(), constant, thread, frame_base, env, unit)
-            {
+            match execute_instruction(
+                instruction.clone(),
+                instruction_position.clone(),
+                constant,
+                thread,
+                frame_base,
+                env,
+                unit,
+            ) {
                 Ok(res) => match res {
                     Some(ret) => {
                         let frame = match env.pop_thread_frame(thread) {
@@ -666,6 +674,36 @@ fn binary_numeric_cells(
     }
 }
 
+fn resolve_numeric_cell(env: &PengEnv, cell: &PengCell) -> Result<PengCell, PengError> {
+    match cell {
+        PengCell::Int(_)
+        | PengCell::Uint(_)
+        | PengCell::Byte(_)
+        | PengCell::Float32(_)
+        | PengCell::Float64(_) => Ok(cell.clone()),
+
+        PengCell::Reference(ptr) => {
+            match env.get_heap(*ptr) {
+                Some(PengValue::Cell(value)) => match value {
+                    PengCell::Int(_)
+                    | PengCell::Uint(_)
+                    | PengCell::Byte(_)
+                    | PengCell::Float32(_)
+                    | PengCell::Float64(_) => Ok(value.clone()),
+
+                    _ => Err(PengError::InvalidInstruction(PengInstruction::Divide)),
+                },
+
+                Some(_) => Err(PengError::ExpectedNumber),
+
+                None => Err(PengError::HeapValueNotFound(*ptr)),
+            }
+        }
+
+        _ => Err(PengError::ExpectedNumber),
+    }
+}
+
 fn execute_binary_numeric_operation(
     env: &mut PengEnv,
     thread: PengHeapPtr,
@@ -677,7 +715,17 @@ fn execute_binary_numeric_operation(
         Err(e) => return Err(e.push(PengError::InvalidInstruction(instruction))),
     };
 
-    let result = match binary_numeric_cells(left.value(), right.value(), operation) {
+    let left_cell = match resolve_numeric_cell(env, left.value()) {
+        Ok(cell) => cell,
+        Err(e) => return Err(e.push(PengError::InvalidInstruction(instruction))),
+    };
+
+    let right_cell = match resolve_numeric_cell(env, right.value()) {
+        Ok(cell) => cell,
+        Err(e) => return Err(e.push(PengError::InvalidInstruction(instruction))),
+    };
+
+    let result = match binary_numeric_cells(&left_cell, &right_cell, operation) {
         Some(result) => result,
         None => return Err(PengError::InvalidInstruction(instruction)),
     };

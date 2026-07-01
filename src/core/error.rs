@@ -108,6 +108,8 @@ pub enum PengError {
 
     ExpectedUnion,
 
+    ExpectedNumber,
+
     // ======================
     // Erros de operação
     // ======================
