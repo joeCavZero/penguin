@@ -131,18 +131,15 @@ impl<'a> PengNativeFunctionCallContext<'a> {
     pub fn load_penguin_function_from_source(
         &mut self,
         source: &str,
-        function_name: &str,
         position_id: usize,
     ) -> Result<PengHeapPtr, PengError> {
         let using_unit = (*self.unit).clone();
 
-        match self.env.load_function_from_source_using(
-            source,
-            &using_unit,
-            function_name,
-            position_id,
-        ) {
-            Ok(function) => Ok(function),
+        match self
+            .env
+            .load_function_from_source_using(source, &using_unit, position_id)
+        {
+            Ok((function, _unit)) => Ok(function),
             Err(e) => Err(e),
         }
     }
@@ -150,19 +147,15 @@ impl<'a> PengNativeFunctionCallContext<'a> {
     pub fn run_penguin_function_from_source(
         &mut self,
         source: &str,
-        function_name: &str,
         args: Vec<PengBindedCell>,
         position_id: usize,
     ) -> Result<PengBindedCell, PengError> {
         let using_unit = (*self.unit).clone();
 
-        match self.env.run_function_from_source_using(
-            source,
-            &using_unit,
-            function_name,
-            args,
-            position_id,
-        ) {
+        match self
+            .env
+            .run_function_from_source_using(source, &using_unit, args, position_id)
+        {
             Ok(result) => Ok(result),
             Err(e) => Err(e),
         }
@@ -329,18 +322,15 @@ impl<'a> PengNativeOperationCallContext<'a> {
     pub fn load_penguin_function_from_source(
         &mut self,
         source: &str,
-        function_name: &str,
         position_id: usize,
     ) -> Result<PengHeapPtr, PengError> {
         let using_unit = (*self.unit).clone();
 
-        match self.env.load_function_from_source_using(
-            source,
-            &using_unit,
-            function_name,
-            position_id,
-        ) {
-            Ok(function) => Ok(function),
+        match self
+            .env
+            .load_function_from_source_using(source, &using_unit, position_id)
+        {
+            Ok((function, _unit)) => Ok(function),
             Err(e) => Err(e),
         }
     }
@@ -348,19 +338,15 @@ impl<'a> PengNativeOperationCallContext<'a> {
     pub fn run_penguin_function_from_source(
         &mut self,
         source: &str,
-        function_name: &str,
         args: Vec<PengBindedCell>,
         position_id: usize,
     ) -> Result<PengBindedCell, PengError> {
         let using_unit = (*self.unit).clone();
 
-        match self.env.run_function_from_source_using(
-            source,
-            &using_unit,
-            function_name,
-            args,
-            position_id,
-        ) {
+        match self
+            .env
+            .run_function_from_source_using(source, &using_unit, args, position_id)
+        {
             Ok(result) => Ok(result),
             Err(e) => Err(e),
         }

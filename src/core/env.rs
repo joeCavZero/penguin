@@ -1224,63 +1224,75 @@ impl PengEnv {
     pub fn load_function_from_source(
         &mut self,
         source: &str,
-        function_name: &str,
         position_id: usize,
-    ) -> Result<PengHeapPtr, PengError> {
+    ) -> Result<(PengHeapPtr, PengUnit), PengError> {
         let using_unit = PengUnit::library();
 
-        match self.load_function_from_source_using(source, &using_unit, function_name, position_id)
-        {
-            Ok(function) => Ok(function),
-            Err(e) => Err(e),
-        }
+        self.load_function_from_source_using(source, &using_unit, position_id)
     }
 
     pub fn load_function_from_source_using(
         &mut self,
         source: &str,
         using_unit: &PengUnit,
-        function_name: &str,
         position_id: usize,
-    ) -> Result<PengHeapPtr, PengError> {
+    ) -> Result<(PengHeapPtr, PengUnit), PengError> {
         let unit = match self.load_script_from_source_using(source, using_unit, position_id) {
             Ok(unit) => unit,
             Err(e) => return Err(e),
         };
 
-        let name_ptr = self.ensure_pooled_name_ptr(function_name.to_string());
+        let init = match unit.init() {
+            Some(init) => init,
+            None => {
+                return Err(PengError::InvalidState(
+                    "source did not generate init function".to_string(),
+                ));
+            }
+        };
 
-        let function_ptr = match unit.get_global(name_ptr) {
-            Some(value) => *value.value(),
-            None => return Err(PengError::NameNotFound(name_ptr)),
+        let result = match self.run_isolated(init, &unit) {
+            Ok(result) => result,
+            Err(e) => return Err(e),
+        };
+
+        let function_ptr = match result.value() {
+            PengCell::Reference(ptr) => *ptr,
+            _ => return Err(PengError::ExpectedFunction),
         };
 
         match self.get_heap(function_ptr) {
-            Some(PengValue::Box(PengBox::Function(_))) => Ok(function_ptr),
+            Some(PengValue::Box(PengBox::Function(_))) => Ok((function_ptr, unit)),
             Some(_) => Err(PengError::ExpectedFunction),
             None => Err(PengError::HeapValueNotFound(function_ptr)),
         }
+    }
+
+    pub fn run_function_from_source(
+        &mut self,
+        source: &str,
+        args: Vec<PengBindedCell>,
+        position_id: usize,
+    ) -> Result<PengBindedCell, PengError> {
+        let using_unit = PengUnit::library();
+
+        self.run_function_from_source_using(source, &using_unit, args, position_id)
     }
 
     pub fn run_function_from_source_using(
         &mut self,
         source: &str,
         using_unit: &PengUnit,
-        function_name: &str,
         args: Vec<PengBindedCell>,
         position_id: usize,
     ) -> Result<PengBindedCell, PengError> {
-        let function_ptr = match self.load_function_from_source_using(
-            source,
-            using_unit,
-            function_name,
-            position_id,
-        ) {
-            Ok(function_ptr) => function_ptr,
-            Err(e) => return Err(e),
-        };
+        let (function_ptr, unit) =
+            match self.load_function_from_source_using(source, using_unit, position_id) {
+                Ok(result) => result,
+                Err(e) => return Err(e),
+            };
 
-        match self.run_isolated_with_args(function_ptr, using_unit, args) {
+        match self.run_isolated_with_args(function_ptr, &unit, args) {
             Ok(result) => Ok(result),
             Err(e) => Err(e),
         }
