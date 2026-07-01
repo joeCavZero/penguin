@@ -365,32 +365,41 @@ impl PengEnv {
                     PengThreadState::Waiting(waiting_for) => {
                         any_running = true;
 
-                        let target_state = match self.get_thread(waiting_for) {
-                            Ok(thread) => thread.state.clone(),
+                        match self.get_heap(waiting_for) {
+                            Some(PengValue::Box(PengBox::Thread(target_thread))) => {
+                                match target_thread.state {
+                                    PengThreadState::Finished
+                                    | PengThreadState::Failed
+                                    | PengThreadState::Cancelled => {
+                                        match self.get_thread_mut(thread_ptr) {
+                                            Ok(thread) => {
+                                                thread.state = PengThreadState::Running;
+                                            }
 
-                            Err(PengError::ThreadNotFound(_)) => {
-                                match self.get_thread_mut(thread_ptr) {
-                                    Ok(thread) => {
-                                        thread.state = PengThreadState::Running;
+                                            Err(e) => {
+                                                return Err(e);
+                                            }
+                                        }
                                     }
 
-                                    Err(e) => {
-                                        return Err(e);
-                                    }
+                                    _ => {}
                                 }
-
-                                continue;
                             }
 
-                            Err(e) => {
-                                return Err(e);
+                            Some(_) => {
+                                // O ponteiro existe, mas não aponta para uma thread.
+                                // Isso significa que a thread atual está esperando um recurso
+                                // genérico, como Mutex, Channel ou Once.
+                                //
+                                // O scheduler não deve acordar essa thread automaticamente.
+                                // Ela só deve voltar para Running quando alguma native chamar:
+                                //
+                                // env.wake_thread(waiting_for)
+                                // ou
+                                // env.wake_threads(waiting_for)
                             }
-                        };
 
-                        match target_state {
-                            PengThreadState::Finished
-                            | PengThreadState::Failed
-                            | PengThreadState::Cancelled => match self.get_thread_mut(thread_ptr) {
+                            None => match self.get_thread_mut(thread_ptr) {
                                 Ok(thread) => {
                                     thread.state = PengThreadState::Running;
                                 }
@@ -399,8 +408,6 @@ impl PengEnv {
                                     return Err(e);
                                 }
                             },
-
-                            _ => {}
                         }
                     }
 
@@ -1095,6 +1102,81 @@ impl PengEnv {
             }
             Err(e) => Err(e.push(PengError::ThreadNotFound(thread))),
         }
+    }
+
+    pub fn wake_thread(&mut self, resource: PengHeapPtr) -> Result<bool, PengError> {
+        let threads: Vec<PengHeapPtr> = self.active_threads.iter().cloned().collect();
+
+        for thread_ptr in threads {
+            let should_wake = match self.get_thread(thread_ptr) {
+                Ok(thread) => match thread.state {
+                    PengThreadState::Waiting(waiting_for) => waiting_for == resource,
+                    _ => false,
+                },
+
+                Err(PengError::ThreadNotFound(_)) => {
+                    self.active_threads.remove(&thread_ptr);
+                    false
+                }
+
+                Err(e) => {
+                    return Err(e);
+                }
+            };
+
+            if should_wake {
+                match self.get_thread_mut(thread_ptr) {
+                    Ok(thread) => {
+                        thread.state = PengThreadState::Running;
+                        return Ok(true);
+                    }
+
+                    Err(e) => {
+                        return Err(e);
+                    }
+                }
+            }
+        }
+
+        Ok(false)
+    }
+
+    pub fn wake_threads(&mut self, resource: PengHeapPtr) -> Result<usize, PengError> {
+        let mut count = 0usize;
+        let threads: Vec<PengHeapPtr> = self.active_threads.iter().cloned().collect();
+
+        for thread_ptr in threads {
+            let should_wake = match self.get_thread(thread_ptr) {
+                Ok(thread) => match thread.state {
+                    PengThreadState::Waiting(waiting_for) => waiting_for == resource,
+                    _ => false,
+                },
+
+                Err(PengError::ThreadNotFound(_)) => {
+                    self.active_threads.remove(&thread_ptr);
+                    false
+                }
+
+                Err(e) => {
+                    return Err(e);
+                }
+            };
+
+            if should_wake {
+                match self.get_thread_mut(thread_ptr) {
+                    Ok(thread) => {
+                        thread.state = PengThreadState::Running;
+                        count += 1;
+                    }
+
+                    Err(e) => {
+                        return Err(e);
+                    }
+                }
+            }
+        }
+
+        Ok(count)
     }
 
     pub fn run_isolated(
