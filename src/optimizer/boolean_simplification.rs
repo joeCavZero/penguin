@@ -7,24 +7,15 @@ pub fn simplify_expression(
     let position = expression.position.clone();
 
     match expression.value {
-        PengExpression::Unary { operator, value } => {
-            simplify_unary(operator, *value, position)
-        }
+        PengExpression::Unary { operator, value } => simplify_unary(operator, *value, position),
 
         PengExpression::Binary {
             left,
             operator,
             right,
-        } => {
-            simplify_binary(*left, operator, *right, position)
-        }
+        } => simplify_binary(*left, operator, *right, position),
 
-        value => {
-            Ok(PengPositioned {
-                position,
-                value,
-            })
-        }
+        value => Ok(PengPositioned { position, value }),
     }
 }
 
@@ -67,30 +58,26 @@ fn simplify_unary(
                     })
                 }
 
-                value => {
-                    Ok(PengPositioned {
-                        position: position.clone(),
-                        value: PengExpression::Unary {
-                            operator: PengUnaryOperator::Not,
-                            value: Box::new(PengPositioned {
-                                position: position.clone(),
-                                value,
-                            }),
-                        },
-                    })
-                }
+                value => Ok(PengPositioned {
+                    position: position.clone(),
+                    value: PengExpression::Unary {
+                        operator: PengUnaryOperator::Not,
+                        value: Box::new(PengPositioned {
+                            position: position.clone(),
+                            value,
+                        }),
+                    },
+                }),
             }
         }
 
-        PengUnaryOperator::Negate => {
-            Ok(PengPositioned {
-                position,
-                value: PengExpression::Unary {
-                    operator: PengUnaryOperator::Negate,
-                    value: Box::new(value),
-                },
-            })
-        }
+        PengUnaryOperator::Negate => Ok(PengPositioned {
+            position,
+            value: PengExpression::Unary {
+                operator: PengUnaryOperator::Negate,
+                value: Box::new(value),
+            },
+        }),
     }
 }
 
@@ -101,13 +88,9 @@ fn simplify_binary(
     position: PengPosition,
 ) -> Result<PengPositionedExpression, PengError> {
     match operator {
-        PengBinaryOperator::ShortCircuitAnd => {
-            simplify_short_circuit_and(left, right, position)
-        }
+        PengBinaryOperator::ShortCircuitAnd => simplify_short_circuit_and(left, right, position),
 
-        PengBinaryOperator::ShortCircuitOr => {
-            simplify_short_circuit_or(left, right, position)
-        }
+        PengBinaryOperator::ShortCircuitOr => simplify_short_circuit_or(left, right, position),
 
         PengBinaryOperator::NonShortCircuitAnd => {
             simplify_non_short_circuit_and(left, right, position)
@@ -117,24 +100,18 @@ fn simplify_binary(
             simplify_non_short_circuit_or(left, right, position)
         }
 
-        PengBinaryOperator::Equals => {
-            simplify_bool_equals(left, right, position, false)
-        }
+        PengBinaryOperator::Equals => simplify_bool_equals(left, right, position, false),
 
-        PengBinaryOperator::NotEquals => {
-            simplify_bool_equals(left, right, position, true)
-        }
+        PengBinaryOperator::NotEquals => simplify_bool_equals(left, right, position, true),
 
-        _ => {
-            Ok(PengPositioned {
-                position,
-                value: PengExpression::Binary {
-                    left: Box::new(left),
-                    operator,
-                    right: Box::new(right),
-                },
-            })
-        }
+        _ => Ok(PengPositioned {
+            position,
+            value: PengExpression::Binary {
+                left: Box::new(left),
+                operator,
+                right: Box::new(right),
+            },
+        }),
     }
 }
 
@@ -354,21 +331,16 @@ fn simplify_bool_equals(
 
 fn bool_literal_value(expression: &PengPositionedExpression) -> Option<bool> {
     match &expression.value {
-        PengExpression::Literal(literal) => {
-            match &literal.value {
-                PengLiteral::Bool(v) => Some(*v),
-                _ => None,
-            }
-        }
+        PengExpression::Literal(literal) => match &literal.value {
+            PengLiteral::Bool(v) => Some(*v),
+            _ => None,
+        },
 
         _ => None,
     }
 }
 
-fn bool_literal_expression(
-    value: bool,
-    position: PengPosition,
-) -> PengPositionedExpression {
+fn bool_literal_expression(value: bool, position: PengPosition) -> PengPositionedExpression {
     PengPositioned {
         position: position.clone(),
         value: PengExpression::Literal(PengPositioned {
@@ -393,34 +365,30 @@ fn not_expression(
 
 fn is_known_bool_expression(expression: &PengExpression) -> bool {
     match expression {
-        PengExpression::Literal(literal) => {
-            match &literal.value {
-                PengLiteral::Bool(_) => true,
-                _ => false,
-            }
-        }
+        PengExpression::Literal(literal) => match &literal.value {
+            PengLiteral::Bool(_) => true,
+            _ => false,
+        },
 
         PengExpression::Unary {
             operator: PengUnaryOperator::Not,
             ..
         } => true,
 
-        PengExpression::Binary { operator, .. } => {
-            match operator {
-                PengBinaryOperator::ShortCircuitAnd
-                | PengBinaryOperator::ShortCircuitOr
-                | PengBinaryOperator::NonShortCircuitAnd
-                | PengBinaryOperator::NonShortCircuitOr
-                | PengBinaryOperator::Equals
-                | PengBinaryOperator::NotEquals
-                | PengBinaryOperator::GreaterThan
-                | PengBinaryOperator::GreaterEqualsThan
-                | PengBinaryOperator::LessThan
-                | PengBinaryOperator::LessEqualsThan => true,
+        PengExpression::Binary { operator, .. } => match operator {
+            PengBinaryOperator::ShortCircuitAnd
+            | PengBinaryOperator::ShortCircuitOr
+            | PengBinaryOperator::NonShortCircuitAnd
+            | PengBinaryOperator::NonShortCircuitOr
+            | PengBinaryOperator::Equals
+            | PengBinaryOperator::NotEquals
+            | PengBinaryOperator::GreaterThan
+            | PengBinaryOperator::GreaterEqualsThan
+            | PengBinaryOperator::LessThan
+            | PengBinaryOperator::LessEqualsThan => true,
 
-                _ => false,
-            }
-        }
+            _ => false,
+        },
 
         _ => false,
     }

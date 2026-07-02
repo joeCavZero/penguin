@@ -45,20 +45,13 @@ impl PengConstantPropagationScope {
         declaration: &PengBindedDeclaration,
     ) -> Result<(), PengError> {
         match declaration {
-            PengBinded::Immutable(declaration) => {
-                self.record_immutable_declaration(declaration)
-            }
+            PengBinded::Immutable(declaration) => self.record_immutable_declaration(declaration),
 
-            PengBinded::Mutable(declaration) => {
-                self.record_mutable_declaration(declaration)
-            }
+            PengBinded::Mutable(declaration) => self.record_mutable_declaration(declaration),
         }
     }
 
-    pub fn record_assignment(
-        &mut self,
-        assignment: &PengAssignStatement,
-    ) -> Result<(), PengError> {
+    pub fn record_assignment(&mut self, assignment: &PengAssignStatement) -> Result<(), PengError> {
         match assignment {
             PengAssignStatement::Assign { target, .. }
             | PengAssignStatement::AddAssign { target, .. }
@@ -81,10 +74,7 @@ impl PengConstantPropagationScope {
         let name = match expression.value {
             PengExpression::Identifier(name) => name,
             value => {
-                return Ok(PengPositioned {
-                    position,
-                    value,
-                });
+                return Ok(PengPositioned { position, value });
             }
         };
 
@@ -192,9 +182,7 @@ impl PengConstantPropagationScope {
         target: &PengPositionedExpression,
     ) -> Result<(), PengError> {
         match &target.value {
-            PengExpression::Identifier(name) => {
-                self.block_name_in_all_frames(name.value.clone())
-            }
+            PengExpression::Identifier(name) => self.block_name_in_all_frames(name.value.clone()),
 
             /*
                 Conservador:
@@ -280,9 +268,7 @@ impl PengConstantPropagationScope {
 
 pub fn can_propagate_expression(expression: &PengPositionedExpression) -> bool {
     match &expression.value {
-        PengExpression::Literal(literal) => {
-            can_propagate_literal(&literal.value)
-        }
+        PengExpression::Literal(literal) => can_propagate_literal(&literal.value),
 
         _ => false,
     }

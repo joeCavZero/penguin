@@ -1,10 +1,10 @@
-use std::collections::HashMap;
-use crate::core::utils::*;
 use crate::core::cell::*;
+use crate::core::utils::*;
+use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
 pub struct PengModule {
-    pub members: HashMap<PengNamePoolPtr, PengBindedCell>
+    pub members: HashMap<PengNamePoolPtr, PengBindedCell>,
 }
 
 impl PengModule {
@@ -15,11 +15,12 @@ impl PengModule {
     }
     pub fn equals(&self, rhs: &Self) -> bool {
         self.members.len() == rhs.members.len()
-            && self.members.iter().all(|(name, value)| {
-                match rhs.members.get(name) {
+            && self
+                .members
+                .iter()
+                .all(|(name, value)| match rhs.members.get(name) {
                     Some(rhs_value) => value.equals(rhs_value),
                     None => false,
-                }
-            })
+                })
     }
 }

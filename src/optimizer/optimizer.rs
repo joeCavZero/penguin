@@ -8,19 +8,12 @@ use crate::optimizer::constant_propagation;
 use crate::optimizer::dead_code;
 use crate::optimizer::empty_blocks;
 
-pub fn optimize_ast(
-    ast: PengAST,
-    config: PengOptimizerConfig,
-) -> Result<PengAST, PengError> {
+pub fn optimize_ast(ast: PengAST, config: PengOptimizerConfig) -> Result<PengAST, PengError> {
     let mut constants = constant_propagation::PengConstantPropagationScope::new();
 
     match ast {
         PengAST::Program(declarations) => {
-            let declarations = match optimize_declarations(
-                declarations,
-                &config,
-                &mut constants,
-            ) {
+            let declarations = match optimize_declarations(declarations, &config, &mut constants) {
                 Ok(v) => v,
                 Err(e) => {
                     return Err(e.push(PengError::SyntaxError(
@@ -33,11 +26,7 @@ pub fn optimize_ast(
         }
 
         PengAST::Script(statements) => {
-            let statements = match optimize_statements(
-                statements,
-                &config,
-                &mut constants,
-            ) {
+            let statements = match optimize_statements(statements, &config, &mut constants) {
                 Ok(v) => v,
                 Err(e) => {
                     return Err(e.push(PengError::SyntaxError(
@@ -59,11 +48,7 @@ fn optimize_declarations(
     let mut optimized = Vec::new();
 
     for declaration in declarations {
-        let declaration = match optimize_binded_declaration(
-            declaration,
-            config,
-            constants,
-        ) {
+        let declaration = match optimize_binded_declaration(declaration, config, constants) {
             Ok(v) => v,
             Err(e) => {
                 return Err(e.push(PengError::SyntaxError(
@@ -90,11 +75,7 @@ fn optimize_binded_declaration(
 ) -> Result<PengBindedDeclaration, PengError> {
     match declaration {
         PengBinded::Mutable(declaration) => {
-            let declaration = match optimize_declaration(
-                declaration,
-                config,
-                constants,
-            ) {
+            let declaration = match optimize_declaration(declaration, config, constants) {
                 Ok(v) => v,
                 Err(e) => return Err(e),
             };
@@ -103,11 +84,7 @@ fn optimize_binded_declaration(
         }
 
         PengBinded::Immutable(declaration) => {
-            let declaration = match optimize_declaration(
-                declaration,
-                config,
-                constants,
-            ) {
+            let declaration = match optimize_declaration(declaration, config, constants) {
                 Ok(v) => v,
                 Err(e) => return Err(e),
             };
@@ -126,11 +103,7 @@ fn optimize_declaration(
         PengDeclaration::Var(declaration) => {
             let value = match declaration.value.value {
                 Some(expression) => {
-                    let expression = match optimize_expression(
-                        expression,
-                        config,
-                        constants,
-                    ) {
+                    let expression = match optimize_expression(expression, config, constants) {
                         Ok(v) => v,
                         Err(e) => return Err(e),
                     };
@@ -152,11 +125,7 @@ fn optimize_declaration(
         }
 
         PengDeclaration::As(declaration) => {
-            let value = match optimize_expression(
-                declaration.value.value,
-                config,
-                constants,
-            ) {
+            let value = match optimize_expression(declaration.value.value, config, constants) {
                 Ok(v) => v,
                 Err(e) => return Err(e),
             };
@@ -172,10 +141,7 @@ fn optimize_declaration(
         }
 
         PengDeclaration::Function(declaration) => {
-            let body = match optimize_function_body(
-                declaration.value.body,
-                config,
-            ) {
+            let body = match optimize_function_body(declaration.value.body, config) {
                 Ok(v) => v,
                 Err(e) => return Err(e),
             };
@@ -192,22 +158,17 @@ fn optimize_declaration(
         }
 
         PengDeclaration::Type(declaration) => {
-            let fields = match optimize_variable_declarations(
-                declaration.value.fields,
-                config,
-                constants,
-            ) {
-                Ok(v) => v,
-                Err(e) => return Err(e),
-            };
+            let fields =
+                match optimize_variable_declarations(declaration.value.fields, config, constants) {
+                    Ok(v) => v,
+                    Err(e) => return Err(e),
+                };
 
-            let functions = match optimize_function_declarations(
-                declaration.value.functions,
-                config,
-            ) {
-                Ok(v) => v,
-                Err(e) => return Err(e),
-            };
+            let functions =
+                match optimize_function_declarations(declaration.value.functions, config) {
+                    Ok(v) => v,
+                    Err(e) => return Err(e),
+                };
 
             Ok(PengDeclaration::Type(PengPositioned {
                 position: declaration.position,
@@ -222,8 +183,7 @@ fn optimize_declaration(
         }
 
         PengDeclaration::Module(declaration) => {
-            let mut module_constants =
-                constant_propagation::PengConstantPropagationScope::new();
+            let mut module_constants = constant_propagation::PengConstantPropagationScope::new();
 
             let body = match optimize_declarations(
                 declaration.value.body,
@@ -244,10 +204,7 @@ fn optimize_declaration(
         }
 
         PengDeclaration::Operation(declaration) => {
-            let body = match optimize_function_body(
-                declaration.value.body,
-                config,
-            ) {
+            let body = match optimize_function_body(declaration.value.body, config) {
                 Ok(v) => v,
                 Err(e) => return Err(e),
             };
@@ -279,11 +236,7 @@ fn optimize_variable_declarations(
         };
         let value = match declaration.value.value {
             Some(expression) => {
-                let expression = match optimize_expression(
-                    expression,
-                    config,
-                    constants,
-                ) {
+                let expression = match optimize_expression(expression, config, constants) {
                     Ok(v) => v,
                     Err(e) => return Err(e),
                 };
@@ -323,10 +276,7 @@ fn optimize_function_declarations(
             PengBinded::Mutable(declaration) => (declaration, false),
             PengBinded::Immutable(declaration) => (declaration, true),
         };
-        let body = match optimize_function_body(
-            declaration.value.body,
-            config,
-        ) {
+        let body = match optimize_function_body(declaration.value.body, config) {
             Ok(v) => v,
             Err(e) => return Err(e),
         };
@@ -372,11 +322,7 @@ fn optimize_statements(
     let mut optimized = Vec::new();
 
     for statement in statements {
-        let statement = match optimize_statement(
-            statement,
-            config,
-            constants,
-        ) {
+        let statement = match optimize_statement(statement, config, constants) {
             Ok(v) => v,
             Err(e) => return Err(e),
         };
@@ -428,11 +374,7 @@ fn optimize_statement(
             let mut block_constants = constants.clone();
             block_constants.push_frame();
 
-            let statements = match optimize_statements(
-                statements,
-                config,
-                &mut block_constants,
-            ) {
+            let statements = match optimize_statements(statements, config, &mut block_constants) {
                 Ok(v) => v,
                 Err(e) => return Err(e),
             };
@@ -441,11 +383,7 @@ fn optimize_statement(
         }
 
         PengStatement::Declaration(declaration) => {
-            let declaration = match optimize_binded_declaration(
-                declaration,
-                config,
-                constants,
-            ) {
+            let declaration = match optimize_binded_declaration(declaration, config, constants) {
                 Ok(v) => v,
                 Err(e) => return Err(e),
             };
@@ -456,11 +394,7 @@ fn optimize_statement(
         PengStatement::Return(value) => {
             let value = match value {
                 Some(expression) => {
-                    let expression = match optimize_expression(
-                        expression,
-                        config,
-                        constants,
-                    ) {
+                    let expression = match optimize_expression(expression, config, constants) {
                         Ok(v) => v,
                         Err(e) => return Err(e),
                     };
@@ -475,11 +409,7 @@ fn optimize_statement(
         }
 
         PengStatement::If(statement) => {
-            let condition = match optimize_expression(
-                statement.condition,
-                config,
-                constants,
-            ) {
+            let condition = match optimize_expression(statement.condition, config, constants) {
                 Ok(v) => v,
                 Err(e) => return Err(e),
             };
@@ -487,28 +417,22 @@ fn optimize_statement(
             let mut then_constants = constants.clone();
             then_constants.push_frame();
 
-            let then_branch = match optimize_statements(
-                statement.then_branch,
-                config,
-                &mut then_constants,
-            ) {
-                Ok(v) => v,
-                Err(e) => return Err(e),
-            };
+            let then_branch =
+                match optimize_statements(statement.then_branch, config, &mut then_constants) {
+                    Ok(v) => v,
+                    Err(e) => return Err(e),
+                };
 
             let else_branch = match statement.else_branch {
                 Some(statements) => {
                     let mut else_constants = constants.clone();
                     else_constants.push_frame();
 
-                    let statements = match optimize_statements(
-                        statements,
-                        config,
-                        &mut else_constants,
-                    ) {
-                        Ok(v) => v,
-                        Err(e) => return Err(e),
-                    };
+                    let statements =
+                        match optimize_statements(statements, config, &mut else_constants) {
+                            Ok(v) => v,
+                            Err(e) => return Err(e),
+                        };
 
                     Some(statements)
                 }
@@ -533,11 +457,7 @@ fn optimize_statement(
         }
 
         PengStatement::Match(statement) => {
-            let value = match optimize_expression(
-                statement.value,
-                config,
-                constants,
-            ) {
+            let value = match optimize_expression(statement.value, config, constants) {
                 Ok(v) => v,
                 Err(e) => return Err(e),
             };
@@ -545,11 +465,7 @@ fn optimize_statement(
             let mut arms = Vec::new();
 
             for arm in statement.arms {
-                let pattern = match optimize_expression(
-                    arm.pattern,
-                    config,
-                    constants,
-                ) {
+                let pattern = match optimize_expression(arm.pattern, config, constants) {
                     Ok(v) => v,
                     Err(e) => return Err(e),
                 };
@@ -557,19 +473,12 @@ fn optimize_statement(
                 let mut arm_constants = constants.clone();
                 arm_constants.push_frame();
 
-                let body = match optimize_statements(
-                    arm.body,
-                    config,
-                    &mut arm_constants,
-                ) {
+                let body = match optimize_statements(arm.body, config, &mut arm_constants) {
                     Ok(v) => v,
                     Err(e) => return Err(e),
                 };
 
-                arms.push(PengMatchArm {
-                    pattern,
-                    body,
-                });
+                arms.push(PengMatchArm { pattern, body });
             }
 
             let elsing = match statement.elsing {
@@ -577,14 +486,11 @@ fn optimize_statement(
                     let mut else_constants = constants.clone();
                     else_constants.push_frame();
 
-                    let statements = match optimize_statements(
-                        statements,
-                        config,
-                        &mut else_constants,
-                    ) {
-                        Ok(v) => v,
-                        Err(e) => return Err(e),
-                    };
+                    let statements =
+                        match optimize_statements(statements, config, &mut else_constants) {
+                            Ok(v) => v,
+                            Err(e) => return Err(e),
+                        };
 
                     Some(statements)
                 }
@@ -609,11 +515,7 @@ fn optimize_statement(
         }
 
         PengStatement::While(statement) => {
-            let condition = match optimize_expression(
-                statement.condition,
-                config,
-                constants,
-            ) {
+            let condition = match optimize_expression(statement.condition, config, constants) {
                 Ok(v) => v,
                 Err(e) => return Err(e),
             };
@@ -621,19 +523,12 @@ fn optimize_statement(
             let mut body_constants = constants.clone();
             body_constants.push_frame();
 
-            let body = match optimize_statements(
-                statement.body,
-                config,
-                &mut body_constants,
-            ) {
+            let body = match optimize_statements(statement.body, config, &mut body_constants) {
                 Ok(v) => v,
                 Err(e) => return Err(e),
             };
 
-            PengStatement::While(PengWhileStatement {
-                condition,
-                body,
-            })
+            PengStatement::While(PengWhileStatement { condition, body })
         }
 
         PengStatement::For(statement) => {
@@ -642,20 +537,13 @@ fn optimize_statement(
 
             let initializer = match statement.initializer {
                 Some(statement) => {
-                    let statement = match optimize_statement(
-                        *statement,
-                        config,
-                        &mut for_constants,
-                    ) {
+                    let statement = match optimize_statement(*statement, config, &mut for_constants)
+                    {
                         Ok(v) => v,
                         Err(e) => return Err(e),
                     };
 
-                    match record_statement_effects(
-                        &statement,
-                        config,
-                        &mut for_constants,
-                    ) {
+                    match record_statement_effects(&statement, config, &mut for_constants) {
                         Ok(()) => {}
                         Err(e) => return Err(e),
                     }
@@ -668,14 +556,11 @@ fn optimize_statement(
 
             let condition = match statement.condition {
                 Some(expression) => {
-                    let expression = match optimize_expression(
-                        expression,
-                        config,
-                        &mut for_constants,
-                    ) {
-                        Ok(v) => v,
-                        Err(e) => return Err(e),
-                    };
+                    let expression =
+                        match optimize_expression(expression, config, &mut for_constants) {
+                            Ok(v) => v,
+                            Err(e) => return Err(e),
+                        };
 
                     Some(expression)
                 }
@@ -685,11 +570,8 @@ fn optimize_statement(
 
             let increment = match statement.increment {
                 Some(statement) => {
-                    let statement = match optimize_statement(
-                        *statement,
-                        config,
-                        &mut for_constants,
-                    ) {
+                    let statement = match optimize_statement(*statement, config, &mut for_constants)
+                    {
                         Ok(v) => v,
                         Err(e) => return Err(e),
                     };
@@ -703,11 +585,7 @@ fn optimize_statement(
             let mut body_constants = for_constants.clone();
             body_constants.push_frame();
 
-            let body = match optimize_statements(
-                statement.body,
-                config,
-                &mut body_constants,
-            ) {
+            let body = match optimize_statements(statement.body, config, &mut body_constants) {
                 Ok(v) => v,
                 Err(e) => return Err(e),
             };
@@ -724,11 +602,7 @@ fn optimize_statement(
             let mut loop_constants = constants.clone();
             loop_constants.push_frame();
 
-            let statements = match optimize_statements(
-                statements,
-                config,
-                &mut loop_constants,
-            ) {
+            let statements = match optimize_statements(statements, config, &mut loop_constants) {
                 Ok(v) => v,
                 Err(e) => return Err(e),
             };
@@ -737,11 +611,7 @@ fn optimize_statement(
         }
 
         PengStatement::Assign(assignment) => {
-            let assignment = match optimize_assignment(
-                assignment,
-                config,
-                constants,
-            ) {
+            let assignment = match optimize_assignment(assignment, config, constants) {
                 Ok(v) => v,
                 Err(e) => return Err(e),
             };
@@ -750,11 +620,7 @@ fn optimize_statement(
         }
 
         PengStatement::Expression(expression) => {
-            let expression = match optimize_expression(
-                expression,
-                config,
-                constants,
-            ) {
+            let expression = match optimize_expression(expression, config, constants) {
                 Ok(v) => v,
                 Err(e) => return Err(e),
             };
@@ -766,10 +632,7 @@ fn optimize_statement(
         PengStatement::Continue => PengStatement::Continue,
     };
 
-    Ok(PengPositioned {
-        position,
-        value,
-    })
+    Ok(PengPositioned { position, value })
 }
 
 fn optimize_assignment(
@@ -779,20 +642,12 @@ fn optimize_assignment(
 ) -> Result<PengAssignStatement, PengError> {
     match assignment {
         PengAssignStatement::Assign { target, value } => {
-            let target = match optimize_assignment_target(
-                target,
-                config,
-                constants,
-            ) {
+            let target = match optimize_assignment_target(target, config, constants) {
                 Ok(v) => v,
                 Err(e) => return Err(e),
             };
 
-            let value = match optimize_expression(
-                value,
-                config,
-                constants,
-            ) {
+            let value = match optimize_expression(value, config, constants) {
                 Ok(v) => v,
                 Err(e) => return Err(e),
             };
@@ -907,62 +762,42 @@ fn optimize_assignment_target(
         }
 
         PengExpression::AttributeAccess(access) => {
-            let object = match optimize_expression(
-                *access.object,
-                config,
-                constants,
-            ) {
+            let object = match optimize_expression(*access.object, config, constants) {
                 Ok(v) => v,
                 Err(e) => return Err(e),
             };
 
             Ok(PengPositioned {
                 position,
-                value: PengExpression::AttributeAccess(
-                    PengAttributeAccessExpression {
-                        object: Box::new(object),
-                        name: access.name,
-                    },
-                ),
+                value: PengExpression::AttributeAccess(PengAttributeAccessExpression {
+                    object: Box::new(object),
+                    name: access.name,
+                }),
             })
         }
 
         PengExpression::MemberAccess(access) => {
-            let object = match optimize_expression(
-                *access.object,
-                config,
-                constants,
-            ) {
+            let object = match optimize_expression(*access.object, config, constants) {
                 Ok(v) => v,
                 Err(e) => return Err(e),
             };
 
             Ok(PengPositioned {
                 position,
-                value: PengExpression::MemberAccess(
-                    PengMemberAccessExpression {
-                        object: Box::new(object),
-                        name: access.name,
-                    },
-                ),
+                value: PengExpression::MemberAccess(PengMemberAccessExpression {
+                    object: Box::new(object),
+                    name: access.name,
+                }),
             })
         }
 
         PengExpression::Index(index) => {
-            let object = match optimize_expression(
-                *index.object,
-                config,
-                constants,
-            ) {
+            let object = match optimize_expression(*index.object, config, constants) {
                 Ok(v) => v,
                 Err(e) => return Err(e),
             };
 
-            let index_value = match optimize_expression(
-                *index.index,
-                config,
-                constants,
-            ) {
+            let index_value = match optimize_expression(*index.index, config, constants) {
                 Ok(v) => v,
                 Err(e) => return Err(e),
             };
@@ -976,10 +811,7 @@ fn optimize_assignment_target(
             })
         }
 
-        value => Ok(PengPositioned {
-            position,
-            value,
-        }),
+        value => Ok(PengPositioned { position, value }),
     }
 }
 
@@ -992,11 +824,7 @@ fn optimize_expression(
 
     let expression = match expression.value {
         PengExpression::Literal(literal) => {
-            let literal = match optimize_literal(
-                literal,
-                config,
-                constants,
-            ) {
+            let literal = match optimize_literal(literal, config, constants) {
                 Ok(v) => v,
                 Err(e) => return Err(e),
             };
@@ -1007,12 +835,10 @@ fn optimize_expression(
             }
         }
 
-        PengExpression::Identifier(name) => {
-            PengPositioned {
-                position,
-                value: PengExpression::Identifier(name),
-            }
-        }
+        PengExpression::Identifier(name) => PengPositioned {
+            position,
+            value: PengExpression::Identifier(name),
+        },
 
         PengExpression::Type(type_expression) => {
             /*
@@ -1027,11 +853,7 @@ fn optimize_expression(
         }
 
         PengExpression::Unary { operator, value } => {
-            let value = match optimize_expression(
-                *value,
-                config,
-                constants,
-            ) {
+            let value = match optimize_expression(*value, config, constants) {
                 Ok(v) => v,
                 Err(e) => return Err(e),
             };
@@ -1050,20 +872,12 @@ fn optimize_expression(
             operator,
             right,
         } => {
-            let left = match optimize_expression(
-                *left,
-                config,
-                constants,
-            ) {
+            let left = match optimize_expression(*left, config, constants) {
                 Ok(v) => v,
                 Err(e) => return Err(e),
             };
 
-            let right = match optimize_expression(
-                *right,
-                config,
-                constants,
-            ) {
+            let right = match optimize_expression(*right, config, constants) {
                 Ok(v) => v,
                 Err(e) => return Err(e),
             };
@@ -1079,20 +893,12 @@ fn optimize_expression(
         }
 
         PengExpression::FuncCall(call) => {
-            let function = match optimize_expression(
-                *call.function,
-                config,
-                constants,
-            ) {
+            let function = match optimize_expression(*call.function, config, constants) {
                 Ok(v) => v,
                 Err(e) => return Err(e),
             };
 
-            let args = match optimize_call_args(
-                call.args,
-                config,
-                constants,
-            ) {
+            let args = match optimize_call_args(call.args, config, constants) {
                 Ok(v) => v,
                 Err(e) => return Err(e),
             };
@@ -1107,20 +913,12 @@ fn optimize_expression(
         }
 
         PengExpression::MethodCall(call) => {
-            let object = match optimize_expression(
-                *call.object,
-                config,
-                constants,
-            ) {
+            let object = match optimize_expression(*call.object, config, constants) {
                 Ok(v) => v,
                 Err(e) => return Err(e),
             };
 
-            let args = match optimize_call_args(
-                call.args,
-                config,
-                constants,
-            ) {
+            let args = match optimize_call_args(call.args, config, constants) {
                 Ok(v) => v,
                 Err(e) => return Err(e),
             };
@@ -1136,62 +934,42 @@ fn optimize_expression(
         }
 
         PengExpression::AttributeAccess(access) => {
-            let object = match optimize_expression(
-                *access.object,
-                config,
-                constants,
-            ) {
+            let object = match optimize_expression(*access.object, config, constants) {
                 Ok(v) => v,
                 Err(e) => return Err(e),
             };
 
             PengPositioned {
                 position,
-                value: PengExpression::AttributeAccess(
-                    PengAttributeAccessExpression {
-                        object: Box::new(object),
-                        name: access.name,
-                    },
-                ),
+                value: PengExpression::AttributeAccess(PengAttributeAccessExpression {
+                    object: Box::new(object),
+                    name: access.name,
+                }),
             }
         }
 
         PengExpression::MemberAccess(access) => {
-            let object = match optimize_expression(
-                *access.object,
-                config,
-                constants,
-            ) {
+            let object = match optimize_expression(*access.object, config, constants) {
                 Ok(v) => v,
                 Err(e) => return Err(e),
             };
 
             PengPositioned {
                 position,
-                value: PengExpression::MemberAccess(
-                    PengMemberAccessExpression {
-                        object: Box::new(object),
-                        name: access.name,
-                    },
-                ),
+                value: PengExpression::MemberAccess(PengMemberAccessExpression {
+                    object: Box::new(object),
+                    name: access.name,
+                }),
             }
         }
 
         PengExpression::Index(index) => {
-            let object = match optimize_expression(
-                *index.object,
-                config,
-                constants,
-            ) {
+            let object = match optimize_expression(*index.object, config, constants) {
                 Ok(v) => v,
                 Err(e) => return Err(e),
             };
 
-            let index_value = match optimize_expression(
-                *index.index,
-                config,
-                constants,
-            ) {
+            let index_value = match optimize_expression(*index.index, config, constants) {
                 Ok(v) => v,
                 Err(e) => return Err(e),
             };
@@ -1206,32 +984,23 @@ fn optimize_expression(
         }
 
         PengExpression::ObjectConstruction(construction) => {
-            let object_type = match optimize_expression(
-                *construction.object_type,
-                config,
-                constants,
-            ) {
-                Ok(v) => v,
-                Err(e) => return Err(e),
-            };
+            let object_type =
+                match optimize_expression(*construction.object_type, config, constants) {
+                    Ok(v) => v,
+                    Err(e) => return Err(e),
+                };
 
-            let fields = match optimize_object_fields(
-                construction.fields,
-                config,
-                constants,
-            ) {
+            let fields = match optimize_object_fields(construction.fields, config, constants) {
                 Ok(v) => v,
                 Err(e) => return Err(e),
             };
 
             PengPositioned {
                 position,
-                value: PengExpression::ObjectConstruction(
-                    PengObjectConstructionExpression {
-                        object_type: Box::new(object_type),
-                        fields,
-                    },
-                ),
+                value: PengExpression::ObjectConstruction(PengObjectConstructionExpression {
+                    object_type: Box::new(object_type),
+                    fields,
+                }),
             }
         }
 
@@ -1240,29 +1009,17 @@ fn optimize_expression(
             operation,
             right,
         } => {
-            let left = match optimize_expression(
-                *left,
-                config,
-                constants,
-            ) {
+            let left = match optimize_expression(*left, config, constants) {
                 Ok(v) => v,
                 Err(e) => return Err(e),
             };
 
-            let operation = match optimize_expression(
-                *operation,
-                config,
-                constants,
-            ) {
+            let operation = match optimize_expression(*operation, config, constants) {
                 Ok(v) => v,
                 Err(e) => return Err(e),
             };
 
-            let right = match optimize_expression(
-                *right,
-                config,
-                constants,
-            ) {
+            let right = match optimize_expression(*right, config, constants) {
                 Ok(v) => v,
                 Err(e) => return Err(e),
             };
@@ -1278,22 +1035,14 @@ fn optimize_expression(
         }
 
         PengExpression::Try { value, elsing } => {
-            let value = match optimize_expression(
-                *value,
-                config,
-                constants,
-            ) {
+            let value = match optimize_expression(*value, config, constants) {
                 Ok(v) => v,
                 Err(e) => return Err(e),
             };
 
             let elsing = match elsing {
                 Some(expression) => {
-                    let expression = match optimize_expression(
-                        *expression,
-                        config,
-                        constants,
-                    ) {
+                    let expression = match optimize_expression(*expression, config, constants) {
                         Ok(v) => v,
                         Err(e) => return Err(e),
                     };
@@ -1363,11 +1112,7 @@ fn optimize_call_args(
     let mut optimized = Vec::new();
 
     for arg in args {
-        let expression = match optimize_expression(
-            arg.value.expression,
-            config,
-            constants,
-        ) {
+        let expression = match optimize_expression(arg.value.expression, config, constants) {
             Ok(v) => v,
             Err(e) => return Err(e),
         };
@@ -1392,11 +1137,7 @@ fn optimize_object_fields(
     let mut optimized = Vec::new();
 
     for field in fields {
-        let value = match optimize_expression(
-            field.value,
-            config,
-            constants,
-        ) {
+        let value = match optimize_expression(field.value, config, constants) {
             Ok(v) => v,
             Err(e) => return Err(e),
         };
@@ -1419,11 +1160,7 @@ fn optimize_literal(
 
     let value = match literal.value {
         PengLiteral::Vector(values) => {
-            let values = match optimize_expressions(
-                values,
-                config,
-                constants,
-            ) {
+            let values = match optimize_expressions(values, config, constants) {
                 Ok(v) => v,
                 Err(e) => return Err(e),
             };
@@ -1432,11 +1169,7 @@ fn optimize_literal(
         }
 
         PengLiteral::Object(fields) => {
-            let fields = match optimize_object_fields(
-                fields,
-                config,
-                constants,
-            ) {
+            let fields = match optimize_object_fields(fields, config, constants) {
                 Ok(v) => v,
                 Err(e) => return Err(e),
             };
@@ -1445,10 +1178,7 @@ fn optimize_literal(
         }
 
         PengLiteral::Function(function) => {
-            let body = match optimize_function_body(
-                function.body,
-                config,
-            ) {
+            let body = match optimize_function_body(function.body, config) {
                 Ok(v) => v,
                 Err(e) => return Err(e),
             };
@@ -1461,14 +1191,9 @@ fn optimize_literal(
         }
 
         PengLiteral::Module(module) => {
-            let mut module_constants =
-                constant_propagation::PengConstantPropagationScope::new();
+            let mut module_constants = constant_propagation::PengConstantPropagationScope::new();
 
-            let body = match optimize_declarations(
-                module.body,
-                config,
-                &mut module_constants,
-            ) {
+            let body = match optimize_declarations(module.body, config, &mut module_constants) {
                 Ok(v) => v,
                 Err(e) => return Err(e),
             };
@@ -1477,10 +1202,7 @@ fn optimize_literal(
         }
 
         PengLiteral::Operation(operation) => {
-            let body = match optimize_function_body(
-                operation.body,
-                config,
-            ) {
+            let body = match optimize_function_body(operation.body, config) {
                 Ok(v) => v,
                 Err(e) => return Err(e),
             };
@@ -1493,19 +1215,13 @@ fn optimize_literal(
         }
 
         PengLiteral::Type(type_literal) => {
-            let fields = match optimize_variable_declarations(
-                type_literal.fields,
-                config,
-                constants,
-            ) {
-                Ok(v) => v,
-                Err(e) => return Err(e),
-            };
+            let fields =
+                match optimize_variable_declarations(type_literal.fields, config, constants) {
+                    Ok(v) => v,
+                    Err(e) => return Err(e),
+                };
 
-            let functions = match optimize_function_declarations(
-                type_literal.functions,
-                config,
-            ) {
+            let functions = match optimize_function_declarations(type_literal.functions, config) {
                 Ok(v) => v,
                 Err(e) => return Err(e),
             };
@@ -1527,10 +1243,7 @@ fn optimize_literal(
         PengLiteral::String(v) => PengLiteral::String(v),
     };
 
-    Ok(PengPositioned {
-        position,
-        value,
-    })
+    Ok(PengPositioned { position, value })
 }
 
 fn optimize_expressions(
@@ -1541,11 +1254,7 @@ fn optimize_expressions(
     let mut optimized = Vec::new();
 
     for expression in expressions {
-        let expression = match optimize_expression(
-            expression,
-            config,
-            constants,
-        ) {
+        let expression = match optimize_expression(expression, config, constants) {
             Ok(v) => v,
             Err(e) => return Err(e),
         };
@@ -1573,12 +1282,10 @@ fn record_statement_effects(
             }
         }
 
-        PengStatement::Assign(assignment) => {
-            match constants.record_assignment(assignment) {
-                Ok(()) => Ok(()),
-                Err(e) => Err(e),
-            }
-        }
+        PengStatement::Assign(assignment) => match constants.record_assignment(assignment) {
+            Ok(()) => Ok(()),
+            Err(e) => Err(e),
+        },
 
         _ => Ok(()),
     }

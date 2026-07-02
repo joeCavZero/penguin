@@ -5,30 +5,30 @@ pub enum PengInstruction {
     PushConst(usize),
     MakeImmutable,
 
-    PushLocal(usize),   // ...| ---> ...|v| , v := *<usize>
+    PushLocal(usize), // ...| ---> ...|v| , v := *<usize>
     ReserveLocal(usize),
-    StoreLocal(usize),  // ...|v| ---> ...| , *<usize> := v
+    StoreLocal(usize), // ...|v| ---> ...| , *<usize> := v
 
-    PushHeap(PengHeapPtr), // ...| ---> ...|v| , v := *<PengValuePtr>
+    PushHeap(PengHeapPtr),    // ...| ---> ...|v| , v := *<PengValuePtr>
     PushHeapRef(PengHeapPtr), // ...| ---> ...|ref|
-    StoreHeap,   // ...|ref|v ---> ...| , *ref := v
+    StoreHeap,                // ...|ref|v ---> ...| , *ref := v
 
     PushString(PengNamePoolPtr),
 
     CreateEmptyObject,
     CreateEmptyModule,
-    CreateVector(usize), // ...|v0|v1|...|vn| ---> ...|vector|
+    CreateVector(usize),    // ...|v0|v1|...|vn| ---> ...|vector|
     CreateSuperType(usize), // creates a new type with usize supers (on stack)
-    CreateUnion(usize), // creates a new union based on usize types (on stack)
+    CreateUnion(usize),     // creates a new union based on usize types (on stack)
     CreateTypedObject,
 
     Convert,
 
     Duplicate, // duplicate
-    Pop, // pop
+    Pop,       // pop
     Swap,
 
-    Add,    // ...|v1|v2| ---> ...|v1+v2|
+    Add, // ...|v1|v2| ---> ...|v1+v2|
     Subtract,
     Multiply,
     Divide,
@@ -41,9 +41,9 @@ pub enum PengInstruction {
     And,
     Or,
 
-    Not,    // ...|true| ---> ...|false|
-    Equals, // ...|v1|v2| ---> ...| v1==v2 |
-    NotEquals,  // ...|v1|v2| ---> ...| v1!=v2 |
+    Not,       // ...|true| ---> ...|false|
+    Equals,    // ...|v1|v2| ---> ...| v1==v2 |
+    NotEquals, // ...|v1|v2| ---> ...| v1!=v2 |
     GreaterThan,
     GreaterEqualsThan,
     LessThan,
@@ -52,10 +52,10 @@ pub enum PengInstruction {
     OperationCall,
     TryOperationCall,
 
-    FunctionCall(usize),  // ...|func|p0..pn| ---> ...|ret?|
+    FunctionCall(usize), // ...|func|p0..pn| ---> ...|ret?|
     FunctionCallSpread(usize),
 
-    TryFunctionCall(usize),  // ...|func|p0..pn| ---> ...|return|bool ok|
+    TryFunctionCall(usize), // ...|func|p0..pn| ---> ...|return|bool ok|
     TryFunctionCallSpread(usize),
 
     GetIndex,
@@ -72,7 +72,7 @@ pub enum PengInstruction {
     JumpIfFalse(usize),
 
     Return, // ...|v| ---> returns v to frame
-    // raise is rust side function
+            // raise is rust side function
 }
 
 impl PengInstruction {

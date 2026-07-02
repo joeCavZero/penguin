@@ -1,10 +1,10 @@
-#[derive(Debug,Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PengColour {
-    Red, // not passed
-    Black,  // passed
+    Red,   // not passed
+    Black, // passed
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct PengColoured<T> {
     pub colour: PengColour,
     pub value: T,

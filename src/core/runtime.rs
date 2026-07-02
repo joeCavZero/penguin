@@ -682,23 +682,21 @@ fn resolve_numeric_cell(env: &PengEnv, cell: &PengCell) -> Result<PengCell, Peng
         | PengCell::Float32(_)
         | PengCell::Float64(_) => Ok(cell.clone()),
 
-        PengCell::Reference(ptr) => {
-            match env.get_heap(*ptr) {
-                Some(PengValue::Cell(value)) => match value {
-                    PengCell::Int(_)
-                    | PengCell::Uint(_)
-                    | PengCell::Byte(_)
-                    | PengCell::Float32(_)
-                    | PengCell::Float64(_) => Ok(value.clone()),
+        PengCell::Reference(ptr) => match env.get_heap(*ptr) {
+            Some(PengValue::Cell(value)) => match value {
+                PengCell::Int(_)
+                | PengCell::Uint(_)
+                | PengCell::Byte(_)
+                | PengCell::Float32(_)
+                | PengCell::Float64(_) => Ok(value.clone()),
 
-                    _ => Err(PengError::InvalidInstruction(PengInstruction::Divide)),
-                },
+                _ => Err(PengError::InvalidInstruction(PengInstruction::Divide)),
+            },
 
-                Some(_) => Err(PengError::ExpectedNumber),
+            Some(_) => Err(PengError::ExpectedNumber),
 
-                None => Err(PengError::HeapValueNotFound(*ptr)),
-            }
-        }
+            None => Err(PengError::HeapValueNotFound(*ptr)),
+        },
 
         _ => Err(PengError::ExpectedNumber),
     }

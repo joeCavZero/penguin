@@ -1,9 +1,9 @@
 use crate::core::*;
 use crate::lexer::*;
-use crate::parser::parser_utils::expect_identifier;
-use crate::parser::parser::*;
 use crate::parser::parse_declaration_statement::*;
 use crate::parser::parse_expression::*;
+use crate::parser::parser::*;
+use crate::parser::parser_utils::expect_identifier;
 
 pub fn parse_type_declaration_statement(
     ptokens: &mut PengPeekablePositionedToken,

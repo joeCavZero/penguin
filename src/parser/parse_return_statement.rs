@@ -1,8 +1,8 @@
 use crate::core::*;
 use crate::lexer::*;
-use crate::parser::parser_utils::consume_optional_semicolon;
-use crate::parser::parser::*;
 use crate::parser::parse_expression::*;
+use crate::parser::parser::*;
+use crate::parser::parser_utils::consume_optional_semicolon;
 
 pub fn parse_return_statement(
     ptokens: &mut PengPeekablePositionedToken,

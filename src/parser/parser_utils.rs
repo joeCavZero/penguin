@@ -21,9 +21,7 @@ pub fn consume_optional_semicolon(
         match ptokens.next() {
             Some(_) => {}
             None => {
-                return Err(PengError::SyntaxError(
-                    "expected semicolon".to_string(),
-                ));
+                return Err(PengError::SyntaxError("expected semicolon".to_string()));
             }
         }
     }
@@ -47,18 +45,14 @@ pub fn expect_identifier(
     };
 
     match &token.value {
-        PengToken::Identifier(name) => {
-            Ok(PengPositioned {
-                value: name.clone(),
-                position: token.position.clone(),
-            })
-        }
-        _ => {
-            Err(PengError::new_positioned_message(
-                message,
-                token.position.clone(),
-            ))
-        }
+        PengToken::Identifier(name) => Ok(PengPositioned {
+            value: name.clone(),
+            position: token.position.clone(),
+        }),
+        _ => Err(PengError::new_positioned_message(
+            message,
+            token.position.clone(),
+        )),
     }
 }
 
@@ -68,11 +62,9 @@ pub fn block_statements(
 ) -> Result<Vec<PengPositionedStatement>, PengError> {
     match statement.value {
         PengStatement::Block(statements) => Ok(statements),
-        _ => {
-            Err(PengError::new_positioned_message(
-                message,
-                statement.position,
-            ))
-        }
+        _ => Err(PengError::new_positioned_message(
+            message,
+            statement.position,
+        )),
     }
 }

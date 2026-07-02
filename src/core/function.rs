@@ -1,12 +1,12 @@
 use std::rc::Rc;
 
-use crate::core::position::*;
 use crate::core::cell::*;
+use crate::core::context::*;
 use crate::core::error::*;
 use crate::core::instruction::*;
+use crate::core::position::*;
 use crate::core::utils::*;
 use crate::core::value::*;
-use crate::core::context::*;
 
 #[derive(Debug, Clone)]
 pub enum PengFunction {
@@ -45,9 +45,7 @@ impl PengFunction {
     where
         F: Fn(&mut PengNativeFunctionCallContext) -> Result<PengBindedCell, PengError> + 'static,
     {
-        Self::Native(PengNativeFunction {
-            call: Rc::new(f),
-        })
+        Self::Native(PengNativeFunction { call: Rc::new(f) })
     }
 
     pub fn equals(&self, rhs: &Self) -> bool {
@@ -85,9 +83,7 @@ impl PengBytecodeFunction {
 
 #[derive(Clone)]
 pub struct PengNativeFunction {
-    pub call: Rc<
-        dyn Fn(&mut PengNativeFunctionCallContext) -> Result<PengBindedCell, PengError>,
-    >,
+    pub call: Rc<dyn Fn(&mut PengNativeFunctionCallContext) -> Result<PengBindedCell, PengError>>,
 }
 
 impl PengNativeFunction {

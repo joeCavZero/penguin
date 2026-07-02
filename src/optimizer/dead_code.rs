@@ -27,9 +27,7 @@ pub fn statement_stops_flow(statement: &PengPositionedStatement) -> bool {
 
         PengStatement::Continue => true,
 
-        PengStatement::Block(statements) => {
-            block_stops_flow(statements)
-        }
+        PengStatement::Block(statements) => block_stops_flow(statements),
 
         PengStatement::If(statement) => {
             let then_stops = block_stops_flow(&statement.then_branch);

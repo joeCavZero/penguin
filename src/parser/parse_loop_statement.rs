@@ -1,8 +1,8 @@
 use crate::core::*;
 use crate::lexer::*;
-use crate::parser::parser_utils::block_statements;
-use crate::parser::parser::*;
 use crate::parser::parse_block_statement::*;
+use crate::parser::parser::*;
+use crate::parser::parser_utils::block_statements;
 
 pub fn parse_loop_statement(
     ptokens: &mut PengPeekablePositionedToken,

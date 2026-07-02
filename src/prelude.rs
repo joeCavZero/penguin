@@ -1,26 +1,11 @@
 pub use crate::core::{
-    env::*,
-    thread::*,
-    cell::*,
-    frame::*,
-    boxed::*,
+    binding::*, boxed::*, cell::*, colour::*, context::*, env::*, error::*, frame::*, function::*,
+    garbage_collector::*, instruction::*, module::*, object::*, operation::*, position::*,
+    positioned::*, runtime::*, thread::*, typing::*, unioning::*, unit::*, utils::*, value::*,
     vector::*,
-    object::*,
-    module::*,
-    typing::*,
-    utils::*,
-    function::*,
-    error::*,
-    position::*,
-    context::*,
-    instruction::*,
-    positioned::*,
-    unioning::*,
-    operation::*,
-    runtime::*,
-    binding::*,
-    colour::*,
-    value::*,
-    garbage_collector::*,
-    unit::*,
+    
+};
+
+pub use crate::binary::{
+    options::*,
 };

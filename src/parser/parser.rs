@@ -1,7 +1,7 @@
-use std::iter::Peekable;
-use std::slice::Iter;
 use crate::core::*;
 use crate::lexer::*;
+use std::iter::Peekable;
+use std::slice::Iter;
 
 pub type PengPeekablePositionedToken<'a> = Peekable<Iter<'a, PengPositionedToken>>;
 
@@ -116,7 +116,7 @@ pub enum PengExpression {
     MethodCall(PengMethodCallExpression),
 
     AttributeAccess(PengAttributeAccessExpression), // dot access
-    MemberAccess(PengMemberAccessExpression),   // colon access
+    MemberAccess(PengMemberAccessExpression),       // colon access
     Index(PengIndexExpression),
 
     ObjectConstruction(PengObjectConstructionExpression),

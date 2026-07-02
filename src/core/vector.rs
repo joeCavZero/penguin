@@ -2,7 +2,7 @@ use crate::core::cell::*;
 
 #[derive(Debug, Clone)]
 pub struct PengVector {
-    pub values: Vec<PengBindedCell>
+    pub values: Vec<PengBindedCell>,
 }
 
 impl PengVector {
@@ -10,9 +10,7 @@ impl PengVector {
         Self { values }
     }
     pub fn new_empty() -> Self {
-        Self {
-            values: Vec::new(),
-        }
+        Self { values: Vec::new() }
     }
 
     pub fn push(&mut self, value: PengBindedCell) {

@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::time::Instant;
 
+use crate::binary::*;
 use crate::core::binding::*;
 use crate::core::boxed::*;
 use crate::core::cell::*;
@@ -71,6 +72,32 @@ impl PengEnv {
 
     pub fn activate_thread(&mut self, thread: PengHeapPtr) {
         self.active_threads.insert(thread);
+    }
+
+    pub fn load_script_from_binary_value_using(
+        &mut self,
+        file: &PengBinaryFile,
+        using_unit: &PengUnit,
+    ) -> Result<PengUnit, PengError> {
+        if file.entry_kind != PengBinaryEntryKind::Script {
+            return Err(PengError::InvalidState(
+                "expected a script in Penguin binary file".to_string(),
+            ));
+        }
+        peng_binary_to_unit(self, file, using_unit)
+    }
+
+    pub fn load_program_from_binary_value_using(
+        &mut self,
+        file: &PengBinaryFile,
+        using_unit: &PengUnit,
+    ) -> Result<PengUnit, PengError> {
+        if file.entry_kind != PengBinaryEntryKind::Program {
+            return Err(PengError::InvalidState(
+                "expected a program in Penguin binary file".to_string(),
+            ));
+        }
+        peng_binary_to_unit(self, file, using_unit)
     }
 
     pub fn load_script_from_file(
@@ -215,6 +242,212 @@ impl PengEnv {
         };
 
         Ok(unit)
+    }
+
+    pub fn compile_program_to_binary_file(
+        &mut self,
+        input_path: &str,
+        output_path: &str,
+        position_id: usize,
+    ) -> Result<(), PengError> {
+        let using_unit = PengUnit::library();
+
+        self.compile_program_to_binary_file_using(
+            input_path,
+            output_path,
+            &using_unit,
+            &PengBinaryBuildOptions::default(),
+            position_id,
+        )
+    }
+
+    pub fn compile_program_to_binary_file_using(
+        &mut self,
+        input_path: &str,
+        output_path: &str,
+        using_unit: &PengUnit,
+        options: &PengBinaryBuildOptions,
+        position_id: usize,
+    ) -> Result<(), PengError> {
+        let unit = match self.load_program_from_file_using(input_path, using_unit, position_id) {
+            Ok(v) => v,
+            Err(e) => return Err(e),
+        };
+
+        let file = match peng_binary_from_unit_using(
+            self,
+            &unit,
+            using_unit,
+            PengBinaryEntryKind::Program,
+            options,
+        ) {
+            Ok(v) => v,
+            Err(e) => return Err(e),
+        };
+
+        match peng_binary_write_file(output_path, &file) {
+            Ok(()) => Ok(()),
+            Err(e) => Err(e),
+        }
+    }
+
+    pub fn compile_script_to_binary_file(
+        &mut self,
+        input_path: &str,
+        output_path: &str,
+        position_id: usize,
+    ) -> Result<(), PengError> {
+        let using_unit = PengUnit::library();
+
+        self.compile_script_to_binary_file_using(
+            input_path,
+            output_path,
+            &using_unit,
+            &PengBinaryBuildOptions::default(),
+            position_id,
+        )
+    }
+
+    pub fn compile_script_to_binary_file_using(
+        &mut self,
+        input_path: &str,
+        output_path: &str,
+        using_unit: &PengUnit,
+        options: &PengBinaryBuildOptions,
+        position_id: usize,
+    ) -> Result<(), PengError> {
+        let unit = match self.load_script_from_file_using(input_path, using_unit, position_id) {
+            Ok(v) => v,
+            Err(e) => return Err(e),
+        };
+
+        let file = match peng_binary_from_unit_using(
+            self,
+            &unit,
+            using_unit,
+            PengBinaryEntryKind::Script,
+            options,
+        ) {
+            Ok(v) => v,
+            Err(e) => return Err(e),
+        };
+
+        match peng_binary_write_file(output_path, &file) {
+            Ok(()) => Ok(()),
+            Err(e) => Err(e),
+        }
+    }
+
+    pub fn load_program_from_binary_file(&mut self, path: &str) -> Result<PengUnit, PengError> {
+        let using_unit = PengUnit::library();
+
+        self.load_program_from_binary_file_using(path, &using_unit)
+    }
+
+    pub fn load_program_from_binary_file_using(
+        &mut self,
+        path: &str,
+        using_unit: &PengUnit,
+    ) -> Result<PengUnit, PengError> {
+        let file = match peng_binary_read_file(path) {
+            Ok(v) => v,
+            Err(e) => return Err(e),
+        };
+
+        if file.entry_kind != PengBinaryEntryKind::Program {
+            return Err(PengError::InvalidState(
+                "expected a program in Penguin binary file".to_string(),
+            ));
+        }
+
+        match peng_binary_to_unit(self, &file, using_unit) {
+            Ok(v) => Ok(v),
+            Err(e) => Err(e),
+        }
+    }
+
+    pub fn load_script_from_binary_file(&mut self, path: &str) -> Result<PengUnit, PengError> {
+        let using_unit = PengUnit::library();
+
+        self.load_script_from_binary_file_using(path, &using_unit)
+    }
+
+    pub fn load_script_from_binary_file_using(
+        &mut self,
+        path: &str,
+        using_unit: &PengUnit,
+    ) -> Result<PengUnit, PengError> {
+        let file = match peng_binary_read_file(path) {
+            Ok(v) => v,
+            Err(e) => return Err(e),
+        };
+
+        if file.entry_kind != PengBinaryEntryKind::Script {
+            return Err(PengError::InvalidState(
+                "expected a script in Penguin binary file".to_string(),
+            ));
+        }
+
+        match peng_binary_to_unit(self, &file, using_unit) {
+            Ok(v) => Ok(v),
+            Err(e) => Err(e),
+        }
+    }
+
+    pub fn load_program_from_binary(&mut self, bytes: &[u8]) -> Result<PengUnit, PengError> {
+        let using_unit = PengUnit::library();
+
+        self.load_program_from_binary_using(bytes, &using_unit)
+    }
+
+    pub fn load_program_from_binary_using(
+        &mut self,
+        bytes: &[u8],
+        using_unit: &PengUnit,
+    ) -> Result<PengUnit, PengError> {
+        let file = match peng_binary_decode_file(bytes) {
+            Ok(v) => v,
+            Err(e) => return Err(e),
+        };
+
+        if file.entry_kind != PengBinaryEntryKind::Program {
+            return Err(PengError::InvalidState(
+                "expected a program in Penguin binary file".to_string(),
+            ));
+        }
+
+        match peng_binary_to_unit(self, &file, using_unit) {
+            Ok(v) => Ok(v),
+            Err(e) => Err(e),
+        }
+    }
+
+    pub fn load_script_from_binary(&mut self, bytes: &[u8]) -> Result<PengUnit, PengError> {
+        let using_unit = PengUnit::library();
+
+        self.load_script_from_binary_using(bytes, &using_unit)
+    }
+
+    pub fn load_script_from_binary_using(
+        &mut self,
+        bytes: &[u8],
+        using_unit: &PengUnit,
+    ) -> Result<PengUnit, PengError> {
+        let file = match peng_binary_decode_file(bytes) {
+            Ok(v) => v,
+            Err(e) => return Err(e),
+        };
+
+        if file.entry_kind != PengBinaryEntryKind::Script {
+            return Err(PengError::InvalidState(
+                "expected a script in Penguin binary file".to_string(),
+            ));
+        }
+
+        match peng_binary_to_unit(self, &file, using_unit) {
+            Ok(v) => Ok(v),
+            Err(e) => Err(e),
+        }
     }
 
     pub fn run(&mut self, init: PengHeapPtr, unit: &PengUnit) -> Result<PengBindedCell, PengError> {
@@ -873,7 +1106,6 @@ impl PengEnv {
                         Err(e) => return Err(e),
                     };
 
-                // Remove função + todos os argumentos reais.
                 match self.pop_thread_stack_n_times(thread, args_count + 1) {
                     Ok(()) => {}
                     Err(e) => return Err(e),

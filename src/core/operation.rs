@@ -1,10 +1,10 @@
 use std::rc::Rc;
 
 use crate::core::PengNativeOperationCallContext;
-use crate::core::position::*;
 use crate::core::cell::*;
 use crate::core::error::*;
 use crate::core::instruction::*;
+use crate::core::position::*;
 use crate::core::utils::*;
 use crate::core::value::*;
 
@@ -25,12 +25,9 @@ pub struct PengBytecodeOperation {
 impl PengOperation {
     pub fn new_native<F>(f: F) -> Self
     where
-        F: Fn(&mut PengNativeOperationCallContext) -> Result<PengBindedCell, PengError>
-            + 'static,
+        F: Fn(&mut PengNativeOperationCallContext) -> Result<PengBindedCell, PengError> + 'static,
     {
-        Self::Native(PengNativeOperation {
-            call: Rc::new(f),
-        })
+        Self::Native(PengNativeOperation { call: Rc::new(f) })
     }
 
     pub fn equals(&self, rhs: &Self) -> bool {
@@ -67,8 +64,7 @@ impl PengBytecodeOperation {
 
 #[derive(Clone)]
 pub struct PengNativeOperation {
-    pub call: Rc<dyn Fn(&mut PengNativeOperationCallContext) -> Result<PengBindedCell, PengError>,
-    >,
+    pub call: Rc<dyn Fn(&mut PengNativeOperationCallContext) -> Result<PengBindedCell, PengError>>,
 }
 
 impl PengNativeOperation {

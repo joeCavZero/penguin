@@ -70,18 +70,17 @@ impl PengCustomType {
             }
         }
 
-        PengCustomType {
-            fields,
-        }
+        PengCustomType { fields }
     }
 
     pub fn equals(&self, rhs: &Self) -> bool {
         self.fields.len() == rhs.fields.len()
-            && self.fields.iter().all(|(name, value)| {
-                match rhs.fields.get(name) {
+            && self
+                .fields
+                .iter()
+                .all(|(name, value)| match rhs.fields.get(name) {
                     Some(rhs_value) => value.equals(rhs_value),
                     None => false,
-                }
-            })
+                })
     }
 }

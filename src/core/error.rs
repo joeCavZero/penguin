@@ -1,10 +1,10 @@
-use crate::core::typing::*;
-use crate::core::value::*;
 use crate::core::cell::*;
 use crate::core::instruction::*;
-use crate::lexer::token::*;
 use crate::core::position::*;
+use crate::core::typing::*;
 use crate::core::utils::*;
+use crate::core::value::*;
+use crate::lexer::token::*;
 
 #[derive(Debug, Clone)]
 pub enum PengError {
@@ -25,7 +25,6 @@ pub enum PengError {
     // ======================
     // Erros gerais
     // ======================
-
     InternalError(String),
 
     NotImplemented(String),
@@ -260,7 +259,6 @@ impl PengError {
 
     pub fn equals(&self, rhs: &Self) -> bool {
         match (self, rhs) {
-
             (Self::Stack(left), Self::Stack(right)) => {
                 left.len() == right.len() && left.iter().zip(right.iter()).all(|(a, b)| a.equals(b))
             }

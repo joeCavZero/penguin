@@ -1,15 +1,15 @@
 use crate::core::*;
 use crate::lexer::*;
-use crate::parser::parser::*;
-use crate::parser::parser_utils::*;
-use crate::parser::parse_statement::*;
+use crate::parser::parse_expression::*;
 use crate::parser::parse_function_declaration_statement::*;
 use crate::parser::parse_module_declaration_statement::*;
 use crate::parser::parse_operation_declaration_statement::*;
+use crate::parser::parse_statement::*;
 use crate::parser::parse_type_declaration_statement::*;
-use crate::parser::parse_expression::*;
 use crate::parser::parse_type_expression::*;
 use crate::parser::parse_union_declaration_statement::*;
+use crate::parser::parser::*;
+use crate::parser::parser_utils::*;
 
 pub fn parse_binded_declaration(
     tokens: &mut PengPeekablePositionedToken,
@@ -20,9 +20,14 @@ pub fn parse_binded_declaration(
         tokens.next();
 
         if matches!(tokens.peek().map(|t| &t.value), Some(PengToken::Var)) {
+            let position = match tokens.peek() {
+                Some(token) => token.position.clone(),
+                None => PengPosition::new(0, 0, None),
+            };
+
             return Err(PengError::new_positioned_message(
                 "use `const name = value`, not `const var name = value`".to_string(),
-                tokens.peek().unwrap().position.clone(),
+                position,
             ));
         }
     }

@@ -1,11 +1,11 @@
 use crate::core::*;
 use crate::lexer::*;
-use crate::parser::parser_utils::block_statements;
-use crate::parser::parser::*;
 use crate::parser::parse_block_statement::*;
+use crate::parser::parse_expression::*;
 use crate::parser::parse_function_params::*;
 use crate::parser::parse_operation_declaration_statement::*;
-use crate::parser::parse_expression::*;
+use crate::parser::parser::*;
+use crate::parser::parser_utils::block_statements;
 
 pub fn parse_operation_literal(
     ptokens: &mut PengPeekablePositionedToken,
@@ -72,7 +72,11 @@ pub fn parse_operation_literal(
     };
 
     literal_expr(
-        PengLiteral::Operation(PengOperationLiteral { params, return_type,body }),
+        PengLiteral::Operation(PengOperationLiteral {
+            params,
+            return_type,
+            body,
+        }),
         oper_token.position.clone(),
     )
 }

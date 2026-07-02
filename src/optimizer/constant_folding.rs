@@ -48,10 +48,7 @@ fn literal_from_expression(expression: &PengPositionedExpression) -> Option<&Pen
     }
 }
 
-fn literal_expression(
-    literal: PengLiteral,
-    position: PengPosition,
-) -> PengPositionedExpression {
+fn literal_expression(literal: PengLiteral, position: PengPosition) -> PengPositionedExpression {
     PengPositioned {
         position: position.clone(),
         value: PengExpression::Literal(PengPositioned {
@@ -61,33 +58,24 @@ fn literal_expression(
     }
 }
 
-fn fold_unary(
-    operator: &PengUnaryOperator,
-    value: &PengLiteral,
-) -> Option<PengLiteral> {
+fn fold_unary(operator: &PengUnaryOperator, value: &PengLiteral) -> Option<PengLiteral> {
     match operator {
-        PengUnaryOperator::Not => {
-            match value {
-                PengLiteral::Bool(v) => Some(PengLiteral::Bool(!v)),
-                _ => None,
-            }
-        }
+        PengUnaryOperator::Not => match value {
+            PengLiteral::Bool(v) => Some(PengLiteral::Bool(!v)),
+            _ => None,
+        },
 
-        PengUnaryOperator::Negate => {
-            match value {
-                PengLiteral::Int(v) => {
-                    match v.checked_neg() {
-                        Some(v) => Some(PengLiteral::Int(v)),
-                        None => None,
-                    }
-                }
+        PengUnaryOperator::Negate => match value {
+            PengLiteral::Int(v) => match v.checked_neg() {
+                Some(v) => Some(PengLiteral::Int(v)),
+                None => None,
+            },
 
-                PengLiteral::Float32(v) => Some(PengLiteral::Float32(-v)),
-                PengLiteral::Float64(v) => Some(PengLiteral::Float64(-v)),
+            PengLiteral::Float32(v) => Some(PengLiteral::Float32(-v)),
+            PengLiteral::Float64(v) => Some(PengLiteral::Float64(-v)),
 
-                _ => None,
-            }
-        }
+            _ => None,
+        },
     }
 }
 
@@ -106,11 +94,13 @@ fn fold_binary(
 
         PengBinaryOperator::Concat => fold_concat(left, right),
 
-        PengBinaryOperator::ShortCircuitAnd
-        | PengBinaryOperator::NonShortCircuitAnd => fold_and(left, right),
+        PengBinaryOperator::ShortCircuitAnd | PengBinaryOperator::NonShortCircuitAnd => {
+            fold_and(left, right)
+        }
 
-        PengBinaryOperator::ShortCircuitOr
-        | PengBinaryOperator::NonShortCircuitOr => fold_or(left, right),
+        PengBinaryOperator::ShortCircuitOr | PengBinaryOperator::NonShortCircuitOr => {
+            fold_or(left, right)
+        }
 
         PengBinaryOperator::Equals => fold_equals(left, right),
         PengBinaryOperator::NotEquals => fold_not_equals(left, right),
@@ -126,34 +116,24 @@ fn fold_binary(
 
 fn fold_add(left: &PengLiteral, right: &PengLiteral) -> Option<PengLiteral> {
     match (left, right) {
-        (PengLiteral::Int(a), PengLiteral::Int(b)) => {
-            match a.checked_add(*b) {
-                Some(v) => Some(PengLiteral::Int(v)),
-                None => None,
-            }
-        }
+        (PengLiteral::Int(a), PengLiteral::Int(b)) => match a.checked_add(*b) {
+            Some(v) => Some(PengLiteral::Int(v)),
+            None => None,
+        },
 
-        (PengLiteral::Uint(a), PengLiteral::Uint(b)) => {
-            match a.checked_add(*b) {
-                Some(v) => Some(PengLiteral::Uint(v)),
-                None => None,
-            }
-        }
+        (PengLiteral::Uint(a), PengLiteral::Uint(b)) => match a.checked_add(*b) {
+            Some(v) => Some(PengLiteral::Uint(v)),
+            None => None,
+        },
 
-        (PengLiteral::Byte(a), PengLiteral::Byte(b)) => {
-            match a.checked_add(*b) {
-                Some(v) => Some(PengLiteral::Byte(v)),
-                None => None,
-            }
-        }
+        (PengLiteral::Byte(a), PengLiteral::Byte(b)) => match a.checked_add(*b) {
+            Some(v) => Some(PengLiteral::Byte(v)),
+            None => None,
+        },
 
-        (PengLiteral::Float32(a), PengLiteral::Float32(b)) => {
-            Some(PengLiteral::Float32(*a + *b))
-        }
+        (PengLiteral::Float32(a), PengLiteral::Float32(b)) => Some(PengLiteral::Float32(*a + *b)),
 
-        (PengLiteral::Float64(a), PengLiteral::Float64(b)) => {
-            Some(PengLiteral::Float64(*a + *b))
-        }
+        (PengLiteral::Float64(a), PengLiteral::Float64(b)) => Some(PengLiteral::Float64(*a + *b)),
 
         _ => None,
     }
@@ -161,34 +141,24 @@ fn fold_add(left: &PengLiteral, right: &PengLiteral) -> Option<PengLiteral> {
 
 fn fold_subtract(left: &PengLiteral, right: &PengLiteral) -> Option<PengLiteral> {
     match (left, right) {
-        (PengLiteral::Int(a), PengLiteral::Int(b)) => {
-            match a.checked_sub(*b) {
-                Some(v) => Some(PengLiteral::Int(v)),
-                None => None,
-            }
-        }
+        (PengLiteral::Int(a), PengLiteral::Int(b)) => match a.checked_sub(*b) {
+            Some(v) => Some(PengLiteral::Int(v)),
+            None => None,
+        },
 
-        (PengLiteral::Uint(a), PengLiteral::Uint(b)) => {
-            match a.checked_sub(*b) {
-                Some(v) => Some(PengLiteral::Uint(v)),
-                None => None,
-            }
-        }
+        (PengLiteral::Uint(a), PengLiteral::Uint(b)) => match a.checked_sub(*b) {
+            Some(v) => Some(PengLiteral::Uint(v)),
+            None => None,
+        },
 
-        (PengLiteral::Byte(a), PengLiteral::Byte(b)) => {
-            match a.checked_sub(*b) {
-                Some(v) => Some(PengLiteral::Byte(v)),
-                None => None,
-            }
-        }
+        (PengLiteral::Byte(a), PengLiteral::Byte(b)) => match a.checked_sub(*b) {
+            Some(v) => Some(PengLiteral::Byte(v)),
+            None => None,
+        },
 
-        (PengLiteral::Float32(a), PengLiteral::Float32(b)) => {
-            Some(PengLiteral::Float32(*a - *b))
-        }
+        (PengLiteral::Float32(a), PengLiteral::Float32(b)) => Some(PengLiteral::Float32(*a - *b)),
 
-        (PengLiteral::Float64(a), PengLiteral::Float64(b)) => {
-            Some(PengLiteral::Float64(*a - *b))
-        }
+        (PengLiteral::Float64(a), PengLiteral::Float64(b)) => Some(PengLiteral::Float64(*a - *b)),
 
         _ => None,
     }
@@ -196,34 +166,24 @@ fn fold_subtract(left: &PengLiteral, right: &PengLiteral) -> Option<PengLiteral>
 
 fn fold_multiply(left: &PengLiteral, right: &PengLiteral) -> Option<PengLiteral> {
     match (left, right) {
-        (PengLiteral::Int(a), PengLiteral::Int(b)) => {
-            match a.checked_mul(*b) {
-                Some(v) => Some(PengLiteral::Int(v)),
-                None => None,
-            }
-        }
+        (PengLiteral::Int(a), PengLiteral::Int(b)) => match a.checked_mul(*b) {
+            Some(v) => Some(PengLiteral::Int(v)),
+            None => None,
+        },
 
-        (PengLiteral::Uint(a), PengLiteral::Uint(b)) => {
-            match a.checked_mul(*b) {
-                Some(v) => Some(PengLiteral::Uint(v)),
-                None => None,
-            }
-        }
+        (PengLiteral::Uint(a), PengLiteral::Uint(b)) => match a.checked_mul(*b) {
+            Some(v) => Some(PengLiteral::Uint(v)),
+            None => None,
+        },
 
-        (PengLiteral::Byte(a), PengLiteral::Byte(b)) => {
-            match a.checked_mul(*b) {
-                Some(v) => Some(PengLiteral::Byte(v)),
-                None => None,
-            }
-        }
+        (PengLiteral::Byte(a), PengLiteral::Byte(b)) => match a.checked_mul(*b) {
+            Some(v) => Some(PengLiteral::Byte(v)),
+            None => None,
+        },
 
-        (PengLiteral::Float32(a), PengLiteral::Float32(b)) => {
-            Some(PengLiteral::Float32(*a * *b))
-        }
+        (PengLiteral::Float32(a), PengLiteral::Float32(b)) => Some(PengLiteral::Float32(*a * *b)),
 
-        (PengLiteral::Float64(a), PengLiteral::Float64(b)) => {
-            Some(PengLiteral::Float64(*a * *b))
-        }
+        (PengLiteral::Float64(a), PengLiteral::Float64(b)) => Some(PengLiteral::Float64(*a * *b)),
 
         _ => None,
     }
@@ -237,34 +197,24 @@ fn fold_divide(left: &PengLiteral, right: &PengLiteral) -> Option<PengLiteral> {
         (PengLiteral::Float32(_), PengLiteral::Float32(v)) if *v == 0.0 => None,
         (PengLiteral::Float64(_), PengLiteral::Float64(v)) if *v == 0.0 => None,
 
-        (PengLiteral::Int(a), PengLiteral::Int(b)) => {
-            match a.checked_div(*b) {
-                Some(v) => Some(PengLiteral::Int(v)),
-                None => None,
-            }
-        }
+        (PengLiteral::Int(a), PengLiteral::Int(b)) => match a.checked_div(*b) {
+            Some(v) => Some(PengLiteral::Int(v)),
+            None => None,
+        },
 
-        (PengLiteral::Uint(a), PengLiteral::Uint(b)) => {
-            match a.checked_div(*b) {
-                Some(v) => Some(PengLiteral::Uint(v)),
-                None => None,
-            }
-        }
+        (PengLiteral::Uint(a), PengLiteral::Uint(b)) => match a.checked_div(*b) {
+            Some(v) => Some(PengLiteral::Uint(v)),
+            None => None,
+        },
 
-        (PengLiteral::Byte(a), PengLiteral::Byte(b)) => {
-            match a.checked_div(*b) {
-                Some(v) => Some(PengLiteral::Byte(v)),
-                None => None,
-            }
-        }
+        (PengLiteral::Byte(a), PengLiteral::Byte(b)) => match a.checked_div(*b) {
+            Some(v) => Some(PengLiteral::Byte(v)),
+            None => None,
+        },
 
-        (PengLiteral::Float32(a), PengLiteral::Float32(b)) => {
-            Some(PengLiteral::Float32(*a / *b))
-        }
+        (PengLiteral::Float32(a), PengLiteral::Float32(b)) => Some(PengLiteral::Float32(*a / *b)),
 
-        (PengLiteral::Float64(a), PengLiteral::Float64(b)) => {
-            Some(PengLiteral::Float64(*a / *b))
-        }
+        (PengLiteral::Float64(a), PengLiteral::Float64(b)) => Some(PengLiteral::Float64(*a / *b)),
 
         _ => None,
     }
@@ -278,34 +228,24 @@ fn fold_remainder(left: &PengLiteral, right: &PengLiteral) -> Option<PengLiteral
         (PengLiteral::Float32(_), PengLiteral::Float32(v)) if *v == 0.0 => None,
         (PengLiteral::Float64(_), PengLiteral::Float64(v)) if *v == 0.0 => None,
 
-        (PengLiteral::Int(a), PengLiteral::Int(b)) => {
-            match a.checked_rem(*b) {
-                Some(v) => Some(PengLiteral::Int(v)),
-                None => None,
-            }
-        }
+        (PengLiteral::Int(a), PengLiteral::Int(b)) => match a.checked_rem(*b) {
+            Some(v) => Some(PengLiteral::Int(v)),
+            None => None,
+        },
 
-        (PengLiteral::Uint(a), PengLiteral::Uint(b)) => {
-            match a.checked_rem(*b) {
-                Some(v) => Some(PengLiteral::Uint(v)),
-                None => None,
-            }
-        }
+        (PengLiteral::Uint(a), PengLiteral::Uint(b)) => match a.checked_rem(*b) {
+            Some(v) => Some(PengLiteral::Uint(v)),
+            None => None,
+        },
 
-        (PengLiteral::Byte(a), PengLiteral::Byte(b)) => {
-            match a.checked_rem(*b) {
-                Some(v) => Some(PengLiteral::Byte(v)),
-                None => None,
-            }
-        }
+        (PengLiteral::Byte(a), PengLiteral::Byte(b)) => match a.checked_rem(*b) {
+            Some(v) => Some(PengLiteral::Byte(v)),
+            None => None,
+        },
 
-        (PengLiteral::Float32(a), PengLiteral::Float32(b)) => {
-            Some(PengLiteral::Float32(*a % *b))
-        }
+        (PengLiteral::Float32(a), PengLiteral::Float32(b)) => Some(PengLiteral::Float32(*a % *b)),
 
-        (PengLiteral::Float64(a), PengLiteral::Float64(b)) => {
-            Some(PengLiteral::Float64(*a % *b))
-        }
+        (PengLiteral::Float64(a), PengLiteral::Float64(b)) => Some(PengLiteral::Float64(*a % *b)),
 
         _ => None,
     }
@@ -374,9 +314,7 @@ fn fold_concat(left: &PengLiteral, right: &PengLiteral) -> Option<PengLiteral> {
 
 fn fold_and(left: &PengLiteral, right: &PengLiteral) -> Option<PengLiteral> {
     match (left, right) {
-        (PengLiteral::Bool(a), PengLiteral::Bool(b)) => {
-            Some(PengLiteral::Bool(*a && *b))
-        }
+        (PengLiteral::Bool(a), PengLiteral::Bool(b)) => Some(PengLiteral::Bool(*a && *b)),
 
         _ => None,
     }
@@ -384,9 +322,7 @@ fn fold_and(left: &PengLiteral, right: &PengLiteral) -> Option<PengLiteral> {
 
 fn fold_or(left: &PengLiteral, right: &PengLiteral) -> Option<PengLiteral> {
     match (left, right) {
-        (PengLiteral::Bool(a), PengLiteral::Bool(b)) => {
-            Some(PengLiteral::Bool(*a || *b))
-        }
+        (PengLiteral::Bool(a), PengLiteral::Bool(b)) => Some(PengLiteral::Bool(*a || *b)),
 
         _ => None,
     }

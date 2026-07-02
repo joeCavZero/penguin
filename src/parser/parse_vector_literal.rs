@@ -1,7 +1,7 @@
 use crate::core::*;
 use crate::lexer::*;
-use crate::parser::parser::*;
 use crate::parser::parse_expression::*;
+use crate::parser::parser::*;
 
 pub fn parse_vector_literal(
     ptokens: &mut PengPeekablePositionedToken,

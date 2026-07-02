@@ -1,10 +1,10 @@
 use crate::core::*;
 use crate::lexer::*;
-use crate::parser::parser_utils::{block_statements, expect_identifier};
-use crate::parser::parser::*;
 use crate::parser::parse_block_statement::*;
 use crate::parser::parse_function_params::*;
 use crate::parser::parse_type_expression::*;
+use crate::parser::parser::*;
+use crate::parser::parser_utils::{block_statements, expect_identifier};
 
 pub fn parse_operation_declaration_statement(
     ptokens: &mut PengPeekablePositionedToken,
@@ -121,8 +121,6 @@ pub fn parse_optional_arrow_return_type(
 
     match parse_type_expression(ptokens) {
         Ok(type_expression) => Ok(Some(type_expression)),
-        Err(e) => Err(e.push(PengError::SyntaxError(
-            error_context.to_string(),
-        ))),
+        Err(e) => Err(e.push(PengError::SyntaxError(error_context.to_string()))),
     }
 }

@@ -1,10 +1,10 @@
-use std::collections::HashMap;
-use crate::core::utils::*;
 use crate::core::cell::*;
+use crate::core::utils::*;
+use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
 pub struct PengObject {
-    pub fields: HashMap<PengNamePoolPtr, PengBindedCell>
+    pub fields: HashMap<PengNamePoolPtr, PengBindedCell>,
 }
 
 impl PengObject {
@@ -13,7 +13,7 @@ impl PengObject {
     }
     pub fn new_empty() -> Self {
         Self {
-            fields: HashMap::new()
+            fields: HashMap::new(),
         }
     }
     pub fn equals(&self, rhs: &Self) -> bool {
@@ -21,13 +21,9 @@ impl PengObject {
             && self
                 .fields
                 .iter()
-                .all(
-                    |(name, value)| {
-                        match rhs.fields.get(name) {
-                            Some(rhs_value) => value.equals(rhs_value),
-                            None => false,
-                        } 
-                    }
-                )
+                .all(|(name, value)| match rhs.fields.get(name) {
+                    Some(rhs_value) => value.equals(rhs_value),
+                    None => false,
+                })
     }
 }
