@@ -271,6 +271,12 @@ fn parse_postfix_expression(
             None => break,
         };
 
+        if is_type_value_expression(&expr.value)
+            && !positions_share_line(&expr.position, &token.position)
+        {
+            break;
+        }
+
         match &token.value {
             PengToken::LeftParenthesis => {
                 expr = match parse_func_call_expression(ptokens, expr) {
@@ -367,6 +373,8 @@ fn parse_primary_expression(
             if is_literal {
                 return parse_type_literal(ptokens);
             }
+
+            return parse_type_value_expression(ptokens);
         }
         PengToken::Mod => {
             let is_literal = match token_after_current(ptokens) {
@@ -427,38 +435,9 @@ fn parse_primary_expression(
             literal_expr(PengLiteral::String(s.clone()), token.position.clone())
         }
 
-        PengToken::Int
-        | PengToken::Uint
-        | PengToken::Float32
-        | PengToken::Float64
-        | PengToken::String
-        | PengToken::Byte
-        | PengToken::Bool
-        | PengToken::Any
-        | PengToken::Type
-        | PengToken::Mod
-        | PengToken::Func
-        | PengToken::Thread
-        | PengToken::Oper => {
-            let type_expression = match type_expression_from_token(&token.value) {
-                Some(type_expression) => type_expression,
-                None => {
-                    return Err(PengError::new_positioned_message(
-                        "expected type value".to_string(),
-                        token.position.clone(),
-                    ));
-                }
-            };
-
-            Ok(PengPositioned {
-                value: PengExpression::Type(PengPositioned {
-                    value: type_expression,
-                    position: token.position.clone(),
-                }),
-                position: token.position.clone(),
-            })
-        }
-
+        // TODO: Custom type names and value names share the Identifier token. Enforce the
+        // `type Name` rule for custom types during name resolution, where the binding kind is
+        // known; the parser cannot reject a bare custom type without rejecting normal values.
         PengToken::Identifier(s) => Ok(PengPositioned {
             value: PengExpression::Identifier(PengPositioned {
                 value: s.clone(),
@@ -501,6 +480,41 @@ fn parse_primary_expression(
             token.position.clone(),
         )),
     }
+}
+
+fn parse_type_value_expression(
+    ptokens: &mut PengPeekablePositionedToken,
+) -> Result<PengPositionedExpression, PengError> {
+    let type_token = match ptokens.next() {
+        Some(token) => token,
+        None => {
+            return Err(PengError::SyntaxError("expected 'type'".to_string()));
+        }
+    };
+
+    match &type_token.value {
+        PengToken::Type => {}
+        _ => {
+            return Err(PengError::new_positioned_message(
+                "expected 'type'".to_string(),
+                type_token.position.clone(),
+            ));
+        }
+    }
+
+    let type_expression = match parse_type_expression(ptokens) {
+        Ok(type_expression) => type_expression,
+        Err(e) => {
+            return Err(e.push(PengError::SyntaxError(
+                "failed while parsing type value expression".to_string(),
+            )));
+        }
+    };
+
+    Ok(PengPositioned {
+        value: PengExpression::Type(type_expression),
+        position: type_token.position.clone(),
+    })
 }
 
 pub fn literal_expr(

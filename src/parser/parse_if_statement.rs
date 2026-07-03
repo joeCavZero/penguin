@@ -89,40 +89,54 @@ pub fn parse_if_statement(
             }
         };
 
-        match ptokens.peek() {
+        let else_is_if = match ptokens.peek() {
             Some(token) => match &token.value {
-                PengToken::LeftCurlyBrace => {}
+                PengToken::LeftCurlyBrace => false,
+                PengToken::If => true,
                 _ => {
                     return Err(PengError::new_positioned_message(
-                        "expected block after 'else'".to_string(),
+                        "expected block or 'if' after 'else'".to_string(),
                         token.position.clone(),
                     ));
                 }
             },
             None => {
                 return Err(PengError::new_positioned_message(
-                    "expected block after 'else'".to_string(),
+                    "expected block or 'if' after 'else'".to_string(),
                     else_token.position.clone(),
                 ));
-            }
-        }
-
-        let else_statement = match parse_block_statement(ptokens) {
-            Ok(statement) => statement,
-            Err(e) => {
-                return Err(e.push(PengError::SyntaxError(
-                    "failed while parsing parse_if_statement".to_string(),
-                )));
             }
         };
 
-        match else_statement.value {
-            PengStatement::Block(statements) => Some(statements),
-            _ => {
-                return Err(PengError::new_positioned_message(
-                    "expected block after 'else'".to_string(),
-                    else_token.position.clone(),
-                ));
+        if else_is_if {
+            let else_if_statement = match parse_if_statement(ptokens) {
+                Ok(statement) => statement,
+                Err(e) => {
+                    return Err(e.push(PengError::SyntaxError(
+                        "failed while parsing parse_if_statement".to_string(),
+                    )));
+                }
+            };
+
+            Some(vec![else_if_statement])
+        } else {
+            let else_statement = match parse_block_statement(ptokens) {
+                Ok(statement) => statement,
+                Err(e) => {
+                    return Err(e.push(PengError::SyntaxError(
+                        "failed while parsing parse_if_statement".to_string(),
+                    )));
+                }
+            };
+
+            match else_statement.value {
+                PengStatement::Block(statements) => Some(statements),
+                _ => {
+                    return Err(PengError::new_positioned_message(
+                        "expected block after 'else'".to_string(),
+                        else_token.position.clone(),
+                    ));
+                }
             }
         }
     } else {
