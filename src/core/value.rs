@@ -20,6 +20,11 @@ impl PengValue {
     pub fn greater_than(&self, rhs: &Self) -> Result<bool, PengError> {
         match (self, rhs) {
             (Self::Cell(left), Self::Cell(right)) => left.greater_than(right),
+
+            (Self::Box(PengBox::String(left)), Self::Box(PengBox::String(right))) => {
+                Ok(left > right)
+            }
+
             _ => Err(PengError::InvalidBinaryOperationValue {
                 operator: ">".to_string(),
                 left: self.clone(),
@@ -31,6 +36,11 @@ impl PengValue {
     pub fn greater_equals_than(&self, rhs: &Self) -> Result<bool, PengError> {
         match (self, rhs) {
             (Self::Cell(left), Self::Cell(right)) => left.greater_equals_than(right),
+
+            (Self::Box(PengBox::String(left)), Self::Box(PengBox::String(right))) => {
+                Ok(left >= right)
+            }
+
             _ => Err(PengError::InvalidBinaryOperationValue {
                 operator: ">=".to_string(),
                 left: self.clone(),
@@ -42,6 +52,11 @@ impl PengValue {
     pub fn less_than(&self, rhs: &Self) -> Result<bool, PengError> {
         match (self, rhs) {
             (Self::Cell(left), Self::Cell(right)) => left.less_than(right),
+
+            (Self::Box(PengBox::String(left)), Self::Box(PengBox::String(right))) => {
+                Ok(left < right)
+            }
+
             _ => Err(PengError::InvalidBinaryOperationValue {
                 operator: "<".to_string(),
                 left: self.clone(),
@@ -53,6 +68,11 @@ impl PengValue {
     pub fn less_equals_than(&self, rhs: &Self) -> Result<bool, PengError> {
         match (self, rhs) {
             (Self::Cell(left), Self::Cell(right)) => left.less_equals_than(right),
+
+            (Self::Box(PengBox::String(left)), Self::Box(PengBox::String(right))) => {
+                Ok(left <= right)
+            }
+
             _ => Err(PengError::InvalidBinaryOperationValue {
                 operator: "<=".to_string(),
                 left: self.clone(),
