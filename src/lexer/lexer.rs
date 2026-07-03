@@ -7,35 +7,6 @@ pub enum LexerCallbackResponse {
     String(String),
 }
 
-pub fn lex_file(file_path: String, id: usize) -> Result<Vec<PengPositionedToken>, PengError> {
-    let source = match std::fs::read_to_string(file_path) {
-        Ok(src) => src,
-        Err(e) => return Err(PengError::SyntaxError(e.to_string())),
-    };
-
-    let mut ptokens: Vec<PengPositionedToken> = Vec::new();
-    let mut err_to_return: Option<PengError> = None;
-    lex_source_fn(source, |res, line, column| {
-        let pos = PengPosition::new(id, line, column);
-
-        match res {
-            LexerCallbackResponse::Token(t) => {
-                match PengPositioned::<PengToken>::from_string(t, pos.clone()) {
-                    Ok(ptk) => ptokens.push(ptk),
-                    Err(e) => err_to_return = Some(PengError::new_positioned_error(e, pos.clone())),
-                }
-            }
-            LexerCallbackResponse::String(s) => {
-                ptokens.push(PengPositioned::<PengToken>::new_string(s, pos))
-            }
-        }
-    });
-    if let Some(err) = err_to_return {
-        return Err(err);
-    }
-    Ok(ptokens)
-}
-
 pub fn lex_source(source: String, id: usize) -> Result<Vec<PengPositionedToken>, PengError> {
     let mut ptokens: Vec<PengPositionedToken> = Vec::new();
     let mut err_to_return: Option<PengError> = None;

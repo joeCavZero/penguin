@@ -100,42 +100,6 @@ impl PengEnv {
         peng_binary_to_unit(self, file, using_unit)
     }
 
-    pub fn load_script_from_file(
-        &mut self,
-        path: &str,
-        position_id: usize,
-    ) -> Result<PengUnit, PengError> {
-        let using_unit = PengUnit::library();
-
-        self.load_script_from_file_using(path, &using_unit, position_id)
-    }
-
-    pub fn load_script_from_file_using(
-        &mut self,
-        path: &str,
-        using_unit: &PengUnit,
-        position_id: usize,
-    ) -> Result<PengUnit, PengError> {
-        let tokens = match lex_file(path.to_string(), position_id) {
-            Ok(v) => v,
-            Err(e) => return Err(e),
-        };
-        let ast = match parse_script(tokens) {
-            Ok(v) => v,
-            Err(e) => return Err(e),
-        };
-        let optast = match optimize_ast(ast, PengOptimizerConfig::aggressive()) {
-            Ok(v) => v,
-            Err(e) => return Err(e),
-        };
-        let unit = match generate_ast_using(self, &optast, using_unit) {
-            Ok(v) => v,
-            Err(e) => return Err(e),
-        };
-
-        Ok(unit)
-    }
-
     pub fn load_script_from_source(
         &mut self,
         position_id: usize,
@@ -157,42 +121,6 @@ impl PengEnv {
             Err(e) => return Err(e),
         };
         let ast = match parse_script(tokens) {
-            Ok(v) => v,
-            Err(e) => return Err(e),
-        };
-        let optast = match optimize_ast(ast, PengOptimizerConfig::aggressive()) {
-            Ok(v) => v,
-            Err(e) => return Err(e),
-        };
-        let unit = match generate_ast_using(self, &optast, using_unit) {
-            Ok(v) => v,
-            Err(e) => return Err(e),
-        };
-
-        Ok(unit)
-    }
-
-    pub fn load_program_from_file(
-        &mut self,
-        path: &str,
-        position_id: usize,
-    ) -> Result<PengUnit, PengError> {
-        let using_unit = PengUnit::library();
-
-        self.load_program_from_file_using(path, &using_unit, position_id)
-    }
-
-    pub fn load_program_from_file_using(
-        &mut self,
-        path: &str,
-        using_unit: &PengUnit,
-        position_id: usize,
-    ) -> Result<PengUnit, PengError> {
-        let tokens = match lex_file(path.to_string(), position_id) {
-            Ok(v) => v,
-            Err(e) => return Err(e),
-        };
-        let ast = match parse_program(tokens) {
             Ok(v) => v,
             Err(e) => return Err(e),
         };
@@ -244,32 +172,29 @@ impl PengEnv {
         Ok(unit)
     }
 
-    pub fn compile_program_to_binary_file(
+    pub fn compile_program_to_binary(
         &mut self,
-        input_path: &str,
-        output_path: &str,
+        source: &str,
         position_id: usize,
-    ) -> Result<(), PengError> {
+    ) -> Result<Vec<u8>, PengError> {
         let using_unit = PengUnit::library();
 
-        self.compile_program_to_binary_file_using(
-            input_path,
-            output_path,
+        self.compile_program_to_binary_using(
+            source,
             &using_unit,
             &PengBinaryBuildOptions::default(),
             position_id,
         )
     }
 
-    pub fn compile_program_to_binary_file_using(
+    pub fn compile_program_to_binary_using(
         &mut self,
-        input_path: &str,
-        output_path: &str,
+        source: &str,
         using_unit: &PengUnit,
         options: &PengBinaryBuildOptions,
         position_id: usize,
-    ) -> Result<(), PengError> {
-        let unit = match self.load_program_from_file_using(input_path, using_unit, position_id) {
+    ) -> Result<Vec<u8>, PengError> {
+        let unit = match self.load_program_from_source_using(source, using_unit, position_id) {
             Ok(v) => v,
             Err(e) => return Err(e),
         };
@@ -285,38 +210,35 @@ impl PengEnv {
             Err(e) => return Err(e),
         };
 
-        match peng_binary_write_file(output_path, &file) {
-            Ok(()) => Ok(()),
+        match peng_binary_encode(&file) {
+            Ok(bytes) => Ok(bytes),
             Err(e) => Err(e),
         }
     }
 
-    pub fn compile_script_to_binary_file(
+    pub fn compile_script_to_binary(
         &mut self,
-        input_path: &str,
-        output_path: &str,
+        source: &str,
         position_id: usize,
-    ) -> Result<(), PengError> {
+    ) -> Result<Vec<u8>, PengError> {
         let using_unit = PengUnit::library();
 
-        self.compile_script_to_binary_file_using(
-            input_path,
-            output_path,
+        self.compile_script_to_binary_using(
+            source,
             &using_unit,
             &PengBinaryBuildOptions::default(),
             position_id,
         )
     }
 
-    pub fn compile_script_to_binary_file_using(
+    pub fn compile_script_to_binary_using(
         &mut self,
-        input_path: &str,
-        output_path: &str,
+        source: &str,
         using_unit: &PengUnit,
         options: &PengBinaryBuildOptions,
         position_id: usize,
-    ) -> Result<(), PengError> {
-        let unit = match self.load_script_from_file_using(input_path, using_unit, position_id) {
+    ) -> Result<Vec<u8>, PengError> {
+        let unit = match self.load_script_from_source_using(source, using_unit, position_id) {
             Ok(v) => v,
             Err(e) => return Err(e),
         };
@@ -332,64 +254,8 @@ impl PengEnv {
             Err(e) => return Err(e),
         };
 
-        match peng_binary_write_file(output_path, &file) {
-            Ok(()) => Ok(()),
-            Err(e) => Err(e),
-        }
-    }
-
-    pub fn load_program_from_binary_file(&mut self, path: &str) -> Result<PengUnit, PengError> {
-        let using_unit = PengUnit::library();
-
-        self.load_program_from_binary_file_using(path, &using_unit)
-    }
-
-    pub fn load_program_from_binary_file_using(
-        &mut self,
-        path: &str,
-        using_unit: &PengUnit,
-    ) -> Result<PengUnit, PengError> {
-        let file = match peng_binary_read_file(path) {
-            Ok(v) => v,
-            Err(e) => return Err(e),
-        };
-
-        if file.entry_kind != PengBinaryEntryKind::Program {
-            return Err(PengError::InvalidState(
-                "expected a program in Penguin binary file".to_string(),
-            ));
-        }
-
-        match peng_binary_to_unit(self, &file, using_unit) {
-            Ok(v) => Ok(v),
-            Err(e) => Err(e),
-        }
-    }
-
-    pub fn load_script_from_binary_file(&mut self, path: &str) -> Result<PengUnit, PengError> {
-        let using_unit = PengUnit::library();
-
-        self.load_script_from_binary_file_using(path, &using_unit)
-    }
-
-    pub fn load_script_from_binary_file_using(
-        &mut self,
-        path: &str,
-        using_unit: &PengUnit,
-    ) -> Result<PengUnit, PengError> {
-        let file = match peng_binary_read_file(path) {
-            Ok(v) => v,
-            Err(e) => return Err(e),
-        };
-
-        if file.entry_kind != PengBinaryEntryKind::Script {
-            return Err(PengError::InvalidState(
-                "expected a script in Penguin binary file".to_string(),
-            ));
-        }
-
-        match peng_binary_to_unit(self, &file, using_unit) {
-            Ok(v) => Ok(v),
+        match peng_binary_encode(&file) {
+            Ok(bytes) => Ok(bytes),
             Err(e) => Err(e),
         }
     }
@@ -405,7 +271,7 @@ impl PengEnv {
         bytes: &[u8],
         using_unit: &PengUnit,
     ) -> Result<PengUnit, PengError> {
-        let file = match peng_binary_decode_file(bytes) {
+        let file = match peng_binary_decode(bytes) {
             Ok(v) => v,
             Err(e) => return Err(e),
         };
@@ -433,7 +299,7 @@ impl PengEnv {
         bytes: &[u8],
         using_unit: &PengUnit,
     ) -> Result<PengUnit, PengError> {
-        let file = match peng_binary_decode_file(bytes) {
+        let file = match peng_binary_decode(bytes) {
             Ok(v) => v,
             Err(e) => return Err(e),
         };

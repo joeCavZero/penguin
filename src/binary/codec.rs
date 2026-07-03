@@ -1,6 +1,5 @@
 use super::*;
 use crate::core::*;
-use std::fs;
 
 fn binary_invalid_state_error(s: &str) -> PengError {
     PengError::InvalidState(format!("invalid Penguin binary: {s}"))
@@ -693,7 +692,7 @@ fn rd_value(r: &mut R) -> Result<PengBinaryValue, PengError> {
     }
 }
 
-pub fn peng_binary_encode_file(file: &PengBinaryFile) -> Result<Vec<u8>, PengError> {
+pub fn peng_binary_encode(file: &PengBinaryFile) -> Result<Vec<u8>, PengError> {
     match peng_binary_validate_file(file) {
         Ok(()) => {}
         Err(e) => return Err(e),
@@ -731,7 +730,7 @@ pub fn peng_binary_encode_file(file: &PengBinaryFile) -> Result<Vec<u8>, PengErr
     }
     Ok(w.b)
 }
-pub fn peng_binary_decode_file(bytes: &[u8]) -> Result<PengBinaryFile, PengError> {
+pub fn peng_binary_decode(bytes: &[u8]) -> Result<PengBinaryFile, PengError> {
     let mut r = R { b: bytes, p: 0 };
     let magic = match r.take(4) {
         Ok(v) => [v[0], v[1], v[2], v[3]],
@@ -833,24 +832,6 @@ pub fn peng_binary_decode_file(bytes: &[u8]) -> Result<PengBinaryFile, PengError
         Err(e) => Err(e),
     }
 }
-pub fn peng_binary_write_file(path: &str, file: &PengBinaryFile) -> Result<(), PengError> {
-    let bytes = match peng_binary_encode_file(file) {
-        Ok(v) => v,
-        Err(e) => return Err(e),
-    };
-    match fs::write(path, bytes) {
-        Ok(()) => Ok(()),
-        Err(e) => Err(binary_invalid_state_error(&format!("file write failed: {e}"))),
-    }
-}
-pub fn peng_binary_read_file(path: &str) -> Result<PengBinaryFile, PengError> {
-    let bytes = match fs::read(path) {
-        Ok(v) => v,
-        Err(e) => return Err(binary_invalid_state_error(&format!("file read failed: {e}"))),
-    };
-    peng_binary_decode_file(&bytes)
-}
-
 fn valid_ref(v: &PengBinaryRef, n: usize) -> bool {
     match v {
         PengBinaryRef::Heap(v) => (v.0 as usize) < n,
@@ -859,7 +840,9 @@ fn valid_ref(v: &PengBinaryRef, n: usize) -> bool {
 }
 fn validate_code(v: &PengBinaryBytecode, n: usize) -> Result<(), PengError> {
     if !v.positions.is_empty() && v.positions.len() != v.bytecode.len() {
-        return Err(binary_invalid_state_error("positions length differs from bytecode length"));
+        return Err(binary_invalid_state_error(
+            "positions length differs from bytecode length",
+        ));
     }
     for i in &v.bytecode {
         match i {
@@ -876,14 +859,18 @@ fn validate_code(v: &PengBinaryBytecode, n: usize) -> Result<(), PengError> {
             PengBinaryOpcode::PushHeap(x) | PengBinaryOpcode::PushHeapRef(x)
                 if !valid_ref(x, n) =>
             {
-                return Err(binary_invalid_state_error("instruction heap id out of range"));
+                return Err(binary_invalid_state_error(
+                    "instruction heap id out of range",
+                ));
             }
             _ => {}
         }
     }
     for x in &v.using_values {
         if !valid_ref(x, n) {
-            return Err(binary_invalid_state_error("using value heap id out of range"));
+            return Err(binary_invalid_state_error(
+                "using value heap id out of range",
+            ));
         }
     }
     Ok(())
@@ -908,7 +895,9 @@ pub fn peng_binary_validate_file(file: &PengBinaryFile) -> Result<(), PengError>
     }
     for (index, x) in file.heap.iter().enumerate() {
         if x.id.0 as usize != index {
-            return Err(binary_invalid_state_error("heap ids must be contiguous and ordered"));
+            return Err(binary_invalid_state_error(
+                "heap ids must be contiguous and ordered",
+            ));
         }
         match validate_value(&x.value, file.heap.len()) {
             Ok(()) => {}
