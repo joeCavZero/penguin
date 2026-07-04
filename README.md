@@ -83,3 +83,10 @@ The main goals of Penguin are:
 - Predictable behavior
 - Extensible architecture
 - Clean implementation
+
+## Documentation
+- [language](/docs/language.md)
+- [archtecture](/docs/archtecture.md)
+- [embedding](/docs/embedding.md)
+- [binary](/docs/binary.md)
+- [errors](/docs/errors.md)
