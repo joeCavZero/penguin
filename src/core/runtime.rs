@@ -674,13 +674,13 @@ fn binary_numeric_cells(
     }
 }
 
-fn resolve_numeric_cell(env: &PengEnv, cell: &PengCell) -> Result<PengCell, PengError> {
+fn resolve_numeric_cell(env: &PengEnv, cell: &PengCell) -> Result<Option<PengCell>, PengError> {
     match cell {
         PengCell::Int(_)
         | PengCell::Uint(_)
         | PengCell::Byte(_)
         | PengCell::Float32(_)
-        | PengCell::Float64(_) => Ok(cell.clone()),
+        | PengCell::Float64(_) => Ok(Some(cell.clone())),
 
         PengCell::Reference(ptr) => match env.get_heap(*ptr) {
             Some(PengValue::Cell(value)) => match value {
@@ -688,17 +688,17 @@ fn resolve_numeric_cell(env: &PengEnv, cell: &PengCell) -> Result<PengCell, Peng
                 | PengCell::Uint(_)
                 | PengCell::Byte(_)
                 | PengCell::Float32(_)
-                | PengCell::Float64(_) => Ok(value.clone()),
+                | PengCell::Float64(_) => Ok(Some(value.clone())),
 
-                _ => Err(PengError::InvalidInstruction(PengInstruction::Divide)),
+                _ => Ok(None),
             },
 
-            Some(_) => Err(PengError::ExpectedNumber),
+            Some(_) => Ok(None),
 
             None => Err(PengError::HeapValueNotFound(*ptr)),
         },
 
-        _ => Err(PengError::ExpectedNumber),
+        _ => Ok(None),
     }
 }
 
@@ -707,34 +707,154 @@ fn execute_binary_numeric_operation(
     thread: PengHeapPtr,
     instruction: PengInstruction,
     operation: NumericBinaryOperation,
-) -> Result<(), PengError> {
+) -> Result<bool, PengError> {
     let (left, right) = match env.get_thread_2_latests_binded_stated_cell_cloned(thread) {
         Ok(cells) => cells,
-        Err(e) => return Err(e.push(PengError::InvalidInstruction(instruction))),
+        Err(e) => {
+            return Err(e.push(PengError::InvalidInstruction(instruction)));
+        }
     };
 
     let left_cell = match resolve_numeric_cell(env, left.value()) {
-        Ok(cell) => cell,
-        Err(e) => return Err(e.push(PengError::InvalidInstruction(instruction))),
+        Ok(Some(cell)) => cell,
+
+        Ok(None) => {
+            return Ok(false);
+        }
+
+        Err(e) => {
+            return Err(e.push(PengError::InvalidInstruction(instruction)));
+        }
     };
 
     let right_cell = match resolve_numeric_cell(env, right.value()) {
-        Ok(cell) => cell,
-        Err(e) => return Err(e.push(PengError::InvalidInstruction(instruction))),
+        Ok(Some(cell)) => cell,
+
+        Ok(None) => {
+            return Ok(false);
+        }
+
+        Err(e) => {
+            return Err(e.push(PengError::InvalidInstruction(instruction)));
+        }
     };
 
     let result = match binary_numeric_cells(&left_cell, &right_cell, operation) {
         Some(result) => result,
-        None => return Err(PengError::InvalidInstruction(instruction)),
+
+        None => {
+            return Err(PengError::InvalidInstruction(instruction));
+        }
     };
 
     match env.pop_thread_stack_n_times(thread, 2) {
         Ok(()) => {}
-        Err(e) => return Err(e.push(PengError::InvalidInstruction(instruction))),
+
+        Err(e) => {
+            return Err(e.push(PengError::InvalidInstruction(instruction)));
+        }
     }
 
     match env.push_thread_binded_stated_cell(thread, PengBinded::Mutable(result)) {
+        Ok(()) => Ok(true),
+
+        Err(e) => Err(e.push(PengError::InvalidInstruction(instruction))),
+    }
+}
+
+fn execute_custom_binary_operation(
+    env: &mut PengEnv,
+    thread: PengHeapPtr,
+    unit: &PengUnit,
+    instruction: PengInstruction,
+    instruction_position: PengPosition,
+    function: PengNativeFunction,
+) -> Result<(), PengError> {
+    let (left, right) = match env.get_thread_2_latests_binded_stated_cell_cloned(thread) {
+        Ok(cells) => cells,
+
+        Err(e) => {
+            return Err(e.push(PengError::InvalidInstruction(instruction)));
+        }
+    };
+
+    let args = vec![left.clone(), right.clone()];
+
+    let mut ctx = PengNativeFunctionCallContext::new(env, thread, unit, args);
+
+    let callable = match function.call(&mut ctx) {
+        Ok(callable) => callable,
+
+        Err(e) => {
+            return Err(e
+                .push(PengError::CannotCallValue(
+                    "custom binary operation resolution failed".to_string(),
+                ))
+                .push(PengError::InvalidInstruction(instruction)));
+        }
+    };
+
+    let callable_ptr = match callable.value() {
+        PengCell::Reference(ptr) => *ptr,
+
+        _ => {
+            return Err(PengError::CannotCallValue(
+                "custom binary operation expected callable".to_string(),
+            )
+            .push(PengError::InvalidInstruction(instruction)));
+        }
+    };
+
+    match env.get_heap(callable_ptr) {
+        Some(PengValue::Box(PengBox::Function(_))) => {}
+
+        Some(_) => {
+            return Err(PengError::CannotCallValue(
+                "custom binary operation expected function".to_string(),
+            )
+            .push(PengError::InvalidInstruction(instruction)));
+        }
+
+        None => {
+            return Err(PengError::HeapValueNotFound(callable_ptr));
+        }
+    }
+
+    match env.pop_thread_stack_n_times(thread, 2) {
+        Ok(()) => {}
+
+        Err(e) => {
+            return Err(e.push(PengError::InvalidInstruction(instruction)));
+        }
+    }
+
+    match env.push_thread_binded_stated_cell(thread, callable) {
+        Ok(()) => {}
+
+        Err(e) => {
+            return Err(e.push(PengError::InvalidInstruction(instruction)));
+        }
+    }
+
+    match env.push_thread_binded_stated_cell(thread, left) {
+        Ok(()) => {}
+
+        Err(e) => {
+            return Err(e.push(PengError::InvalidInstruction(instruction)));
+        }
+    }
+
+    match env.push_thread_binded_stated_cell(thread, right) {
+        Ok(()) => {}
+
+        Err(e) => {
+            return Err(e.push(PengError::InvalidInstruction(instruction)));
+        }
+    }
+
+    match env.execute_function_call(thread, 2, false, Some(instruction_position)) {
         Ok(()) => Ok(()),
+
         Err(e) => Err(e.push(PengError::InvalidInstruction(instruction))),
     }
 }
@@ -1639,62 +1759,212 @@ pub fn execute_instruction(
         PengInstruction::Add => match execute_binary_numeric_operation(
             env,
             thread,
-            instruction,
+            instruction.clone(),
             NumericBinaryOperation::Add,
         ) {
-            Ok(()) => {}
-            Err(e) => return Err(e),
-        },
+            Ok(true) => {}
 
+            Ok(false) => {
+                let custom = match unit.custom_add() {
+                    Some(custom) => custom.clone(),
+
+                    None => {
+                        return Err(PengError::InvalidInstruction(instruction));
+                    }
+                };
+
+                match execute_custom_binary_operation(
+                    env,
+                    thread,
+                    unit,
+                    instruction,
+                    instruction_position.clone(),
+                    custom,
+                ) {
+                    Ok(()) => {
+                        return Ok(None);
+                    }
+
+                    Err(e) => {
+                        return Err(e);
+                    }
+                }
+            }
+
+            Err(e) => {
+                return Err(e);
+            }
+        },
         PengInstruction::Subtract => match execute_binary_numeric_operation(
             env,
             thread,
-            instruction,
+            instruction.clone(),
             NumericBinaryOperation::Subtract,
         ) {
-            Ok(()) => {}
-            Err(e) => return Err(e),
-        },
+            Ok(true) => {}
 
+            Ok(false) => {
+                let custom = match unit.custom_subtract() {
+                    Some(custom) => custom.clone(),
+
+                    None => {
+                        return Err(PengError::InvalidInstruction(instruction));
+                    }
+                };
+
+                match execute_custom_binary_operation(
+                    env,
+                    thread,
+                    unit,
+                    instruction,
+                    instruction_position.clone(),
+                    custom,
+                ) {
+                    Ok(()) => {
+                        return Ok(None);
+                    }
+
+                    Err(e) => {
+                        return Err(e);
+                    }
+                }
+            }
+
+            Err(e) => {
+                return Err(e);
+            }
+        },
         PengInstruction::Multiply => match execute_binary_numeric_operation(
             env,
             thread,
-            instruction,
+            instruction.clone(),
             NumericBinaryOperation::Multiply,
         ) {
-            Ok(()) => {}
-            Err(e) => return Err(e),
+            Ok(true) => {}
+
+            Ok(false) => {
+                let custom = match unit.custom_multiply() {
+                    Some(custom) => custom.clone(),
+
+                    None => {
+                        return Err(PengError::InvalidInstruction(instruction));
+                    }
+                };
+
+                match execute_custom_binary_operation(
+                    env,
+                    thread,
+                    unit,
+                    instruction,
+                    instruction_position.clone(),
+                    custom,
+                ) {
+                    Ok(()) => {}
+
+                    Err(e) => {
+                        return Err(e);
+                    }
+                }
+            }
+
+            Err(e) => {
+                return Err(e);
+            }
         },
 
         PengInstruction::Divide => match execute_binary_numeric_operation(
             env,
             thread,
-            instruction,
+            instruction.clone(),
             NumericBinaryOperation::Divide,
         ) {
-            Ok(()) => {}
-            Err(e) => return Err(e),
+            Ok(true) => {}
+
+            Ok(false) => {
+                let custom = match unit.custom_divide() {
+                    Some(custom) => custom.clone(),
+
+                    None => {
+                        return Err(PengError::InvalidInstruction(instruction));
+                    }
+                };
+
+                match execute_custom_binary_operation(env, thread, unit, instruction, instruction_position.clone(), custom) {
+                    Ok(()) => {}
+
+                    Err(e) => {
+                        return Err(e);
+                    }
+                }
+            }
+
+            Err(e) => {
+                return Err(e);
+            }
         },
 
         PengInstruction::Power => match execute_binary_numeric_operation(
             env,
             thread,
-            instruction,
+            instruction.clone(),
             NumericBinaryOperation::Power,
         ) {
-            Ok(()) => {}
-            Err(e) => return Err(e),
+            Ok(true) => {}
+
+            Ok(false) => {
+                let custom = match unit.custom_power() {
+                    Some(custom) => custom.clone(),
+
+                    None => {
+                        return Err(PengError::InvalidInstruction(instruction));
+                    }
+                };
+
+                match execute_custom_binary_operation(env, thread, unit, instruction, instruction_position.clone(), custom) {
+                    Ok(()) => {}
+
+                    Err(e) => {
+                        return Err(e);
+                    }
+                }
+            }
+
+            Err(e) => {
+                return Err(e);
+            }
         },
 
         PengInstruction::Remainder => match execute_binary_numeric_operation(
             env,
             thread,
-            instruction,
+            instruction.clone(),
             NumericBinaryOperation::Remainder,
         ) {
-            Ok(()) => {}
-            Err(e) => return Err(e),
+            Ok(true) => {}
+
+            Ok(false) => {
+                let custom = match unit.custom_remainder() {
+                    Some(custom) => custom.clone(),
+
+                    None => {
+                        return Err(PengError::InvalidInstruction(instruction));
+                    }
+                };
+
+                match execute_custom_binary_operation(env, thread, unit, instruction, instruction_position.clone(), custom) {
+                    Ok(()) => {}
+
+                    Err(e) => {
+                        return Err(e);
+                    }
+                }
+            }
+
+            Err(e) => {
+                return Err(e);
+            }
         },
+
         PengInstruction::Negate => {
             match env.get_thread_latest_binded_stated_cell(thread, 0).cloned() {
                 Ok(cell) => {
