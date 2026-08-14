@@ -224,6 +224,7 @@ pub enum PengError {
     // Erros de usuário
     // ======================
     Raised(Box<PengError>),
+    UserError(Vec<PengValue>),
 }
 
 impl PengError {

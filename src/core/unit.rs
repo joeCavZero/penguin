@@ -14,6 +14,17 @@ pub struct PengUnit {
     custom_divide: Option<PengNativeFunction>,
     custom_power: Option<PengNativeFunction>,
     custom_remainder: Option<PengNativeFunction>,
+    custom_negate: Option<PengNativeFunction>,
+    custom_concat: Option<PengNativeFunction>,
+    custom_and: Option<PengNativeFunction>,
+    custom_or: Option<PengNativeFunction>,
+    custom_not: Option<PengNativeFunction>,
+    custom_equals: Option<PengNativeFunction>,
+    custom_not_equals: Option<PengNativeFunction>,
+    custom_greater_than: Option<PengNativeFunction>,
+    custom_greater_equals_than: Option<PengNativeFunction>,
+    custom_less_than: Option<PengNativeFunction>,
+    custom_less_equals_than: Option<PengNativeFunction>,
 }
 
 impl PengUnit {
@@ -27,6 +38,17 @@ impl PengUnit {
         custom_divide: Option<PengNativeFunction>,
         custom_power: Option<PengNativeFunction>,
         custom_remainder: Option<PengNativeFunction>,
+        custom_negate: Option<PengNativeFunction>,
+        custom_concat: Option<PengNativeFunction>,
+        custom_and: Option<PengNativeFunction>,
+        custom_or: Option<PengNativeFunction>,
+        custom_not: Option<PengNativeFunction>,
+        custom_equals: Option<PengNativeFunction>,
+        custom_not_equals: Option<PengNativeFunction>,
+        custom_greater_than: Option<PengNativeFunction>,
+        custom_greater_equals_than: Option<PengNativeFunction>,
+        custom_less_than: Option<PengNativeFunction>,
+        custom_less_equals_than: Option<PengNativeFunction>,
     ) -> Self {
         Self {
             init: Some(init),
@@ -38,6 +60,17 @@ impl PengUnit {
             custom_divide,
             custom_power,
             custom_remainder,
+            custom_negate,
+            custom_concat,
+            custom_and,
+            custom_or,
+            custom_not,
+            custom_equals,
+            custom_not_equals,
+            custom_greater_than,
+            custom_greater_equals_than,
+            custom_less_than,
+            custom_less_equals_than,
         }
     }
 
@@ -52,6 +85,17 @@ impl PengUnit {
             custom_divide: None,
             custom_power: None,
             custom_remainder: None,
+            custom_negate: None,
+            custom_concat: None,
+            custom_and: None,
+            custom_or: None,
+            custom_not: None,
+            custom_equals: None,
+            custom_not_equals: None,
+            custom_greater_than: None,
+            custom_greater_equals_than: None,
+            custom_less_than: None,
+            custom_less_equals_than: None,
         }
     }
 
@@ -66,6 +110,17 @@ impl PengUnit {
             custom_divide: None,
             custom_power: None,
             custom_remainder: None,
+            custom_negate: None,
+            custom_concat: None,
+            custom_and: None,
+            custom_or: None,
+            custom_not: None,
+            custom_equals: None,
+            custom_not_equals: None,
+            custom_greater_than: None,
+            custom_greater_equals_than: None,
+            custom_less_than: None,
+            custom_less_equals_than: None,
         }
     }
 
@@ -141,6 +196,50 @@ impl PengUnit {
         if let Some(custom_remainder) = unit.custom_remainder.as_ref() {
             self.custom_remainder = Some(custom_remainder.clone());
         }
+
+        if let Some(custom_negate) = unit.custom_negate.as_ref() {
+            self.custom_negate = Some(custom_negate.clone());
+        }
+
+        if let Some(custom_concat) = unit.custom_concat.as_ref() {
+            self.custom_concat = Some(custom_concat.clone());
+        }
+
+        if let Some(custom_and) = unit.custom_and.as_ref() {
+            self.custom_and = Some(custom_and.clone());
+        }
+
+        if let Some(custom_or) = unit.custom_or.as_ref() {
+            self.custom_or = Some(custom_or.clone());
+        }
+
+        if let Some(custom_not) = unit.custom_not.as_ref() {
+            self.custom_not = Some(custom_not.clone());
+        }
+
+        if let Some(custom_equals) = unit.custom_equals.as_ref() {
+            self.custom_equals = Some(custom_equals.clone());
+        }
+
+        if let Some(custom_not_equals) = unit.custom_not_equals.as_ref() {
+            self.custom_not_equals = Some(custom_not_equals.clone());
+        }
+
+        if let Some(custom_greater_than) = unit.custom_greater_than.as_ref() {
+            self.custom_greater_than = Some(custom_greater_than.clone());
+        }
+
+        if let Some(custom_greater_equals_than) = unit.custom_greater_equals_than.as_ref() {
+            self.custom_greater_equals_than = Some(custom_greater_equals_than.clone());
+        }
+
+        if let Some(custom_less_than) = unit.custom_less_than.as_ref() {
+            self.custom_less_than = Some(custom_less_than.clone());
+        }
+
+        if let Some(custom_less_equals_than) = unit.custom_less_equals_than.as_ref() {
+            self.custom_less_equals_than = Some(custom_less_equals_than.clone());
+        }
     }
 
     pub fn custom_access(&self) -> &HashMap<PengNamePoolPtr, PengNativeFunction> {
@@ -190,6 +289,83 @@ impl PengUnit {
     }
     pub fn custom_remainder_mut(&mut self) -> &mut Option<PengNativeFunction> {
         &mut self.custom_remainder
+    }
+
+    pub fn custom_negate(&self) -> Option<&PengNativeFunction> {
+        self.custom_negate.as_ref()
+    }
+    pub fn custom_negate_mut(&mut self) -> &mut Option<PengNativeFunction> {
+        &mut self.custom_negate
+    }
+
+    pub fn custom_concat(&self) -> Option<&PengNativeFunction> {
+        self.custom_concat.as_ref()
+    }
+    pub fn custom_concat_mut(&mut self) -> &mut Option<PengNativeFunction> {
+        &mut self.custom_concat
+    }
+
+    pub fn custom_and(&self) -> Option<&PengNativeFunction> {
+        self.custom_and.as_ref()
+    }
+    pub fn custom_and_mut(&mut self) -> &mut Option<PengNativeFunction> {
+        &mut self.custom_and
+    }
+
+    pub fn custom_or(&self) -> Option<&PengNativeFunction> {
+        self.custom_or.as_ref()
+    }
+    pub fn custom_or_mut(&mut self) -> &mut Option<PengNativeFunction> {
+        &mut self.custom_or
+    }
+
+    pub fn custom_not(&self) -> Option<&PengNativeFunction> {
+        self.custom_not.as_ref()
+    }
+    pub fn custom_not_mut(&mut self) -> &mut Option<PengNativeFunction> {
+        &mut self.custom_not
+    }
+
+    pub fn custom_equals(&self) -> Option<&PengNativeFunction> {
+        self.custom_equals.as_ref()
+    }
+    pub fn custom_equals_mut(&mut self) -> &mut Option<PengNativeFunction> {
+        &mut self.custom_equals
+    }
+
+    pub fn custom_not_equals(&self) -> Option<&PengNativeFunction> {
+        self.custom_not_equals.as_ref()
+    }
+    pub fn custom_not_equals_mut(&mut self) -> &mut Option<PengNativeFunction> {
+        &mut self.custom_not_equals
+    }
+
+    pub fn custom_greater_than(&self) -> Option<&PengNativeFunction> {
+        self.custom_greater_than.as_ref()
+    }
+    pub fn custom_greater_than_mut(&mut self) -> &mut Option<PengNativeFunction> {
+        &mut self.custom_greater_than
+    }
+
+    pub fn custom_greater_equals_than(&self) -> Option<&PengNativeFunction> {
+        self.custom_greater_equals_than.as_ref()
+    }
+    pub fn custom_greater_equals_than_mut(&mut self) -> &mut Option<PengNativeFunction> {
+        &mut self.custom_greater_equals_than
+    }
+
+    pub fn custom_less_than(&self) -> Option<&PengNativeFunction> {
+        self.custom_less_than.as_ref()
+    }
+    pub fn custom_less_than_mut(&mut self) -> &mut Option<PengNativeFunction> {
+        &mut self.custom_less_than
+    }
+
+    pub fn custom_less_equals_than(&self) -> Option<&PengNativeFunction> {
+        self.custom_less_equals_than.as_ref()
+    }
+    pub fn custom_less_equals_than_mut(&mut self) -> &mut Option<PengNativeFunction> {
+        &mut self.custom_less_equals_than
     }
 
     pub fn register_custom_access<F>(
@@ -271,6 +447,127 @@ impl PengUnit {
         F: Fn(&mut PengNativeFunctionCallContext) -> Result<PengBindedCell, PengError> + 'static,
     {
         self.custom_remainder = Some(PengNativeFunction {
+            call: Rc::new(function),
+        });
+
+        Ok(())
+    }
+
+    pub fn register_custom_negate<F>(&mut self, function: F) -> Result<(), PengError>
+    where
+        F: Fn(&mut PengNativeFunctionCallContext) -> Result<PengBindedCell, PengError> + 'static,
+    {
+        self.custom_negate = Some(PengNativeFunction {
+            call: Rc::new(function),
+        });
+
+        Ok(())
+    }
+
+    pub fn register_custom_concat<F>(&mut self, function: F) -> Result<(), PengError>
+    where
+        F: Fn(&mut PengNativeFunctionCallContext) -> Result<PengBindedCell, PengError> + 'static,
+    {
+        self.custom_concat = Some(PengNativeFunction {
+            call: Rc::new(function),
+        });
+
+        Ok(())
+    }
+
+    pub fn register_custom_and<F>(&mut self, function: F) -> Result<(), PengError>
+    where
+        F: Fn(&mut PengNativeFunctionCallContext) -> Result<PengBindedCell, PengError> + 'static,
+    {
+        self.custom_and = Some(PengNativeFunction {
+            call: Rc::new(function),
+        });
+
+        Ok(())
+    }
+
+    pub fn register_custom_or<F>(&mut self, function: F) -> Result<(), PengError>
+    where
+        F: Fn(&mut PengNativeFunctionCallContext) -> Result<PengBindedCell, PengError> + 'static,
+    {
+        self.custom_or = Some(PengNativeFunction {
+            call: Rc::new(function),
+        });
+
+        Ok(())
+    }
+
+    pub fn register_custom_not<F>(&mut self, function: F) -> Result<(), PengError>
+    where
+        F: Fn(&mut PengNativeFunctionCallContext) -> Result<PengBindedCell, PengError> + 'static,
+    {
+        self.custom_not = Some(PengNativeFunction {
+            call: Rc::new(function),
+        });
+
+        Ok(())
+    }
+
+    pub fn register_custom_equals<F>(&mut self, function: F) -> Result<(), PengError>
+    where
+        F: Fn(&mut PengNativeFunctionCallContext) -> Result<PengBindedCell, PengError> + 'static,
+    {
+        self.custom_equals = Some(PengNativeFunction {
+            call: Rc::new(function),
+        });
+
+        Ok(())
+    }
+
+    pub fn register_custom_not_equals<F>(&mut self, function: F) -> Result<(), PengError>
+    where
+        F: Fn(&mut PengNativeFunctionCallContext) -> Result<PengBindedCell, PengError> + 'static,
+    {
+        self.custom_not_equals = Some(PengNativeFunction {
+            call: Rc::new(function),
+        });
+
+        Ok(())
+    }
+
+    pub fn register_custom_greater_than<F>(&mut self, function: F) -> Result<(), PengError>
+    where
+        F: Fn(&mut PengNativeFunctionCallContext) -> Result<PengBindedCell, PengError> + 'static,
+    {
+        self.custom_greater_than = Some(PengNativeFunction {
+            call: Rc::new(function),
+        });
+
+        Ok(())
+    }
+
+    pub fn register_custom_greater_equals_than<F>(&mut self, function: F) -> Result<(), PengError>
+    where
+        F: Fn(&mut PengNativeFunctionCallContext) -> Result<PengBindedCell, PengError> + 'static,
+    {
+        self.custom_greater_equals_than = Some(PengNativeFunction {
+            call: Rc::new(function),
+        });
+
+        Ok(())
+    }
+
+    pub fn register_custom_less_than<F>(&mut self, function: F) -> Result<(), PengError>
+    where
+        F: Fn(&mut PengNativeFunctionCallContext) -> Result<PengBindedCell, PengError> + 'static,
+    {
+        self.custom_less_than = Some(PengNativeFunction {
+            call: Rc::new(function),
+        });
+
+        Ok(())
+    }
+
+    pub fn register_custom_less_equals_than<F>(&mut self, function: F) -> Result<(), PengError>
+    where
+        F: Fn(&mut PengNativeFunctionCallContext) -> Result<PengBindedCell, PengError> + 'static,
+    {
+        self.custom_less_equals_than = Some(PengNativeFunction {
             call: Rc::new(function),
         });
 

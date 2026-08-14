@@ -32,5 +32,8 @@ pub fn generate_script_using(
         terminal_pos,
     );
 
-    Ok(PengUnit::empty(script_function))
+    let mut unit = PengUnit::empty(script_function);
+    unit.use_unit(using_unit);
+
+    Ok(unit)
 }

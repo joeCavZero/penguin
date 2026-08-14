@@ -62,7 +62,17 @@ pub fn generate_program_using(
         using_unit.custom_divide().cloned(),
         using_unit.custom_power().cloned(),
         using_unit.custom_remainder().cloned(),
-
+        using_unit.custom_negate().cloned(),
+        using_unit.custom_concat().cloned(),
+        using_unit.custom_and().cloned(),
+        using_unit.custom_or().cloned(),
+        using_unit.custom_not().cloned(),
+        using_unit.custom_equals().cloned(),
+        using_unit.custom_not_equals().cloned(),
+        using_unit.custom_greater_than().cloned(),
+        using_unit.custom_greater_equals_than().cloned(),
+        using_unit.custom_less_than().cloned(),
+        using_unit.custom_less_equals_than().cloned(),
     ))
 }
 

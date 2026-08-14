@@ -920,7 +920,28 @@ pub fn peng_binary_to_unit(
     };
 
     match init {
-        Some(v) => Ok(PengUnit::new(v, globals, HashMap::new(), None, None, None, None, None, None)),
+        Some(v) => Ok(PengUnit::new(
+            v,
+            globals,
+            HashMap::new(),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )),
 
         None => {
             let mut unit = PengUnit::library();
