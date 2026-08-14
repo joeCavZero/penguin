@@ -389,6 +389,10 @@ fn parse_primary_expression(
         _ => {}
     }
 
+    if let Some(expression) = parse_bare_type_value_expression(ptokens) {
+        return Ok(expression);
+    }
+
     let token = match ptokens.next() {
         Some(t) => t,
         None => {
@@ -462,6 +466,41 @@ fn parse_primary_expression(
             token.position.clone(),
         )),
     }
+}
+
+fn parse_bare_type_value_expression(
+    ptokens: &mut PengPeekablePositionedToken,
+) -> Option<PengPositionedExpression> {
+    let token = match ptokens.peek() {
+        Some(token) => (*token).clone(),
+        None => return None,
+    };
+
+    let type_expression = match &token.value {
+        PengToken::Int => PengTypeExpression::Int,
+        PengToken::Uint => PengTypeExpression::Uint,
+        PengToken::Float32 => PengTypeExpression::Float32,
+        PengToken::Float64 => PengTypeExpression::Float64,
+        PengToken::Byte => PengTypeExpression::Byte,
+        PengToken::Bool => PengTypeExpression::Bool,
+        PengToken::String => PengTypeExpression::String,
+        PengToken::Any => PengTypeExpression::Any,
+        PengToken::Mod => PengTypeExpression::Module,
+        PengToken::Func => PengTypeExpression::Function,
+        PengToken::Oper => PengTypeExpression::Operation,
+        PengToken::Thread => PengTypeExpression::Thread,
+        _ => return None,
+    };
+
+    ptokens.next();
+
+    Some(PengPositioned {
+        value: PengExpression::Type(PengPositioned {
+            value: type_expression,
+            position: token.position.clone(),
+        }),
+        position: token.position.clone(),
+    })
 }
 
 fn parse_type_value_expression(
