@@ -411,6 +411,64 @@ pub fn step_thread(
     Ok(None)
 }
 
+pub fn call_function_sync(
+    env: &mut PengEnv,
+    thread: PengHeapPtr,
+    unit: &PengUnit,
+    callable: PengBindedCell,
+    args: Vec<PengBindedCell>,
+) -> Result<PengBindedCell, PengError> {
+    let initial_frames_len = match env.get_thread_frames_len(thread) {
+        Ok(len) => len,
+        Err(e) => return Err(e),
+    };
+
+    match env.push_thread_binded_stated_cell(thread, callable) {
+        Ok(()) => {}
+        Err(e) => return Err(e),
+    }
+
+    for arg in &args {
+        match env.push_thread_binded_stated_cell(thread, arg.clone()) {
+            Ok(()) => {}
+            Err(e) => return Err(e),
+        }
+    }
+
+    match env.execute_function_call(thread, args.len(), false, None) {
+        Ok(()) => {}
+        Err(e) => return Err(e),
+    }
+
+    loop {
+        let frames_len = match env.get_thread_frames_len(thread) {
+            Ok(len) => len,
+            Err(e) => return Err(e),
+        };
+
+        if frames_len <= initial_frames_len {
+            break;
+        }
+
+        match step_thread(env, thread, unit) {
+            Ok(_) => {}
+            Err(e) => return Err(e),
+        }
+    }
+
+    let result = match env.get_thread_latest_binded_stated_cell(thread, 0).cloned() {
+        Ok(result) => result,
+        Err(e) => return Err(e),
+    };
+
+    match env.pop_thread_stack_n_times(thread, 1) {
+        Ok(()) => {}
+        Err(e) => return Err(e),
+    }
+
+    Ok(result)
+}
+
 enum PengNativeCallable {
     Function(PengNativeFunction),
     Operation(PengNativeOperation),
@@ -1149,7 +1207,7 @@ fn value_supports_builtin_equals(value: &PengValue) -> bool {
         },
 
         PengValue::Box(value) => match value {
-            PengBox::String(_) => true,
+            PengBox::String(_) | PengBox::Type(_) => true,
 
             _ => false,
         },
