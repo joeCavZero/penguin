@@ -6,58 +6,13 @@ use crate::parser::parser::*;
 pub fn parse_type_expression(
     ptokens: &mut PengPeekablePositionedToken,
 ) -> Result<PengPositionedTypeExpression, PengError> {
-    let first = match parse_primary_type_expression(ptokens) {
-        Ok(type_expression) => type_expression,
+    match parse_primary_type_expression(ptokens) {
+        Ok(type_expression) => Ok(type_expression),
         Err(e) => {
             return Err(e.push(PengError::SyntaxError(
                 "failed while parsing parse_type_expression".to_string(),
             )));
         }
-    };
-
-    let position = first.position.clone();
-    let mut types = vec![first];
-
-    loop {
-        let has_pipe = match ptokens.peek() {
-            Some(token) => match &token.value {
-                PengToken::Pipe => true,
-                _ => false,
-            },
-            None => false,
-        };
-
-        if !has_pipe {
-            break;
-        }
-
-        ptokens.next();
-
-        let type_expression = match parse_primary_type_expression(ptokens) {
-            Ok(type_expression) => type_expression,
-            Err(e) => {
-                return Err(e.push(PengError::SyntaxError(
-                    "failed while parsing parse_type_expression".to_string(),
-                )));
-            }
-        };
-
-        types.push(type_expression);
-    }
-
-    if types.len() == 1 {
-        match types.pop() {
-            Some(type_expression) => Ok(type_expression),
-            None => Err(PengError::new_positioned_message(
-                "expected type expression".to_string(),
-                position,
-            )),
-        }
-    } else {
-        Ok(PengPositioned {
-            value: PengTypeExpression::Union(types),
-            position,
-        })
     }
 }
 
@@ -91,8 +46,6 @@ fn parse_primary_type_expression(
         PengToken::Thread => parse_builtin_type(ptokens, PengTypeExpression::Thread),
 
         PengToken::LeftBracket => parse_vector_type_expression(ptokens),
-
-        PengToken::Union => parse_builtin_type(ptokens, PengTypeExpression::UnionType),
 
         PengToken::Identifier(_) => {
             let expression = match parse_custom_type_expression(ptokens) {
@@ -286,7 +239,6 @@ pub fn type_expression_from_token(token: &PengToken) -> Option<PengTypeExpressio
         PengToken::Func => Some(PengTypeExpression::Function),
         PengToken::Thread => Some(PengTypeExpression::Thread),
         PengToken::Oper => Some(PengTypeExpression::Operation),
-        PengToken::Union => Some(PengTypeExpression::Union(Vec::new())),
         _ => None,
     }
 }

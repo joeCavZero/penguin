@@ -4,7 +4,6 @@ use crate::core::object::*;
 use crate::core::operation::*;
 use crate::core::thread::*;
 use crate::core::typing::*;
-use crate::core::unioning::*;
 use crate::core::vector::*;
 
 #[derive(Debug, Clone)]
@@ -17,7 +16,6 @@ pub enum PengBox {
     Thread(PengThread),
     Function(PengFunction),
     Operation(PengOperation),
-    Union(PengUnion),
 }
 
 impl PengBox {
@@ -32,7 +30,6 @@ impl PengBox {
             (PengBox::Thread(a), PengBox::Thread(b)) => a.equals(b),
             (PengBox::Function(a), PengBox::Function(b)) => a.equals(b),
             (PengBox::Operation(a), PengBox::Operation(b)) => a.equals(b),
-            (PengBox::Union(a), PengBox::Union(b)) => a.equals(b),
 
             _ => false,
         }

@@ -19,7 +19,6 @@ pub enum PengInstruction {
     CreateEmptyModule,
     CreateVector(usize),    // ...|v0|v1|...|vn| ---> ...|vector|
     CreateSuperType(usize), // creates a new type with usize supers (on stack)
-    CreateUnion(usize),     // creates a new union based on usize types (on stack)
     CreateTypedObject,
 
     Convert,
@@ -84,7 +83,6 @@ impl PengInstruction {
             | (Self::StoreLocal(left), Self::StoreLocal(right))
             | (Self::CreateSuperType(left), Self::CreateSuperType(right))
             | (Self::CreateVector(left), Self::CreateVector(right))
-            | (Self::CreateUnion(left), Self::CreateUnion(right))
             | (Self::FunctionCall(left), Self::FunctionCall(right))
             | (Self::TryFunctionCall(left), Self::TryFunctionCall(right))
             | (Self::Jump(left), Self::Jump(right))

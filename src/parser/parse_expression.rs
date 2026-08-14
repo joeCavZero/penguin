@@ -7,7 +7,6 @@ use crate::parser::parse_object_literal::*;
 use crate::parser::parse_operation_literal::*;
 use crate::parser::parse_type_expression::*;
 use crate::parser::parse_type_literal::*;
-use crate::parser::parse_union_declaration_statement::*;
 use crate::parser::parse_vector_literal::*;
 use crate::parser::parser::*;
 
@@ -122,20 +121,6 @@ fn parse_expression_bp(
                 )));
             }
         };
-
-        let is_type_union = match &operator_token.value {
-            PengToken::Pipe => {
-                is_type_value_expression(&left.value) || is_type_value_expression(&right.value)
-            }
-            _ => false,
-        };
-
-        if is_type_union {
-            return Err(PengError::new_positioned_message(
-                "type unions are only allowed in type declarations".to_string(),
-                operator_token.position.clone(),
-            ));
-        }
 
         let pos = left.position.clone();
 
@@ -358,9 +343,6 @@ fn parse_primary_expression(
     };
 
     match &primary_token.value {
-        PengToken::Union => {
-            return parse_union_expression(ptokens);
-        }
         PengToken::Type => {
             let is_literal = match token_after_current(ptokens) {
                 Some(token) => match &token.value {

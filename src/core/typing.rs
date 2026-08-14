@@ -27,7 +27,6 @@ pub enum PengType {
     Custom(PengCustomType),
 
     Any,
-    Union,
 }
 
 #[derive(Debug, Clone)]

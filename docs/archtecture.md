@@ -59,7 +59,7 @@ inside runtime structures; they are interned by the environment in
 `PengCell` is the representation that fits in the stack/fields: `Nil`, numbers,
 `Bool`, or `Reference(PengHeapPtr)`. `PengValue` is `Cell(PengCell)` or
 `Box(PengBox)`. `PengBox` covers string, object, vector, type, module, thread,
-function, operation, and union. Defined in `src/core/cell.rs`,
+function, and operation. Defined in `src/core/cell.rs`,
 `src/core/value.rs`, and `src/core/boxed.rs`.
 
 `PengBinded<T>` marks any content as `Mutable(T)` or `Immutable(T)`.
@@ -105,7 +105,7 @@ The normative enum is `PengInstruction` in `src/core/instruction.rs`:
 * data/locals: `PushConst`, `MakeImmutable`, `PushLocal`, `ReserveLocal`,
   `StoreLocal`, `PushHeap`, `PushHeapRef`, `StoreHeap`, `PushString`;
 * construction: `CreateEmptyObject`, `CreateEmptyModule`, `CreateVector`,
-  `CreateSuperType`, `CreateUnion`, `CreateTypedObject`, `Convert`;
+  `CreateSuperType`, `CreateTypedObject`, `Convert`;
 * stack: `Duplicate`, `Pop`, `Swap`;
 * calculation: `Add`, `Subtract`, `Multiply`, `Divide`, `Power`, `Remainder`,
   `Negate`, `Concat`, `And`, `Or`, `Not`, and six comparisons;

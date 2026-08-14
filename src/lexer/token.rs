@@ -13,7 +13,6 @@ pub enum PengToken {
     Any,
 
     Type,
-    Union,
 
     As,
 
@@ -114,7 +113,6 @@ impl PengToken {
             "any" => Some(Self::Any),
 
             "type" => Some(Self::Type),
-            "union" => Some(Self::Union),
 
             "=" => Some(Self::Equals),
             "." => Some(Self::Dot),

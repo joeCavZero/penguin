@@ -259,7 +259,6 @@ fn wr_type(w: &mut W, v: &PengBinaryType) {
         PengBinaryType::Thread => 14,
         PengBinaryType::Custom(_) => 15,
         PengBinaryType::Any => 16,
-        PengBinaryType::Union => 17,
     };
     w.u8(t);
     match v {
@@ -293,7 +292,6 @@ fn rd_type(r: &mut R) -> Result<PengBinaryType, PengError> {
             Err(e) => Err(e),
         },
         Ok(16) => Ok(PengBinaryType::Any),
-        Ok(17) => Ok(PengBinaryType::Union),
         Ok(_) => Err(binary_invalid_state_error("invalid type tag")),
         Err(e) => Err(e),
     }
@@ -315,7 +313,6 @@ fn wr_instr(w: &mut W, i: &PengBinaryOpcode) {
         O::CreateEmptyModule => (10, None, None, None),
         O::CreateVector(v) => (11, Some(*v), None, None),
         O::CreateSuperType(v) => (12, Some(*v), None, None),
-        O::CreateUnion(v) => (13, Some(*v), None, None),
         O::CreateTypedObject => (14, None, None, None),
         O::Convert => (15, None, None, None),
         O::Duplicate => (16, None, None, None),
@@ -372,10 +369,7 @@ fn rd_instr(r: &mut R) -> Result<PengBinaryOpcode, PengError> {
         Ok(v) => v,
         Err(e) => return Err(e),
     };
-    if matches!(
-        t,
-        0 | 2 | 3 | 4 | 11 | 12 | 13 | 38 | 39 | 40 | 41 | 48 | 49 | 50
-    ) {
+    if matches!(t, 0 | 2 | 3 | 4 | 11 | 12 | 38 | 39 | 40 | 41 | 48 | 49 | 50) {
         let v = match r.len() {
             Ok(v) => v,
             Err(e) => return Err(e),
@@ -387,7 +381,6 @@ fn rd_instr(r: &mut R) -> Result<PengBinaryOpcode, PengError> {
             4 => O::StoreLocal(v),
             11 => O::CreateVector(v),
             12 => O::CreateSuperType(v),
-            13 => O::CreateUnion(v),
             38 => O::FunctionCall(v),
             39 => O::FunctionCallSpread(v),
             40 => O::TryFunctionCall(v),
@@ -605,13 +598,6 @@ fn wr_value(w: &mut W, v: &PengBinaryValue) {
             w.u8(7);
             wr_code(w, x)
         }
-        PengBinaryValue::Union(x) => {
-            w.u8(8);
-            w.len(x.len());
-            for v in x {
-                wr_type(w, v)
-            }
-        }
     }
 }
 fn rd_value(r: &mut R) -> Result<PengBinaryValue, PengError> {
@@ -673,20 +659,6 @@ fn rd_value(r: &mut R) -> Result<PengBinaryValue, PengError> {
             Ok(v) => Ok(PengBinaryValue::Operation(v)),
             Err(e) => Err(e),
         },
-        Ok(8) => {
-            let n = match r.len() {
-                Ok(v) => v,
-                Err(e) => return Err(e),
-            };
-            let mut o = Vec::with_capacity(n);
-            for _ in 0..n {
-                o.push(match rd_type(r) {
-                    Ok(v) => v,
-                    Err(e) => return Err(e),
-                })
-            }
-            Ok(PengBinaryValue::Union(o))
-        }
         Ok(_) => Err(binary_invalid_state_error("invalid value tag")),
         Err(e) => Err(e),
     }

@@ -159,12 +159,6 @@ fn collect_box_children(value: &PengBox, children: &mut Vec<PengHeapPtr>) {
         PengBox::Type(value) => {
             collect_type_children(value, children);
         }
-
-        PengBox::Union(union) => {
-            for value in union.unions.iter() {
-                collect_type_children(value, children);
-            }
-        }
     }
 }
 

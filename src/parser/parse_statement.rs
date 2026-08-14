@@ -31,7 +31,6 @@ pub fn parse_statement(
         | PengToken::Var
         | PengToken::Func
         | PengToken::Type
-        | PengToken::Union
         | PengToken::Mod
         | PengToken::Oper => parse_declaration_statement(ptokens),
 

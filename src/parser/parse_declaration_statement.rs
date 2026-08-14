@@ -7,7 +7,6 @@ use crate::parser::parse_operation_declaration_statement::*;
 use crate::parser::parse_statement::*;
 use crate::parser::parse_type_declaration_statement::*;
 use crate::parser::parse_type_expression::*;
-use crate::parser::parse_union_declaration_statement::*;
 use crate::parser::parser::*;
 use crate::parser::parser_utils::*;
 
@@ -234,18 +233,6 @@ pub fn parse_const_declaration(
             extract_declaration(statement)
         }
 
-        Some(PengToken::Union) => {
-            let statement = match parse_union_declaration_statement(tokens) {
-                Ok(v) => v,
-                Err(e) => {
-                    return Err(e.push(PengError::SyntaxError(
-                        "failed while parsing parse_declaration_statement".to_string(),
-                    )));
-                }
-            };
-            extract_declaration(statement)
-        }
-
         Some(PengToken::Identifier(_)) => {
             parse_const_variable_declaration(tokens).map(PengDeclaration::Var)
         }
@@ -406,18 +393,6 @@ pub fn parse_mutable_declaration(
             extract_declaration(statement)
         }
 
-        Some(PengToken::Union) => {
-            let statement = match parse_union_declaration_statement(tokens) {
-                Ok(v) => v,
-                Err(e) => {
-                    return Err(e.push(PengError::SyntaxError(
-                        "failed while parsing parse_declaration_statement".to_string(),
-                    )));
-                }
-            };
-            extract_declaration(statement)
-        }
-
         Some(PengToken::Mod) => {
             let statement = match parse_module_declaration_statement(tokens) {
                 Ok(v) => v,
@@ -504,7 +479,6 @@ pub fn parse_declaration_body(
             | PengToken::Const
             | PengToken::Func
             | PengToken::Type
-            | PengToken::Union
             | PengToken::Mod
             | PengToken::Oper => {
                 let statement = match parse_statement(ptokens) {

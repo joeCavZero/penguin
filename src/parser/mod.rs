@@ -23,7 +23,6 @@ pub mod parse_statement;
 pub mod parse_type_declaration_statement;
 pub mod parse_type_expression;
 pub mod parse_type_literal;
-pub mod parse_union_declaration_statement;
 pub mod parse_vector_literal;
 pub mod parse_while_statement;
 pub mod parser;

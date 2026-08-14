@@ -1980,61 +1980,6 @@ pub fn execute_instruction(
             }
         }
 
-        PengInstruction::CreateUnion(count) => {
-            match env.get_thread_latest_n_binded_stated_cells_cloned(thread, count) {
-                Ok(cells) => {
-                    let mut values = Vec::new();
-
-                    for cell in cells {
-                        match cell.value() {
-                            cell => match env.get_value_from_cell(cell.clone()) {
-                                Ok(value) => match value {
-                                    PengValue::Box(PengBox::Type(value)) => {
-                                        values.push(value);
-                                    }
-
-                                    _ => {
-                                        return Err(PengError::InvalidInstruction(instruction));
-                                    }
-                                },
-
-                                Err(e) => {
-                                    return Err(e.push(PengError::InvalidInstruction(instruction)));
-                                }
-                            },
-                        }
-                    }
-
-                    match env.pop_thread_stack_n_times(thread, count) {
-                        Ok(()) => {
-                            let heap_ptr =
-                                env.create_heap_value(PengValue::Box(PengBox::Union(PengUnion {
-                                    unions: values,
-                                })));
-
-                            match env.push_thread_binded_stated_cell(
-                                thread,
-                                PengBinded::Mutable(PengCell::Reference(heap_ptr)),
-                            ) {
-                                Ok(()) => {}
-                                Err(e) => {
-                                    return Err(e.push(PengError::InvalidInstruction(instruction)));
-                                }
-                            }
-                        }
-
-                        Err(e) => {
-                            return Err(e.push(PengError::InvalidInstruction(instruction)));
-                        }
-                    }
-                }
-
-                Err(e) => {
-                    return Err(e.push(PengError::InvalidInstruction(instruction)));
-                }
-            }
-        }
-
         PengInstruction::Convert => {
             match env.get_thread_latest_binded_stated_cell(thread, 0).cloned() {
                 Ok(target_cell) => {

@@ -450,26 +450,6 @@ pub fn generate_type_expression(
     type_expression: &PengPositionedTypeExpression,
 ) -> Result<(), PengError> {
     match &type_expression.value {
-        PengTypeExpression::Union(types) => {
-            for typ in types {
-                match generate_type_expression(env, context, typ) {
-                    Ok(()) => {}
-                    Err(e) => {
-                        return Err(e.push(PengError::InvalidState(
-                            "failed while generating generate_expression".to_string(),
-                        )));
-                    }
-                }
-            }
-
-            context.push_positioned_instruction(
-                PengInstruction::CreateUnion(types.len()),
-                type_expression.position.clone(),
-            );
-
-            Ok(())
-        }
-
         PengTypeExpression::Custom(expression) => generate_expression(env, context, expression),
 
         PengTypeExpression::Vector(inner) => {
@@ -537,13 +517,11 @@ pub fn static_type_from_expression(
         PengTypeExpression::Operation => Some(PengType::Operator),
         PengTypeExpression::Thread => Some(PengType::Thread),
         PengTypeExpression::Any => Some(PengType::Any),
-        PengTypeExpression::UnionType => Some(PengType::Union),
         PengTypeExpression::Vector(inner) => match static_type_from_expression(inner) {
             Some(inner_type) => Some(PengType::Vector(Box::new(inner_type))),
             None => None,
         },
         PengTypeExpression::TypeLiteral(_) => Some(PengType::Type),
         PengTypeExpression::Custom(_) => None,
-        PengTypeExpression::Union(_) => None,
     }
 }

@@ -245,9 +245,6 @@ impl PengValue {
             (PengValue::Box(PengBox::Thread(value)), PengType::Thread) => {
                 Ok(PengValue::Box(PengBox::Thread(value)))
             }
-            (PengValue::Box(PengBox::Union(value)), PengType::Union) => {
-                Ok(PengValue::Box(PengBox::Union(value)))
-            }
 
             // Vector with inner type check
             (PengValue::Box(PengBox::Vector(vector)), PengType::Vector(inner_type)) => {
@@ -275,13 +272,6 @@ impl PengValue {
                 }
             }
 
-            // Concrete union value cast:
-            // If the target is PengType::Union, accept only PengBox::Union above.
-            // If the value itself is a union, let it pass only through Any/Union.
-            (PengValue::Box(PengBox::Union(_)), _) => {
-                Err(PengError::InvalidConversion { from, to })
-            }
-
             // Any type -> String, except references/complex boxes
             (value, PengType::String) => {
                 let converted = match value {
@@ -306,8 +296,7 @@ impl PengValue {
                         | PengBox::Module(_)
                         | PengBox::Thread(_)
                         | PengBox::Function(_)
-                        | PengBox::Operation(_)
-                        | PengBox::Union(_),
+                        | PengBox::Operation(_),
                     ) => {
                         return Err(PengError::InvalidConversion { from, to });
                     }

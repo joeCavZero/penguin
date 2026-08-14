@@ -55,7 +55,6 @@ pub enum PengBinaryType {
     Thread,
     Custom(Vec<(String, PengBinaryBindedCell)>),
     Any,
-    Union,
 }
 
 #[derive(Debug, Clone)]
@@ -73,7 +72,6 @@ pub enum PengBinaryOpcode {
     CreateEmptyModule,
     CreateVector(usize),
     CreateSuperType(usize),
-    CreateUnion(usize),
     CreateTypedObject,
     Convert,
     Duplicate,
@@ -135,7 +133,6 @@ pub enum PengBinaryValue {
         params: PengBytecodeFunctionParams,
     },
     Operation(PengBinaryBytecode),
-    Union(Vec<PengBinaryType>),
 }
 
 #[derive(Debug, Clone)]
@@ -268,7 +265,6 @@ impl<'a> Collector<'a> {
             PengType::Operator => Ok(PengBinaryType::Operator),
             PengType::Thread => Ok(PengBinaryType::Thread),
             PengType::Any => Ok(PengBinaryType::Any),
-            PengType::Union => Ok(PengBinaryType::Union),
             PengType::Custom(v) => match self.fields(&v.fields) {
                 Ok(v) => Ok(PengBinaryType::Custom(v)),
                 Err(e) => Err(e),
@@ -300,7 +296,6 @@ impl<'a> Collector<'a> {
             PengInstruction::CreateEmptyModule => O::CreateEmptyModule,
             PengInstruction::CreateVector(v) => O::CreateVector(*v),
             PengInstruction::CreateSuperType(v) => O::CreateSuperType(*v),
-            PengInstruction::CreateUnion(v) => O::CreateUnion(*v),
             PengInstruction::CreateTypedObject => O::CreateTypedObject,
             PengInstruction::Convert => O::Convert,
             PengInstruction::Duplicate => O::Duplicate,
@@ -442,16 +437,6 @@ impl<'a> Collector<'a> {
             PengValue::Box(PengBox::Operation(PengOperation::Native(_))) => Err(invalid(
                 "native operation is not an external named value".to_string(),
             )),
-            PengValue::Box(PengBox::Union(v)) => {
-                let mut out = Vec::new();
-                for x in &v.unions {
-                    out.push(match self.typing(x) {
-                        Ok(v) => v,
-                        Err(e) => return Err(e),
-                    });
-                }
-                Ok(PengBinaryValue::Union(out))
-            }
             PengValue::Box(PengBox::Thread(_)) => {
                 Err(invalid("runtime threads cannot be serialized".to_string()))
             }
@@ -660,7 +645,6 @@ impl<'a> Loader<'a> {
             PengBinaryType::Operator => PengType::Operator,
             PengBinaryType::Thread => PengType::Thread,
             PengBinaryType::Any => PengType::Any,
-            PengBinaryType::Union => PengType::Union,
             PengBinaryType::Custom(v) => PengType::Custom(PengCustomType {
                 fields: match self.fields(v) {
                     Ok(v) => v,
@@ -693,7 +677,6 @@ impl<'a> Loader<'a> {
             O::CreateEmptyModule => PengInstruction::CreateEmptyModule,
             O::CreateVector(v) => PengInstruction::CreateVector(*v),
             O::CreateSuperType(v) => PengInstruction::CreateSuperType(*v),
-            O::CreateUnion(v) => PengInstruction::CreateUnion(*v),
             O::CreateTypedObject => PengInstruction::CreateTypedObject,
             O::Convert => PengInstruction::Convert,
             O::Duplicate => PengInstruction::Duplicate,
@@ -811,16 +794,6 @@ impl<'a> Loader<'a> {
                 Ok(v) => Ok(PengValue::Box(PengBox::Type(v))),
                 Err(e) => Err(e),
             },
-            PengBinaryValue::Union(v) => {
-                let mut out = Vec::new();
-                for x in v {
-                    out.push(match self.typing(x) {
-                        Ok(v) => v,
-                        Err(e) => return Err(e),
-                    })
-                }
-                Ok(PengValue::Box(PengBox::Union(PengUnion { unions: out })))
-            }
             PengBinaryValue::Function { code, params } => {
                 let (code, positions, consts, using_values) = match self.code(code) {
                     Ok(v) => v,

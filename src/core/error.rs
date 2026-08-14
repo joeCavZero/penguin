@@ -105,8 +105,6 @@ pub enum PengError {
 
     ExpectedOperation,
 
-    ExpectedUnion,
-
     ExpectedNumber,
 
     // ======================

@@ -339,9 +339,6 @@ pub enum PengTypeExpression {
 
     Custom(Box<PengPositionedExpression>),
     TypeLiteral(PengTypeLiteral),
-
-    UnionType,
-    Union(Vec<PengPositionedTypeExpression>),
 }
 
 #[derive(Debug, Clone)]
