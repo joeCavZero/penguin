@@ -420,29 +420,42 @@ pub fn call_function_sync(
 ) -> Result<PengBindedCell, PengError> {
     let initial_frames_len = match env.get_thread_frames_len(thread) {
         Ok(len) => len,
+
         Err(e) => return Err(e),
     };
 
     match env.push_thread_binded_stated_cell(thread, callable) {
         Ok(()) => {}
+
         Err(e) => return Err(e),
     }
 
     for arg in &args {
         match env.push_thread_binded_stated_cell(thread, arg.clone()) {
             Ok(()) => {}
+
             Err(e) => return Err(e),
         }
     }
 
-    match env.execute_function_call(thread, args.len(), false, None) {
+    match execute_callable_call(
+        env,
+        thread,
+        unit,
+        args.len(),
+        false,
+        None,
+        PengInstruction::FunctionCall(args.len()),
+    ) {
         Ok(()) => {}
+
         Err(e) => return Err(e),
     }
 
     loop {
         let frames_len = match env.get_thread_frames_len(thread) {
             Ok(len) => len,
+
             Err(e) => return Err(e),
         };
 
@@ -452,17 +465,20 @@ pub fn call_function_sync(
 
         match step_thread(env, thread, unit) {
             Ok(_) => {}
+
             Err(e) => return Err(e),
         }
     }
 
     let result = match env.get_thread_latest_binded_stated_cell(thread, 0).cloned() {
         Ok(result) => result,
+
         Err(e) => return Err(e),
     };
 
     match env.pop_thread_stack_n_times(thread, 1) {
         Ok(()) => {}
+
         Err(e) => return Err(e),
     }
 
@@ -2004,19 +2020,22 @@ pub fn execute_instruction(
             }
         }
         PengInstruction::FunctionCall(args_count) => {
-            match env.execute_function_call(
+            match execute_callable_call(
+                env,
                 thread,
+                unit,
                 args_count,
                 false,
                 Some(instruction_position.clone()),
+                instruction.clone(),
             ) {
                 Ok(()) => return Ok(None),
+
                 Err(e) => {
-                    return Err(e.push(PengError::InvalidInstruction(instruction)));
+                    return Err(e);
                 }
             }
         }
-
         PengInstruction::PushString(name_ptr) => {
             let heap_ptr = env.create_heap_value(PengValue::Box(PengBox::String(
                 match env.get_pooled_name(name_ptr) {
@@ -2596,15 +2615,19 @@ pub fn execute_instruction(
         }
 
         PengInstruction::TryFunctionCall(args_count) => {
-            match env.execute_function_call(
+            match execute_callable_call(
+                env,
                 thread,
+                unit,
                 args_count,
                 true,
                 Some(instruction_position.clone()),
+                instruction.clone(),
             ) {
                 Ok(()) => return Ok(None),
+
                 Err(e) => {
-                    return Err(e.push(PengError::InvalidInstruction(instruction)));
+                    return Err(e);
                 }
             }
         }
@@ -3481,6 +3504,7 @@ pub fn execute_instruction(
                     let spread_cell =
                         match env.get_thread_latest_binded_stated_cell(thread, 0).cloned() {
                             Ok(cell) => cell,
+
                             Err(e) => {
                                 return Err(e.push(PengError::InvalidInstruction(instruction)));
                             }
@@ -3488,6 +3512,7 @@ pub fn execute_instruction(
 
                     let spread_ptr = match spread_cell.value() {
                         PengCell::Reference(ptr) => *ptr,
+
                         _ => {
                             return Err(PengError::ExpectedReference);
                         }
@@ -3495,9 +3520,11 @@ pub fn execute_instruction(
 
                     let spread_values = match env.get_heap(spread_ptr) {
                         Some(PengValue::Box(PengBox::Vector(vector))) => vector.values.clone(),
+
                         Some(_) => {
                             return Err(PengError::InvalidInstruction(instruction));
                         }
+
                         None => {
                             return Err(PengError::HeapValueNotFound(spread_ptr));
                         }
@@ -3505,6 +3532,7 @@ pub fn execute_instruction(
 
                     match env.pop_thread_stack_n_times(thread, 1) {
                         Ok(()) => {}
+
                         Err(e) => {
                             return Err(e.push(PengError::InvalidInstruction(instruction)));
                         }
@@ -3513,6 +3541,7 @@ pub fn execute_instruction(
                     for value in &spread_values {
                         match env.push_thread_binded_stated_cell(thread, value.clone()) {
                             Ok(()) => {}
+
                             Err(e) => {
                                 return Err(e.push(PengError::InvalidInstruction(instruction)));
                             }
@@ -3521,18 +3550,25 @@ pub fn execute_instruction(
 
                     let args_count = match fixed_args_count.checked_add(spread_values.len()) {
                         Some(value) => value,
-                        None => return Err(PengError::ArithmeticOverflow),
+
+                        None => {
+                            return Err(PengError::ArithmeticOverflow);
+                        }
                     };
 
-                    match env.execute_function_call(
+                    match execute_callable_call(
+                        env,
                         thread,
+                        unit,
                         args_count,
                         true,
                         Some(instruction_position.clone()),
+                        instruction.clone(),
                     ) {
                         Ok(()) => return Ok(None),
+
                         Err(e) => {
-                            return Err(e.push(PengError::InvalidInstruction(instruction)));
+                            return Err(e);
                         }
                     }
                 }
@@ -3723,4 +3759,164 @@ fn custom_access_as_cell(
     env.pinned_mut().insert(ptr);
 
     Some(PengBinded::Immutable(PengCell::Reference(ptr)))
+}
+
+fn resolve_custom_call(
+    env: &mut PengEnv,
+    thread: PengHeapPtr,
+    unit: &PengUnit,
+    instruction: PengInstruction,
+    value: PengBindedCell,
+) -> Result<PengBindedCell, PengError> {
+    let custom_call = match unit.custom_call() {
+        Some(custom_call) => custom_call.clone(),
+
+        None => {
+            return Err(
+                PengError::CannotCallValue("value is not callable".to_string())
+                    .push(PengError::InvalidInstruction(instruction)),
+            );
+        }
+    };
+
+    let args = vec![value];
+
+    let mut ctx = PengNativeFunctionCallContext::new(env, thread, unit, args);
+
+    let callable = match custom_call.call(&mut ctx) {
+        Ok(callable) => callable,
+
+        Err(e) => {
+            return Err(e
+                .push(PengError::CannotCallValue(
+                    "custom call resolution failed".to_string(),
+                ))
+                .push(PengError::InvalidInstruction(instruction)));
+        }
+    };
+
+    let callable_ptr = match callable.value() {
+        PengCell::Reference(ptr) => *ptr,
+
+        _ => {
+            return Err(
+                PengError::CannotCallValue("custom call expected callable".to_string())
+                    .push(PengError::InvalidInstruction(instruction)),
+            );
+        }
+    };
+
+    match env.get_heap(callable_ptr) {
+        Some(PengValue::Box(PengBox::Function(_))) => {}
+
+        Some(_) => {
+            return Err(
+                PengError::CannotCallValue("custom call expected function".to_string())
+                    .push(PengError::InvalidInstruction(instruction)),
+            );
+        }
+
+        None => {
+            return Err(PengError::HeapValueNotFound(callable_ptr));
+        }
+    }
+
+    Ok(callable)
+}
+
+fn execute_callable_call(
+    env: &mut PengEnv,
+    thread: PengHeapPtr,
+    unit: &PengUnit,
+    args_count: usize,
+    is_try: bool,
+    call_position: Option<PengPosition>,
+    instruction: PengInstruction,
+) -> Result<(), PengError> {
+    let callable = match env
+        .get_thread_latest_binded_stated_cell(thread, args_count)
+        .cloned()
+    {
+        Ok(callable) => callable,
+
+        Err(e) => {
+            return Err(e.push(PengError::InvalidInstruction(instruction)));
+        }
+    };
+
+    let callable_ptr = match callable.value() {
+        PengCell::Reference(ptr) => Some(*ptr),
+        _ => None,
+    };
+
+    let is_function = match callable_ptr {
+        Some(ptr) => match env.get_heap(ptr) {
+            Some(PengValue::Box(PengBox::Function(_))) => true,
+
+            Some(_) => false,
+
+            None => {
+                return Err(PengError::HeapValueNotFound(ptr));
+            }
+        },
+
+        None => false,
+    };
+
+    if is_function {
+        return env.execute_function_call(thread, args_count, is_try, call_position);
+    }
+
+    let resolved = match resolve_custom_call(env, thread, unit, instruction.clone(), callable) {
+        Ok(resolved) => resolved,
+        Err(e) => return Err(e),
+    };
+
+    let args = match env.get_thread_latest_n_binded_stated_cells_cloned(thread, args_count) {
+        Ok(args) => args,
+
+        Err(e) => {
+            return Err(e.push(PengError::InvalidInstruction(instruction)));
+        }
+    };
+
+    let stack_values_count = match args_count.checked_add(1) {
+        Some(count) => count,
+
+        None => {
+            return Err(PengError::ArithmeticOverflow);
+        }
+    };
+
+    match env.pop_thread_stack_n_times(thread, stack_values_count) {
+        Ok(()) => {}
+
+        Err(e) => {
+            return Err(e.push(PengError::InvalidInstruction(instruction)));
+        }
+    }
+
+    match env.push_thread_binded_stated_cell(thread, resolved) {
+        Ok(()) => {}
+
+        Err(e) => {
+            return Err(e.push(PengError::InvalidInstruction(instruction)));
+        }
+    }
+
+    for arg in args {
+        match env.push_thread_binded_stated_cell(thread, arg) {
+            Ok(()) => {}
+
+            Err(e) => {
+                return Err(e.push(PengError::InvalidInstruction(instruction)));
+            }
+        }
+    }
+
+    match env.execute_function_call(thread, args_count, is_try, call_position) {
+        Ok(()) => Ok(()),
+
+        Err(e) => Err(e.push(PengError::InvalidInstruction(instruction))),
+    }
 }

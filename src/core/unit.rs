@@ -7,7 +7,10 @@ use crate::core::*;
 pub struct PengUnit {
     init: Option<PengHeapPtr>,
     globals: HashMap<PengNamePoolPtr, PengBindedHeapPtr>,
+
     custom_access: HashMap<PengNamePoolPtr, PengNativeFunction>,
+    custom_call: Option<PengNativeFunction>,
+
     custom_add: Option<PengNativeFunction>,
     custom_subtract: Option<PengNativeFunction>,
     custom_multiply: Option<PengNativeFunction>,
@@ -32,6 +35,7 @@ impl PengUnit {
         init: PengHeapPtr,
         globals: HashMap<PengNamePoolPtr, PengBindedHeapPtr>,
         custom_access: HashMap<PengNamePoolPtr, PengNativeFunction>,
+        custom_call: Option<PengNativeFunction>,
         custom_add: Option<PengNativeFunction>,
         custom_subtract: Option<PengNativeFunction>,
         custom_multiply: Option<PengNativeFunction>,
@@ -54,6 +58,7 @@ impl PengUnit {
             init: Some(init),
             globals,
             custom_access,
+            custom_call,
             custom_add,
             custom_subtract,
             custom_multiply,
@@ -79,6 +84,7 @@ impl PengUnit {
             init: Some(init),
             globals: HashMap::new(),
             custom_access: HashMap::new(),
+            custom_call: None,
             custom_add: None,
             custom_subtract: None,
             custom_multiply: None,
@@ -104,6 +110,7 @@ impl PengUnit {
             init: None,
             globals: HashMap::new(),
             custom_access: HashMap::new(),
+            custom_call: None,
             custom_add: None,
             custom_subtract: None,
             custom_multiply: None,
@@ -171,6 +178,10 @@ impl PengUnit {
 
         for (name, value) in unit.custom_access.iter() {
             self.custom_access.insert(*name, value.clone());
+        }
+
+        if let Some(custom_call) = unit.custom_call.as_ref() {
+            self.custom_call = Some(custom_call.clone());
         }
 
         if let Some(custom_add) = unit.custom_add.as_ref() {
@@ -247,6 +258,13 @@ impl PengUnit {
     }
     pub fn custom_access_mut(&mut self) -> &mut HashMap<PengNamePoolPtr, PengNativeFunction> {
         &mut self.custom_access
+    }
+
+    pub fn custom_call(&self) -> Option<&PengNativeFunction> {
+        self.custom_call.as_ref()
+    }
+    pub fn custom_call_mut(&mut self) -> &mut Option<PengNativeFunction> {
+        &mut self.custom_call
     }
 
     pub fn custom_add(&self) -> Option<&PengNativeFunction> {
@@ -384,6 +402,17 @@ impl PengUnit {
                 call: Rc::new(function),
             },
         );
+        Ok(())
+    }
+
+    pub fn register_custom_call<F>(&mut self, function: F) -> Result<(), PengError>
+    where
+        F: Fn(&mut PengNativeFunctionCallContext) -> Result<PengBindedCell, PengError> + 'static,
+    {
+        self.custom_call = Some(PengNativeFunction {
+            call: Rc::new(function),
+        });
+
         Ok(())
     }
 

@@ -56,6 +56,7 @@ pub fn generate_program_using(
         program_init,
         globals,
         using_unit.custom_access().clone(),
+        using_unit.custom_call().cloned(),
         using_unit.custom_add().cloned(),
         using_unit.custom_subtract().cloned(),
         using_unit.custom_multiply().cloned(),
