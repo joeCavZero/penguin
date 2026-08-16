@@ -3846,6 +3846,7 @@ fn execute_callable_call(
 
     let callable_ptr = match callable.value() {
         PengCell::Reference(ptr) => Some(*ptr),
+
         _ => None,
     };
 
@@ -3867,10 +3868,26 @@ fn execute_callable_call(
         return env.execute_function_call(thread, args_count, is_try, call_position);
     }
 
-    let resolved = match resolve_custom_call(env, thread, unit, instruction.clone(), callable) {
-        Ok(resolved) => resolved,
-        Err(e) => return Err(e),
+    let is_object = match callable_ptr {
+        Some(ptr) => match env.get_heap(ptr) {
+            Some(PengValue::Box(PengBox::Object(_))) => true,
+
+            Some(_) => false,
+
+            None => {
+                return Err(PengError::HeapValueNotFound(ptr));
+            }
+        },
+
+        None => false,
     };
+
+    let resolved =
+        match resolve_custom_call(env, thread, unit, instruction.clone(), callable.clone()) {
+            Ok(resolved) => resolved,
+
+            Err(e) => return Err(e),
+        };
 
     let args = match env.get_thread_latest_n_binded_stated_cells_cloned(thread, args_count) {
         Ok(args) => args,
@@ -3904,6 +3921,26 @@ fn execute_callable_call(
         }
     }
 
+    let mut final_args_count = args_count;
+
+    if is_object {
+        match env.push_thread_binded_stated_cell(thread, callable) {
+            Ok(()) => {}
+
+            Err(e) => {
+                return Err(e.push(PengError::InvalidInstruction(instruction)));
+            }
+        }
+
+        final_args_count = match final_args_count.checked_add(1) {
+            Some(count) => count,
+
+            None => {
+                return Err(PengError::ArithmeticOverflow);
+            }
+        };
+    }
+
     for arg in args {
         match env.push_thread_binded_stated_cell(thread, arg) {
             Ok(()) => {}
@@ -3914,7 +3951,7 @@ fn execute_callable_call(
         }
     }
 
-    match env.execute_function_call(thread, args_count, is_try, call_position) {
+    match env.execute_function_call(thread, final_args_count, is_try, call_position) {
         Ok(()) => Ok(()),
 
         Err(e) => Err(e.push(PengError::InvalidInstruction(instruction))),
