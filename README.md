@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="docs/assets/penguin.png" width="200" />
+  <img src="docs/assets/penguin.png" width="400" />
 </div>
 
 <h1 align="center">PENGUIN</h1>
