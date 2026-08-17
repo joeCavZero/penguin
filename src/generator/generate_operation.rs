@@ -29,6 +29,7 @@ pub fn generate_operation_value(
     for param in params {
         context.create_local(param.value.name.value.clone());
     }
+    context.mark_frame_prefix_locals();
 
     match generate_statements(env, &mut context, body) {
         Ok(()) => {}
@@ -39,6 +40,7 @@ pub fn generate_operation_value(
         }
     }
 
+    context.prepend_frame_local_reserves(pos.clone());
     context.push_const_and_const_instruction(env, PengValue::Cell(PengCell::Nil), pos.clone());
     context.push_positioned_instruction(PengInstruction::Return, pos);
     debug_assert_eq!(context.bytecode.len(), context.positions.len());

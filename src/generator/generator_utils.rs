@@ -14,7 +14,10 @@ pub struct PengGeneratorContext {
     using_globals: HashMap<PengNamePoolPtr, PengBindedHeapPtr>,
 
     scopes: Vec<HashMap<String, usize>>,
+    scope_starts: Vec<usize>,
     next_local: usize,
+    allocated_locals: usize,
+    frame_prefix_locals: usize,
     loops: Vec<PengLoopContext>,
 }
 pub struct PengLoopContext {
@@ -34,7 +37,10 @@ impl PengGeneratorContext {
             using_globals: HashMap::new(),
 
             scopes: vec![HashMap::new()],
+            scope_starts: vec![0],
             next_local: 0,
+            allocated_locals: 0,
+            frame_prefix_locals: 0,
             loops: Vec::new(),
         }
     }
@@ -49,7 +55,10 @@ impl PengGeneratorContext {
             using_globals: self.using_globals.clone(),
 
             scopes: vec![HashMap::new()],
+            scope_starts: vec![0],
             next_local: 0,
+            allocated_locals: 0,
+            frame_prefix_locals: 0,
             loops: Vec::new(),
         }
     }
@@ -140,6 +149,7 @@ impl PengGeneratorContext {
     pub fn create_local(&mut self, name: String) -> usize {
         let local = self.next_local;
         self.next_local += 1;
+        self.mark_local_allocated(local);
 
         match self.scopes.last_mut() {
             Some(scope) => {
@@ -161,6 +171,57 @@ impl PengGeneratorContext {
         local
     }
 
+    pub fn mark_frame_prefix_locals(&mut self) {
+        self.frame_prefix_locals = self.next_local;
+    }
+
+    pub fn is_local_allocated(&self, local: usize) -> bool {
+        local < self.allocated_locals
+    }
+
+    pub fn mark_local_allocated(&mut self, local: usize) {
+        if local >= self.allocated_locals {
+            self.allocated_locals = local + 1;
+        }
+    }
+
+    pub fn prepend_frame_local_reserves(&mut self, pos: PengPosition) {
+        if self.allocated_locals <= self.frame_prefix_locals {
+            return;
+        }
+
+        let reserve_count = self.allocated_locals - self.frame_prefix_locals;
+        let mut bytecode = Vec::new();
+        let mut positions = Vec::new();
+
+        for local in self.frame_prefix_locals..self.allocated_locals {
+            bytecode.push(PengInstruction::ReserveLocal(local));
+            positions.push(pos.clone());
+        }
+
+        for instruction in &self.bytecode {
+            let instruction = match instruction {
+                PengInstruction::Jump(target) => PengInstruction::Jump(target + reserve_count),
+                PengInstruction::JumpIfTrue(target) => {
+                    PengInstruction::JumpIfTrue(target + reserve_count)
+                }
+                PengInstruction::JumpIfFalse(target) => {
+                    PengInstruction::JumpIfFalse(target + reserve_count)
+                }
+                _ => instruction.clone(),
+            };
+
+            bytecode.push(instruction);
+        }
+
+        for position in &self.positions {
+            positions.push(position.clone());
+        }
+
+        self.bytecode = bytecode;
+        self.positions = positions;
+    }
+
     pub fn insert_local(&mut self, name: String, local: usize) {
         match self.scopes.last_mut() {
             Some(scope) => {
@@ -176,11 +237,19 @@ impl PengGeneratorContext {
 
     pub fn push_scope(&mut self) {
         self.scopes.push(HashMap::new());
+        self.scope_starts.push(self.next_local);
     }
 
     pub fn pop_scope(&mut self) {
         if self.scopes.len() > 1 {
             self.scopes.pop();
+
+            match self.scope_starts.pop() {
+                Some(start) => {
+                    self.next_local = start;
+                }
+                None => {}
+            }
         }
     }
 
@@ -1330,7 +1399,10 @@ pub fn generate_reserved_temporary_local(
 ) -> usize {
     let local = context.create_temporary_local();
 
-    context.push_positioned_instruction(PengInstruction::ReserveLocal(local), pos);
+    if !context.is_local_allocated(local) {
+        context.push_positioned_instruction(PengInstruction::ReserveLocal(local), pos);
+        context.mark_local_allocated(local);
+    }
 
     local
 }
