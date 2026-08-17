@@ -178,6 +178,8 @@ pub fn generate_method_call(
     call: &PengMethodCallExpression,
     pos: PengPosition,
 ) -> Result<(), PengError> {
+    let object_local = generate_reserved_temporary_local(env, context, pos.clone());
+
     match generate_expression(env, context, &call.object) {
         Ok(()) => {}
 
@@ -188,11 +190,13 @@ pub fn generate_method_call(
         }
     }
 
+    context.push_positioned_instruction(PengInstruction::StoreLocal(object_local), pos.clone());
+
     let method = env.ensure_pooled_name_ptr(call.method.value.clone());
 
-    context.push_positioned_instruction(PengInstruction::Duplicate, pos.clone());
+    context.push_positioned_instruction(PengInstruction::PushLocal(object_local), pos.clone());
     context.push_positioned_instruction(PengInstruction::GetAttribute(method), pos.clone());
-    context.push_positioned_instruction(PengInstruction::Swap, pos.clone());
+    context.push_positioned_instruction(PengInstruction::PushLocal(object_local), pos.clone());
 
     for arg in &call.args {
         match generate_expression(env, context, &arg.value.expression) {

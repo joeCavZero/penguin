@@ -128,7 +128,7 @@ impl PengGeneratorContext {
                 None => break,
             };
 
-            if existing.equals(&value) {
+            if constant_values_equal(existing, &value) {
                 const_index = Some(index);
                 break;
             }
@@ -363,6 +363,28 @@ impl PengGeneratorContext {
         for jump in loop_context.continue_jumps {
             self.patch_jump(jump, continue_target);
         }
+    }
+}
+
+fn constant_values_equal(left: &PengValue, right: &PengValue) -> bool {
+    match (left, right) {
+        (PengValue::Cell(left), PengValue::Cell(right)) => constant_cells_equal(left, right),
+        (PengValue::Box(left), PengValue::Box(right)) => left.equals(right),
+        _ => false,
+    }
+}
+
+fn constant_cells_equal(left: &PengCell, right: &PengCell) -> bool {
+    match (left, right) {
+        (PengCell::Nil, PengCell::Nil) => true,
+        (PengCell::Int(left), PengCell::Int(right)) => left == right,
+        (PengCell::Uint(left), PengCell::Uint(right)) => left == right,
+        (PengCell::Float32(left), PengCell::Float32(right)) => left == right,
+        (PengCell::Float64(left), PengCell::Float64(right)) => left == right,
+        (PengCell::Byte(left), PengCell::Byte(right)) => left == right,
+        (PengCell::Bool(left), PengCell::Bool(right)) => left == right,
+        (PengCell::Reference(left), PengCell::Reference(right)) => left == right,
+        _ => false,
     }
 }
 

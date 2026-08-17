@@ -20,6 +20,82 @@ fn run_main(source: &str) -> Result<PengBindedCell, PengError> {
     env.run_global_function("main", &unit, Vec::new())
 }
 
+fn vector_len_access(ctx: &mut PengNativeFunctionCallContext) -> Result<PengBindedCell, PengError> {
+    let value = match ctx.get_arg_value(0) {
+        Some(value) => value,
+        None => {
+            return Err(PengError::InvalidState("missing len receiver".to_string()));
+        }
+    };
+
+    match value.value() {
+        PengValue::Box(PengBox::Vector(vector)) => {
+            Ok(PengBinded::Mutable(PengCell::Uint(vector.values.len())))
+        }
+        _ => Err(PengError::InvalidState(
+            "len receiver is not a vector".to_string(),
+        )),
+    }
+}
+
+fn native_sqrt(ctx: &mut PengNativeFunctionCallContext) -> Result<PengBindedCell, PengError> {
+    let value = match ctx.get_arg_cell(0) {
+        Some(value) => value.value().clone(),
+        None => {
+            return Err(PengError::InvalidState("missing sqrt argument".to_string()));
+        }
+    };
+
+    match value {
+        PengCell::Float32(value) => Ok(PengBinded::Mutable(PengCell::Float32(value.sqrt()))),
+        PengCell::Float64(value) => Ok(PengBinded::Mutable(PengCell::Float32(value.sqrt() as f32))),
+        PengCell::Int(value) => Ok(PengBinded::Mutable(PengCell::Float32(
+            (value as f32).sqrt(),
+        ))),
+        PengCell::Uint(value) => Ok(PengBinded::Mutable(PengCell::Float32(
+            (value as f32).sqrt(),
+        ))),
+        PengCell::Byte(value) => Ok(PengBinded::Mutable(PengCell::Float32(
+            (value as f32).sqrt(),
+        ))),
+        _ => Err(PengError::InvalidState(
+            "sqrt argument is not numeric".to_string(),
+        )),
+    }
+}
+
+fn run_main_with_native_len_and_sqrt(source: &str) -> Result<PengBindedCell, PengError> {
+    let mut env = PengEnv::new();
+    let mut using_unit = PengUnit::library();
+
+    match using_unit.register_custom_access(&mut env, "len", vector_len_access) {
+        Ok(()) => {}
+        Err(e) => return Err(e),
+    }
+
+    match using_unit.register_immutable_native_function(&mut env, "sqrt", native_sqrt) {
+        Ok(()) => {}
+        Err(e) => return Err(e),
+    }
+
+    let unit = match env.load_program_from_source_using(source, &using_unit, 0) {
+        Ok(unit) => unit,
+        Err(e) => return Err(e),
+    };
+
+    let init = match unit.require_init() {
+        Ok(init) => init,
+        Err(e) => return Err(e),
+    };
+
+    match env.run(init, &unit) {
+        Ok(_) => {}
+        Err(e) => return Err(e),
+    }
+
+    env.run_global_function("main", &unit, Vec::new())
+}
+
 fn assert_cell(result: &PengBindedCell, expected: PengCell) {
     assert!(result.value().equals(&expected));
 }
@@ -190,6 +266,374 @@ fn parameters_and_locals_keep_distinct_slots() {
 
     match result {
         Ok(cell) => assert_cell(&cell, PengCell::Int(18)),
+        Err(e) => panic!("main failed: {:?}", e),
+    }
+}
+
+#[test]
+fn indexed_value_passed_to_normal_call_preserves_loop_index() {
+    let result = run_main(
+        r#"
+        func get_length(value) {
+            return 1.0
+        }
+
+        func test(values) {
+            for (var i = 0; i < 3; i = i + 1) {
+                var result = get_length(values[i])
+
+                if i != 0 && i != 1 && i != 2 {
+                    return false
+                }
+            }
+
+            return true
+        }
+
+        func main() {
+            return test([1, 2, 3])
+        }
+        "#,
+    );
+
+    match result {
+        Ok(cell) => assert_cell(&cell, PengCell::Bool(true)),
+        Err(e) => panic!("main failed: {:?}", e),
+    }
+}
+
+#[test]
+fn indexed_receiver_method_call_preserves_loop_index() {
+    let result = run_main(
+        r#"
+        type V {
+            var value
+
+            func length(self) {
+                return 1.0
+            }
+        }
+
+        func test() {
+            var values = [
+                V:{ value = 1 },
+                V:{ value = 2 },
+                V:{ value = 3 }
+            ]
+
+            for (var i = 0; i < 3; i = i + 1) {
+                var result = values[i].length()
+
+                if i != 0 && i != 1 && i != 2 {
+                    return false
+                }
+            }
+
+            return true
+        }
+
+        func main() {
+            return test()
+        }
+        "#,
+    );
+
+    match result {
+        Ok(cell) => assert_cell(&cell, PengCell::Bool(true)),
+        Err(e) => panic!("main failed: {:?}", e),
+    }
+}
+
+#[test]
+fn indexed_receiver_method_call_as_nested_argument_preserves_loop_index() {
+    let result = run_main(
+        r#"
+        func scalar_close(left, right, epsilon) {
+            var diff = left - right
+
+            if diff < 0 {
+                diff = -diff
+            }
+
+            return diff <= epsilon
+        }
+
+        type V {
+            var value
+
+            func length(self) {
+                return 1.0
+            }
+        }
+
+        func test() {
+            var values = [
+                V:{ value = 1 },
+                V:{ value = 2 },
+                V:{ value = 3 }
+            ]
+
+            for (var i = 0; i < 3; i = i + 1) {
+                if !scalar_close(
+                    values[i].length(),
+                    1.0,
+                    0.000001
+                ) {
+                    return false
+                }
+            }
+
+            return true
+        }
+
+        func main() {
+            return test()
+        }
+        "#,
+    );
+
+    match result {
+        Ok(cell) => assert_cell(&cell, PengCell::Bool(true)),
+        Err(e) => panic!("main failed: {:?}", e),
+    }
+}
+
+#[test]
+fn native_len_in_for_condition_preserves_loop_index() {
+    let result = run_main_with_native_len_and_sqrt(
+        r#"
+        func test(values) {
+            for (var i = 0; i < values.len(); i = i + 1) {
+                if i != 0 && i != 1 && i != 2 {
+                    return false
+                }
+            }
+
+            return true
+        }
+
+        func main() {
+            return test([1, 2, 3])
+        }
+        "#,
+    );
+
+    match result {
+        Ok(cell) => assert_cell(&cell, PengCell::Bool(true)),
+        Err(e) => panic!("main failed: {:?}", e),
+    }
+}
+
+#[test]
+fn native_len_and_simple_bytecode_method_preserve_loop_index() {
+    let result = run_main_with_native_len_and_sqrt(
+        r#"
+        type V {
+            var value
+
+            func length(self) {
+                return 1.0
+            }
+        }
+
+        func test(values) {
+            for (var i = 0; i < values.len(); i = i + 1) {
+                var x = values[i].length()
+
+                if i != 0 && i != 1 && i != 2 {
+                    return false
+                }
+            }
+
+            return true
+        }
+
+        func main() {
+            return test([
+                V:{ value = 1 },
+                V:{ value = 2 },
+                V:{ value = 3 }
+            ])
+        }
+        "#,
+    );
+
+    match result {
+        Ok(cell) => assert_cell(&cell, PengCell::Bool(true)),
+        Err(e) => panic!("main failed: {:?}", e),
+    }
+}
+
+#[test]
+fn native_len_and_nested_bytecode_methods_preserve_loop_index() {
+    let result = run_main_with_native_len_and_sqrt(
+        r#"
+        type V {
+            var value
+
+            func dot(self, other) {
+                var result = 0.0
+
+                for (var j = 0; j < 3; j = j + 1) {
+                    result = result + 0.33333334
+                }
+
+                return result
+            }
+
+            func length_squared(self) {
+                return self.dot(self)
+            }
+
+            func length(self) {
+                return self.length_squared()
+            }
+        }
+
+        func test(values) {
+            for (var i = 0; i < values.len(); i = i + 1) {
+                var x = values[i].length()
+
+                if i != 0 && i != 1 && i != 2 {
+                    return false
+                }
+            }
+
+            return true
+        }
+
+        func main() {
+            return test([
+                V:{ value = 1 },
+                V:{ value = 2 },
+                V:{ value = 3 }
+            ])
+        }
+        "#,
+    );
+
+    match result {
+        Ok(cell) => assert_cell(&cell, PengCell::Bool(true)),
+        Err(e) => panic!("main failed: {:?}", e),
+    }
+}
+
+#[test]
+fn native_return_inside_bytecode_method_preserves_loop_index() {
+    let result = run_main_with_native_len_and_sqrt(
+        r#"
+        type V {
+            var value
+
+            func dot(self, other) {
+                var result = 0.0
+
+                for (var j = 0; j < 3; j = j + 1) {
+                    result = result + 0.33333334
+                }
+
+                return result
+            }
+
+            func length_squared(self) {
+                return self.dot(self)
+            }
+
+            func length(self) {
+                return sqrt(self.length_squared())
+            }
+        }
+
+        func test(values) {
+            for (var i = 0; i < values.len(); i = i + 1) {
+                var x = values[i].length()
+
+                if i != 0 && i != 1 && i != 2 {
+                    return false
+                }
+            }
+
+            return true
+        }
+
+        func main() {
+            return test([
+                V:{ value = 1 },
+                V:{ value = 2 },
+                V:{ value = 3 }
+            ])
+        }
+        "#,
+    );
+
+    match result {
+        Ok(cell) => assert_cell(&cell, PengCell::Bool(true)),
+        Err(e) => panic!("main failed: {:?}", e),
+    }
+}
+
+#[test]
+fn native_len_nested_methods_native_return_and_scalar_close_preserve_loop_index() {
+    let result = run_main_with_native_len_and_sqrt(
+        r#"
+        func scalar_close(left, right, epsilon) {
+            var difference = left - right
+
+            if difference < 0 {
+                difference = -difference
+            }
+
+            return difference <= epsilon
+        }
+
+        type V {
+            var value
+
+            func dot(self, other) {
+                var result = 0.0
+
+                for (var j = 0; j < 3; j = j + 1) {
+                    result = result + 0.33333334
+                }
+
+                return result
+            }
+
+            func length_squared(self) {
+                return self.dot(self)
+            }
+
+            func length(self) {
+                return sqrt(self.length_squared())
+            }
+        }
+
+        func test(values) {
+            for (var i = 0; i < values.len(); i = i + 1) {
+                if !scalar_close(
+                    values[i].length(),
+                    1.0,
+                    0.000001
+                ) {
+                    return false
+                }
+            }
+
+            return true
+        }
+
+        func main() {
+            return test([
+                V:{ value = 1 },
+                V:{ value = 2 },
+                V:{ value = 3 }
+            ])
+        }
+        "#,
+    );
+
+    match result {
+        Ok(cell) => assert_cell(&cell, PengCell::Bool(true)),
         Err(e) => panic!("main failed: {:?}", e),
     }
 }
