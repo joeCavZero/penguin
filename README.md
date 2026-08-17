@@ -37,6 +37,11 @@ The language is implemented entirely in Rust and exposes a clean API for integra
 - Dynamic typing
 - Bytecode virtual machine
 - Garbage collected runtime
+- Program and script execution modes
+- Functions, methods, operations and modules
+- Vectors, objects and structural custom types
+- Mutable and immutable bindings
+- Optional type hints and runtime conversions
 - Object-oriented programming
 - Native Rust API
 - Binary compilation support
@@ -45,21 +50,30 @@ The language is implemented entirely in Rust and exposes a clean API for integra
 
 ## Example
 
-An example of penguin code using the [pabble](https://github.com/joeCavZero/pabble) ecosystem
-```go
-import("io") as io
+An example of Penguin code using only the core language:
 
-func factorial(n) {
-    if n <= 1 {
-        return 1
+```go
+type Counter {
+    var value: int
+
+    func next(self) -> int {
+        self.value += 1
+        return self.value
+    }
+}
+
+func sum(values: [any]) -> int {
+    var total = 0
+
+    for (var i = 0; i < 3; i = i + 1) {
+        total += values[i]
     }
 
-    return n * factorial(n - 1)
+    return total
 }
 
-func main() {
-    io:println(factorial(10))
-}
+var counter = Counter:{ value = 0 }
+return sum([counter.next(), counter.next(), counter.next()])
 ```
 
 ## Embedding
@@ -71,6 +85,10 @@ use penguin::prelude::*;
 ```
 
 Native functions, objects, modules and custom libraries can be registered directly through the runtime API.
+
+Penguin itself does not require a standard library or an external ecosystem to
+run. Hosts can provide their own native functions, modules, custom accessors, and
+custom operations through `PengUnit`.
 
 ## Goals
 

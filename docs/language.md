@@ -4,6 +4,11 @@ This guide derives the syntax from `src/lexer/token.rs`, the parsers in `src/par
 and the AST structures in `src/parser/parser.rs`. The examples are minimal and do
 not depend on external modules.
 
+Penguin is dynamically typed at runtime. Type hints are accepted by the parser and
+used by conversion/checking paths, but values still carry their runtime shape:
+scalars are cells, and heap-backed values are references to boxes such as strings,
+vectors, objects, modules, types, functions, operations, and threads.
+
 ## Program and Script Modes
 
 `parse_program` accepts only top-level declarations. `parse_script` accepts any
@@ -70,6 +75,11 @@ var pending: any
 const name: string = "Penguin"
 ```
 
+Bindings are mutable or immutable; the value itself is stored as a binded cell.
+Assigning to an immutable binding is an error. This applies to locals, globals,
+object fields, vector elements, and module members when they carry an immutable
+binding.
+
 The type names accepted by the parser are `nil`, `int`, `uint`, `f32`, `f64`,
 `byte`, `bool`, `string`, `any`, `type`, `mod`, `func`, `oper`, `thread`, custom
 types, and vectors `[T]`. The runtime representation is `PengType` in
@@ -85,6 +95,10 @@ var wide = 12 as f64
 The implemented conversions include numeric conversions, value-to-`string`
 conversion in scalar cases, vector item checks, and structural checks for custom
 types. The exact combinations and their errors are in `src/core/value.rs`.
+
+Numeric equality is semantic at runtime: for example, `1 == 1.0` is true. Literal
+types are still preserved in bytecode constants, so an integer literal and a
+float literal are not interchangeable as stored constants.
 
 ## Functions
 
@@ -108,6 +122,13 @@ Anonymous literals use `func (...) { ... }`
 (`src/parser/parse_function_literal.rs`). `return` accepts an optional expression
 and is compiled into `Return` (`src/parser/parse_return_statement.rs`,
 `src/generator/generate_statement.rs`).
+
+Calling a Penguin function evaluates the callable first, then the arguments from
+left to right. If too few arguments are supplied, missing fixed parameters are
+filled with `nil`; if too many arguments are supplied to a fixed function, the
+extra arguments are ignored by the callee setup. Variadic functions receive the
+remaining arguments as a vector in the final parameter. The call setup is in
+`PengEnv::execute_function_call`.
 
 ## Control Flow
 
@@ -136,6 +157,19 @@ are defined in their respective `src/parser/parse_*_statement.rs` files and
 generated in `src/generator/generate_loops.rs` and
 `src/generator/generate_statement.rs`.
 
+A `for` initializer has its own scope. The loop condition and increment can still
+see locals declared by the initializer:
+
+```penguin
+for (var i = 0; i < 3; i = i + 1) {
+    // i is visible here
+}
+```
+
+Locals declared inside the body are scoped to the body block. Slot reuse after a
+scope ends is an implementation detail; programs should rely only on lexical
+visibility.
+
 `match` compares each pattern by equality and accepts `else` only as the last arm:
 
 ```penguin
@@ -161,8 +195,9 @@ return numbers[1]
 
 Defined in `src/parser/parse_vector_literal.rs` and `src/core/vector.rs`;
 `GetIndex` and `SetIndex` are executed in `src/core/runtime.rs`. Indices accept
-`int`, `uint`, or `byte` cells; negative values and out-of-bounds positions
-produce an error.
+`int` or `uint` cells; negative values and out-of-bounds positions produce an
+error. Numeric equality may consider floats and integers equal, but indexing does
+not convert floats to integers.
 
 Object literals are maps of fields that are mutable by default:
 
@@ -192,6 +227,11 @@ var p = Point:{ x = 2, y = 3 }
 var total = p.sum()
 ```
 
+Method calls are ordinary function calls with the receiver passed as the first
+argument. `p.sum()` is generated as a lookup of `sum` on `p`, followed by a call
+whose first argument is `p` itself. The method body receives that value through
+the parameter convention; by style it is normally named `self`.
+
 Structural inheritance is written as `type Child: Parent, Other { ... }`. Types,
 construction, access, and calls are defined in
 `src/parser/parse_type_declaration_statement.rs`, `src/parser/parse_expression.rs`,
@@ -217,6 +257,29 @@ inside a module does not directly resolve another member of the same module
 observable limitation in `src/generator/generator_utils.rs`. There is no `import`
 syntax in the lexer/parser of this repository.
 
+## Native Extension Points
+
+The core language can call functions and operations provided by the host. A host
+registers them in a `PengUnit` and loads source with the `*_using` APIs. From the
+language side, a native function looks like any other function:
+
+```penguin
+var root = sqrt(9.0)
+```
+
+Custom access lets the host provide attributes for values that do not physically
+store those attributes. For example, a host can register `len`, making
+`values.len()` resolve to a native function through `GetAttribute`, then call it
+with `values` as `self`.
+
+```penguin
+for (var i = 0; i < values.len(); i = i + 1) {
+    // values.len() may be a native custom access supplied by the host
+}
+```
+
+This is a Penguin runtime feature, not syntax tied to a particular library.
+
 ## Operations and Operators
 
 Operations are named binary callables, always with exactly two parameters. The
@@ -235,14 +298,14 @@ var result = 20 combine 22
 
 Built-in operators inferred from the AST and opcodes:
 
-| Category      | Operators                                |   |           |   |
-| ------------- | ---------------------------------------- | - | --------- | - |
-| arithmetic    | `+`, `-`, `*`, `/`, `**`, `%`            |   |           |   |
-| concatenation | `..`                                     |   |           |   |
-| comparison    | `==`, `!=`, `<`, `<=`, `>`, `>=`         |   |           |   |
-| logical       | `!`, `&&`, `                             |   | `, `&`, ` | ` |
-| assignment    | `=`, `+=`, `-=`, `*=`, `/=`, `**=`, `%=` |   |           |   |
-| conversion    | `as`                                     |   |           |   |
+| Category      | Operators                                |
+| ------------- | ---------------------------------------- |
+| arithmetic    | `+`, `-`, `*`, `/`, `**`, `%`            |
+| concatenation | `..`                                     |
+| comparison    | `==`, `!=`, `<`, `<=`, `>`, `>=`         |
+| logical       | `!`, `&&`, `||`, `&`, `|`                |
+| assignment    | `=`, `+=`, `-=`, `*=`, `/=`, `**=`, `%=` |
+| conversion    | `as`                                     |
 
 `&&` and `||` short-circuit in the generator; `&` and `|` always evaluate both
 sides. Defined in `src/parser/parser.rs`, parsed in

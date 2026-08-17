@@ -132,6 +132,20 @@ All are defined in `src/core/unit.rs`; the contexts are in `src/core/context.rs`
 compiling source, prefer passing the library to `load_*_from_source_using` so the
 generator can resolve these names.
 
+Custom access is how a host can attach behavior to values without storing a real
+field on every value. The runtime consults it when `GetAttribute` cannot find the
+requested attribute directly. The custom access callback returns a callable cell;
+the source can then call it like a method:
+
+```penguin
+for (var i = 0; i < values.len(); i = i + 1) {
+    // len can be supplied by the embedding host
+}
+```
+
+At runtime this follows the normal method-call convention: `values.len()` resolves
+the `len` callable and passes `values` as the first argument.
+
 ## Main Public APIs
 
 | Need              | API                                                    | Origin                       |
